@@ -1,0 +1,51 @@
+# UniEdit Server Configuration
+# Copy this file to config.yaml and modify as needed
+
+server:
+  address: ":8080"
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: ""  # Set via UNIEDIT_DB_PASSWORD env var
+  database: uniedit
+  ssl_mode: disable
+  max_open_conns: 25
+  max_idle_conns: 10
+  conn_max_lifetime: 1h
+  conn_max_idle_time: 30m
+
+redis:
+  address: localhost:6379
+  password: ""  # Set via UNIEDIT_REDIS_PASSWORD env var
+  db: 0
+
+ai:
+  health_check_interval: 30s
+  failure_threshold: 5
+  success_threshold: 2
+  circuit_timeout: 60s
+  task_cleanup_interval: 5m
+  task_retention_period: 24h
+  max_concurrent_tasks: 100
+  embedding_cache_ttl: 24h
+
+auth:
+  jwt_secret: ""  # Set via UNIEDIT_JWT_SECRET env var (required)
+  access_token_expiry: 15m
+  refresh_token_expiry: 168h  # 7 days
+
+storage:
+  endpoint: ""
+  region: auto
+  access_key_id: ""
+  secret_access_key: ""  # Set via UNIEDIT_STORAGE_SECRET_KEY env var
+  bucket: uniedit-storage
+
+log:
+  level: info  # debug, info, warn, error
+  format: json  # json, text
