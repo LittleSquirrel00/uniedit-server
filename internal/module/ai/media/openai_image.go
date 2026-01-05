@@ -34,7 +34,7 @@ func (a *OpenAIImageAdapter) Type() provider.ProviderType {
 // SupportsCapability checks if the adapter supports a capability.
 func (a *OpenAIImageAdapter) SupportsCapability(cap provider.Capability) bool {
 	switch cap {
-	case provider.CapabilityImageGeneration:
+	case provider.CapabilityImage:
 		return true
 	default:
 		return false

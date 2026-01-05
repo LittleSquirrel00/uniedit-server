@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/uniedit/server/internal/module/ai/adapter"
 	"github.com/uniedit/server/internal/module/ai/llm"
 )
 
@@ -136,12 +135,25 @@ type EmbeddingRequest struct {
 	Input []string `json:"input"`
 }
 
+// EmbeddingObject represents a single embedding in the response.
+type EmbeddingObject struct {
+	Object    string    `json:"object"`
+	Embedding []float64 `json:"embedding"`
+	Index     int       `json:"index"`
+}
+
+// EmbeddingUsage represents token usage for embeddings.
+type EmbeddingUsage struct {
+	PromptTokens int `json:"prompt_tokens"`
+	TotalTokens  int `json:"total_tokens"`
+}
+
 // EmbeddingResponse represents an embedding API response.
 type EmbeddingResponse struct {
-	Object string                     `json:"object"`
-	Data   []*adapter.EmbeddingObject `json:"data"`
-	Model  string                     `json:"model"`
-	Usage  *adapter.EmbedUsage        `json:"usage"`
+	Object string             `json:"object"`
+	Data   []*EmbeddingObject `json:"data"`
+	Model  string             `json:"model"`
+	Usage  *EmbeddingUsage    `json:"usage"`
 }
 
 // Embeddings handles embedding requests.
@@ -176,11 +188,29 @@ func (h *ChatHandler) Embeddings(c *gin.Context) {
 		return
 	}
 
+	// Convert to OpenAI-compatible response format
+	data := make([]*EmbeddingObject, len(resp.Embeddings))
+	for i, emb := range resp.Embeddings {
+		data[i] = &EmbeddingObject{
+			Object:    "embedding",
+			Embedding: emb,
+			Index:     i,
+		}
+	}
+
+	var usage *EmbeddingUsage
+	if resp.Usage != nil {
+		usage = &EmbeddingUsage{
+			PromptTokens: resp.Usage.PromptTokens,
+			TotalTokens:  resp.Usage.TotalTokens,
+		}
+	}
+
 	c.JSON(http.StatusOK, &EmbeddingResponse{
 		Object: "list",
-		Data:   resp.Data,
+		Data:   data,
 		Model:  resp.Model,
-		Usage:  resp.Usage,
+		Usage:  usage,
 	})
 }
 

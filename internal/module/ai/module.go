@@ -22,18 +22,17 @@ import (
 type Module struct {
 	// Repositories
 	providerRepo provider.Repository
-	modelRepo    provider.ModelRepository
 	groupRepo    group.Repository
 	taskRepo     task.Repository
 
 	// Core components
-	registry       *provider.Registry
-	healthMonitor  *provider.HealthMonitor
+	registry        *provider.Registry
+	healthMonitor   *provider.HealthMonitor
 	adapterRegistry *adapter.Registry
-	routingManager *routing.Manager
-	groupManager   *group.Manager
-	taskManager    *task.Manager
-	embeddingCache *cache.EmbeddingCache
+	routingManager  *routing.Manager
+	groupManager    *group.Manager
+	taskManager     *task.Manager
+	embeddingCache  *cache.EmbeddingCache
 
 	// Services
 	llmService   *llm.Service
@@ -71,7 +70,6 @@ func NewModule(config *Config) (*Module, error) {
 
 	// Initialize repositories
 	m.providerRepo = provider.NewRepository(config.DB)
-	m.modelRepo = provider.NewModelRepository(config.DB)
 	m.groupRepo = group.NewRepository(config.DB)
 	m.taskRepo = task.NewRepository(config.DB)
 
@@ -79,7 +77,7 @@ func NewModule(config *Config) (*Module, error) {
 	m.adapterRegistry = adapter.GetRegistry()
 
 	// Initialize provider registry
-	m.registry = provider.NewRegistry(m.providerRepo, m.modelRepo, nil)
+	m.registry = provider.NewRegistry(m.providerRepo, nil)
 
 	// Initialize health monitor (adapter registry implements HealthChecker)
 	m.healthMonitor = provider.NewHealthMonitor(m.registry, m.adapterRegistry, config.HealthCheckConfig)
@@ -108,7 +106,6 @@ func NewModule(config *Config) (*Module, error) {
 		m.mediaService,
 		m.taskManager,
 		m.providerRepo,
-		m.modelRepo,
 		m.groupRepo,
 		m.registry,
 		m.groupManager,

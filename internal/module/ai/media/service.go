@@ -62,7 +62,7 @@ type ImageGenerationResponse struct {
 // GenerateImage generates images synchronously.
 func (s *Service) GenerateImage(ctx context.Context, userID uuid.UUID, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
 	// Find image generation model
-	model, prov, err := s.findModel(req.Model, provider.CapabilityImageGeneration)
+	model, prov, err := s.findModel(req.Model, provider.CapabilityImage)
 	if err != nil {
 		return nil, err
 	}
@@ -126,10 +126,16 @@ func (s *Service) GenerateVideo(ctx context.Context, userID uuid.UUID, req *Vide
 		return nil, fmt.Errorf("prompt, input_image, or input_video required")
 	}
 
-	// Serialize request as task input
-	inputPayload, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
+	// Convert request to map for task input
+	inputPayload := map[string]any{
+		"prompt":       req.Prompt,
+		"input_image":  req.InputImage,
+		"input_video":  req.InputVideo,
+		"duration":     req.Duration,
+		"aspect_ratio": req.AspectRatio,
+		"resolution":   req.Resolution,
+		"fps":          req.FPS,
+		"model":        req.Model,
 	}
 
 	// Submit task
@@ -175,8 +181,10 @@ func (s *Service) GetVideoStatus(ctx context.Context, userID uuid.UUID, taskID s
 
 	// Parse output if completed
 	if t.Status == task.StatusCompleted && t.Output != nil {
+		// Convert map to GeneratedVideo
+		outputBytes, _ := json.Marshal(t.Output)
 		var video GeneratedVideo
-		if err := json.Unmarshal(t.Output, &video); err == nil {
+		if err := json.Unmarshal(outputBytes, &video); err == nil {
 			resp.Video = &video
 		}
 	}
@@ -191,16 +199,21 @@ func (s *Service) GetVideoStatus(ctx context.Context, userID uuid.UUID, taskID s
 
 // executeImageTask executes an image generation task.
 func (s *Service) executeImageTask(ctx context.Context, t *task.Task, onProgress func(int)) error {
-	// Parse request
+	// Parse request from map
+	inputBytes, err := json.Marshal(t.Input)
+	if err != nil {
+		return fmt.Errorf("marshal input: %w", err)
+	}
+
 	var req ImageGenerationRequest
-	if err := json.Unmarshal(t.Input, &req); err != nil {
+	if err := json.Unmarshal(inputBytes, &req); err != nil {
 		return fmt.Errorf("unmarshal request: %w", err)
 	}
 
 	onProgress(10)
 
 	// Find model
-	model, prov, err := s.findModel(req.Model, provider.CapabilityImageGeneration)
+	model, prov, err := s.findModel(req.Model, provider.CapabilityImage)
 	if err != nil {
 		return err
 	}
@@ -234,25 +247,32 @@ func (s *Service) executeImageTask(ctx context.Context, t *task.Task, onProgress
 
 	onProgress(90)
 
-	// Store output
-	output, _ := json.Marshal(resp)
-	t.Output = output
+	// Store output as map
+	outputBytes, _ := json.Marshal(resp)
+	var outputMap map[string]any
+	json.Unmarshal(outputBytes, &outputMap)
+	t.Output = outputMap
 
 	return nil
 }
 
 // executeVideoTask executes a video generation task.
 func (s *Service) executeVideoTask(ctx context.Context, t *task.Task, onProgress func(int)) error {
-	// Parse request
+	// Parse request from map
+	inputBytes, err := json.Marshal(t.Input)
+	if err != nil {
+		return fmt.Errorf("marshal input: %w", err)
+	}
+
 	var req VideoGenerationRequest
-	if err := json.Unmarshal(t.Input, &req); err != nil {
+	if err := json.Unmarshal(inputBytes, &req); err != nil {
 		return fmt.Errorf("unmarshal request: %w", err)
 	}
 
 	onProgress(10)
 
 	// Find model
-	model, prov, err := s.findModel(req.Model, provider.CapabilityVideoGeneration)
+	model, prov, err := s.findModel(req.Model, provider.CapabilityVideo)
 	if err != nil {
 		return err
 	}
@@ -308,9 +328,11 @@ func (s *Service) executeVideoTask(ctx context.Context, t *task.Task, onProgress
 
 		switch status.Status {
 		case VideoStateCompleted:
-			// Store output
-			output, _ := json.Marshal(status.Video)
-			t.Output = output
+			// Store output as map
+			outputBytes, _ := json.Marshal(status.Video)
+			var outputMap map[string]any
+			json.Unmarshal(outputBytes, &outputMap)
+			t.Output = outputMap
 			return nil
 		case VideoStateFailed:
 			return fmt.Errorf("video generation failed: %s", status.Error)

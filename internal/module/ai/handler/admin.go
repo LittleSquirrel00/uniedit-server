@@ -11,24 +11,21 @@ import (
 
 // AdminHandler handles admin API requests for AI configuration.
 type AdminHandler struct {
-	providerRepo  provider.Repository
-	modelRepo     provider.ModelRepository
-	groupRepo     group.Repository
-	registry      *provider.Registry
-	groupManager  *group.Manager
+	providerRepo provider.Repository
+	groupRepo    group.Repository
+	registry     *provider.Registry
+	groupManager *group.Manager
 }
 
 // NewAdminHandler creates a new admin handler.
 func NewAdminHandler(
 	providerRepo provider.Repository,
-	modelRepo provider.ModelRepository,
 	groupRepo group.Repository,
 	registry *provider.Registry,
 	groupManager *group.Manager,
 ) *AdminHandler {
 	return &AdminHandler{
 		providerRepo: providerRepo,
-		modelRepo:    modelRepo,
 		groupRepo:    groupRepo,
 		registry:     registry,
 		groupManager: groupManager,
@@ -67,7 +64,7 @@ func (h *AdminHandler) RegisterRoutes(r *gin.RouterGroup) {
 // ListProviders lists all providers.
 // GET /api/v1/admin/ai/providers
 func (h *AdminHandler) ListProviders(c *gin.Context) {
-	providers, err := h.providerRepo.List(c.Request.Context(), true)
+	providers, err := h.providerRepo.ListProviders(c.Request.Context(), false)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -81,12 +78,14 @@ func (h *AdminHandler) ListProviders(c *gin.Context) {
 
 // CreateProviderRequest represents a provider creation request.
 type CreateProviderRequest struct {
-	Name      string                 `json:"name" binding:"required"`
-	Type      provider.ProviderType  `json:"type" binding:"required"`
-	BaseURL   string                 `json:"base_url" binding:"required"`
-	APIKey    string                 `json:"api_key" binding:"required"`
-	Config    map[string]interface{} `json:"config,omitempty"`
-	IsEnabled bool                   `json:"is_enabled"`
+	Name     string                 `json:"name" binding:"required"`
+	Type     provider.ProviderType  `json:"type" binding:"required"`
+	BaseURL  string                 `json:"base_url" binding:"required"`
+	APIKey   string                 `json:"api_key" binding:"required"`
+	Options  map[string]interface{} `json:"options,omitempty"`
+	Weight   int                    `json:"weight"`
+	Priority int                    `json:"priority"`
+	Enabled  bool                   `json:"enabled"`
 }
 
 // CreateProvider creates a new provider.
@@ -99,16 +98,18 @@ func (h *AdminHandler) CreateProvider(c *gin.Context) {
 	}
 
 	p := &provider.Provider{
-		ID:        uuid.New(),
-		Name:      req.Name,
-		Type:      req.Type,
-		BaseURL:   req.BaseURL,
-		APIKey:    req.APIKey,
-		Config:    req.Config,
-		IsEnabled: req.IsEnabled,
+		ID:       uuid.New(),
+		Name:     req.Name,
+		Type:     req.Type,
+		BaseURL:  req.BaseURL,
+		APIKey:   req.APIKey,
+		Options:  req.Options,
+		Weight:   req.Weight,
+		Priority: req.Priority,
+		Enabled:  req.Enabled,
 	}
 
-	if err := h.providerRepo.Create(c.Request.Context(), p); err != nil {
+	if err := h.providerRepo.CreateProvider(c.Request.Context(), p); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -128,7 +129,7 @@ func (h *AdminHandler) GetProvider(c *gin.Context) {
 		return
 	}
 
-	p, err := h.providerRepo.Get(c.Request.Context(), id)
+	p, err := h.providerRepo.GetProvider(c.Request.Context(), id)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -139,11 +140,13 @@ func (h *AdminHandler) GetProvider(c *gin.Context) {
 
 // UpdateProviderRequest represents a provider update request.
 type UpdateProviderRequest struct {
-	Name      *string                 `json:"name,omitempty"`
-	BaseURL   *string                 `json:"base_url,omitempty"`
-	APIKey    *string                 `json:"api_key,omitempty"`
-	Config    *map[string]interface{} `json:"config,omitempty"`
-	IsEnabled *bool                   `json:"is_enabled,omitempty"`
+	Name     *string                 `json:"name,omitempty"`
+	BaseURL  *string                 `json:"base_url,omitempty"`
+	APIKey   *string                 `json:"api_key,omitempty"`
+	Options  *map[string]interface{} `json:"options,omitempty"`
+	Weight   *int                    `json:"weight,omitempty"`
+	Priority *int                    `json:"priority,omitempty"`
+	Enabled  *bool                   `json:"enabled,omitempty"`
 }
 
 // UpdateProvider updates a provider.
@@ -161,7 +164,7 @@ func (h *AdminHandler) UpdateProvider(c *gin.Context) {
 		return
 	}
 
-	p, err := h.providerRepo.Get(c.Request.Context(), id)
+	p, err := h.providerRepo.GetProvider(c.Request.Context(), id)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -177,14 +180,20 @@ func (h *AdminHandler) UpdateProvider(c *gin.Context) {
 	if req.APIKey != nil {
 		p.APIKey = *req.APIKey
 	}
-	if req.Config != nil {
-		p.Config = *req.Config
+	if req.Options != nil {
+		p.Options = *req.Options
 	}
-	if req.IsEnabled != nil {
-		p.IsEnabled = *req.IsEnabled
+	if req.Weight != nil {
+		p.Weight = *req.Weight
+	}
+	if req.Priority != nil {
+		p.Priority = *req.Priority
+	}
+	if req.Enabled != nil {
+		p.Enabled = *req.Enabled
 	}
 
-	if err := h.providerRepo.Update(c.Request.Context(), p); err != nil {
+	if err := h.providerRepo.UpdateProvider(c.Request.Context(), p); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -204,7 +213,7 @@ func (h *AdminHandler) DeleteProvider(c *gin.Context) {
 		return
 	}
 
-	if err := h.providerRepo.Delete(c.Request.Context(), id); err != nil {
+	if err := h.providerRepo.DeleteProvider(c.Request.Context(), id); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -220,7 +229,7 @@ func (h *AdminHandler) DeleteProvider(c *gin.Context) {
 // ListModels lists all models.
 // GET /api/v1/admin/ai/models
 func (h *AdminHandler) ListModels(c *gin.Context) {
-	models, err := h.modelRepo.List(c.Request.Context(), true)
+	models, err := h.providerRepo.ListModels(c.Request.Context(), nil, false)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -236,14 +245,14 @@ func (h *AdminHandler) ListModels(c *gin.Context) {
 type CreateModelRequest struct {
 	ID              string                 `json:"id" binding:"required"`
 	ProviderID      uuid.UUID              `json:"provider_id" binding:"required"`
-	DisplayName     string                 `json:"display_name,omitempty"`
+	Name            string                 `json:"name" binding:"required"`
 	Capabilities    []provider.Capability  `json:"capabilities" binding:"required"`
 	InputCostPer1K  float64                `json:"input_cost_per_1k,omitempty"`
 	OutputCostPer1K float64                `json:"output_cost_per_1k,omitempty"`
 	ContextWindow   int                    `json:"context_window,omitempty"`
-	MaxOutput       int                    `json:"max_output,omitempty"`
-	Config          map[string]interface{} `json:"config,omitempty"`
-	IsEnabled       bool                   `json:"is_enabled"`
+	MaxOutputTokens int                    `json:"max_output_tokens,omitempty"`
+	Options         map[string]interface{} `json:"options,omitempty"`
+	Enabled         bool                   `json:"enabled"`
 }
 
 // CreateModel creates a new model.
@@ -264,17 +273,17 @@ func (h *AdminHandler) CreateModel(c *gin.Context) {
 	m := &provider.Model{
 		ID:              req.ID,
 		ProviderID:      req.ProviderID,
-		DisplayName:     req.DisplayName,
+		Name:            req.Name,
 		Capabilities:    caps,
 		InputCostPer1K:  req.InputCostPer1K,
 		OutputCostPer1K: req.OutputCostPer1K,
 		ContextWindow:   req.ContextWindow,
-		MaxOutput:       req.MaxOutput,
-		Config:          req.Config,
-		IsEnabled:       req.IsEnabled,
+		MaxOutputTokens: req.MaxOutputTokens,
+		Options:         req.Options,
+		Enabled:         req.Enabled,
 	}
 
-	if err := h.modelRepo.Create(c.Request.Context(), m); err != nil {
+	if err := h.providerRepo.CreateModel(c.Request.Context(), m); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -294,7 +303,7 @@ func (h *AdminHandler) GetModel(c *gin.Context) {
 		return
 	}
 
-	m, err := h.modelRepo.Get(c.Request.Context(), id)
+	m, err := h.providerRepo.GetModel(c.Request.Context(), id)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -305,14 +314,14 @@ func (h *AdminHandler) GetModel(c *gin.Context) {
 
 // UpdateModelRequest represents a model update request.
 type UpdateModelRequest struct {
-	DisplayName     *string                 `json:"display_name,omitempty"`
+	Name            *string                 `json:"name,omitempty"`
 	Capabilities    *[]provider.Capability  `json:"capabilities,omitempty"`
 	InputCostPer1K  *float64                `json:"input_cost_per_1k,omitempty"`
 	OutputCostPer1K *float64                `json:"output_cost_per_1k,omitempty"`
 	ContextWindow   *int                    `json:"context_window,omitempty"`
-	MaxOutput       *int                    `json:"max_output,omitempty"`
-	Config          *map[string]interface{} `json:"config,omitempty"`
-	IsEnabled       *bool                   `json:"is_enabled,omitempty"`
+	MaxOutputTokens *int                    `json:"max_output_tokens,omitempty"`
+	Options         *map[string]interface{} `json:"options,omitempty"`
+	Enabled         *bool                   `json:"enabled,omitempty"`
 }
 
 // UpdateModel updates a model.
@@ -330,15 +339,15 @@ func (h *AdminHandler) UpdateModel(c *gin.Context) {
 		return
 	}
 
-	m, err := h.modelRepo.Get(c.Request.Context(), id)
+	m, err := h.providerRepo.GetModel(c.Request.Context(), id)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
 	// Apply updates
-	if req.DisplayName != nil {
-		m.DisplayName = *req.DisplayName
+	if req.Name != nil {
+		m.Name = *req.Name
 	}
 	if req.Capabilities != nil {
 		caps := make([]string, len(*req.Capabilities))
@@ -356,17 +365,17 @@ func (h *AdminHandler) UpdateModel(c *gin.Context) {
 	if req.ContextWindow != nil {
 		m.ContextWindow = *req.ContextWindow
 	}
-	if req.MaxOutput != nil {
-		m.MaxOutput = *req.MaxOutput
+	if req.MaxOutputTokens != nil {
+		m.MaxOutputTokens = *req.MaxOutputTokens
 	}
-	if req.Config != nil {
-		m.Config = *req.Config
+	if req.Options != nil {
+		m.Options = *req.Options
 	}
-	if req.IsEnabled != nil {
-		m.IsEnabled = *req.IsEnabled
+	if req.Enabled != nil {
+		m.Enabled = *req.Enabled
 	}
 
-	if err := h.modelRepo.Update(c.Request.Context(), m); err != nil {
+	if err := h.providerRepo.UpdateModel(c.Request.Context(), m); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -386,7 +395,7 @@ func (h *AdminHandler) DeleteModel(c *gin.Context) {
 		return
 	}
 
-	if err := h.modelRepo.Delete(c.Request.Context(), id); err != nil {
+	if err := h.providerRepo.DeleteModel(c.Request.Context(), id); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -416,13 +425,14 @@ func (h *AdminHandler) ListGroups(c *gin.Context) {
 
 // CreateGroupRequest represents a group creation request.
 type CreateGroupRequest struct {
-	ID          string            `json:"id" binding:"required"`
-	Name        string            `json:"name" binding:"required"`
-	Description string            `json:"description,omitempty"`
-	TaskType    group.TaskType    `json:"task_type" binding:"required"`
-	Models      []string          `json:"models" binding:"required"`
-	Strategy    *group.Strategy   `json:"strategy,omitempty"`
-	IsEnabled   bool              `json:"is_enabled"`
+	ID                   string               `json:"id" binding:"required"`
+	Name                 string               `json:"name" binding:"required"`
+	TaskType             group.TaskType       `json:"task_type" binding:"required"`
+	Models               []string             `json:"models" binding:"required"`
+	Strategy             *group.StrategyConfig `json:"strategy,omitempty"`
+	Fallback             *group.FallbackConfig `json:"fallback,omitempty"`
+	RequiredCapabilities []string             `json:"required_capabilities,omitempty"`
+	Enabled              bool                 `json:"enabled"`
 }
 
 // CreateGroup creates a new group.
@@ -435,18 +445,19 @@ func (h *AdminHandler) CreateGroup(c *gin.Context) {
 	}
 
 	g := &group.Group{
-		ID:          req.ID,
-		Name:        req.Name,
-		Description: req.Description,
-		TaskType:    req.TaskType,
-		Models:      req.Models,
-		Strategy:    req.Strategy,
-		IsEnabled:   req.IsEnabled,
+		ID:                   req.ID,
+		Name:                 req.Name,
+		TaskType:             req.TaskType,
+		Models:               req.Models,
+		Strategy:             req.Strategy,
+		Fallback:             req.Fallback,
+		RequiredCapabilities: req.RequiredCapabilities,
+		Enabled:              req.Enabled,
 	}
 
 	// Set default strategy
 	if g.Strategy == nil {
-		g.Strategy = &group.Strategy{Type: group.StrategyPriority}
+		g.Strategy = &group.StrategyConfig{Type: group.StrategyPriority}
 	}
 
 	if err := h.groupRepo.Create(c.Request.Context(), g); err != nil {
@@ -480,11 +491,12 @@ func (h *AdminHandler) GetGroup(c *gin.Context) {
 
 // UpdateGroupRequest represents a group update request.
 type UpdateGroupRequest struct {
-	Name        *string         `json:"name,omitempty"`
-	Description *string         `json:"description,omitempty"`
-	Models      *[]string       `json:"models,omitempty"`
-	Strategy    *group.Strategy `json:"strategy,omitempty"`
-	IsEnabled   *bool           `json:"is_enabled,omitempty"`
+	Name                 *string               `json:"name,omitempty"`
+	Models               *[]string             `json:"models,omitempty"`
+	Strategy             *group.StrategyConfig `json:"strategy,omitempty"`
+	Fallback             *group.FallbackConfig `json:"fallback,omitempty"`
+	RequiredCapabilities *[]string             `json:"required_capabilities,omitempty"`
+	Enabled              *bool                 `json:"enabled,omitempty"`
 }
 
 // UpdateGroup updates a group.
@@ -512,17 +524,20 @@ func (h *AdminHandler) UpdateGroup(c *gin.Context) {
 	if req.Name != nil {
 		g.Name = *req.Name
 	}
-	if req.Description != nil {
-		g.Description = *req.Description
-	}
 	if req.Models != nil {
 		g.Models = *req.Models
 	}
 	if req.Strategy != nil {
 		g.Strategy = req.Strategy
 	}
-	if req.IsEnabled != nil {
-		g.IsEnabled = *req.IsEnabled
+	if req.Fallback != nil {
+		g.Fallback = req.Fallback
+	}
+	if req.RequiredCapabilities != nil {
+		g.RequiredCapabilities = *req.RequiredCapabilities
+	}
+	if req.Enabled != nil {
+		g.Enabled = *req.Enabled
 	}
 
 	if err := h.groupRepo.Update(c.Request.Context(), g); err != nil {

@@ -23,7 +23,6 @@ func NewHandlers(
 	mediaService *media.Service,
 	taskManager *task.Manager,
 	providerRepo provider.Repository,
-	modelRepo provider.ModelRepository,
 	groupRepo group.Repository,
 	registry *provider.Registry,
 	groupManager *group.Manager,
@@ -32,7 +31,7 @@ func NewHandlers(
 		Chat:  NewChatHandler(llmService),
 		Media: NewMediaHandler(mediaService),
 		Task:  NewTaskHandler(taskManager),
-		Admin: NewAdminHandler(providerRepo, modelRepo, groupRepo, registry, groupManager),
+		Admin: NewAdminHandler(providerRepo, groupRepo, registry, groupManager),
 	}
 }
 

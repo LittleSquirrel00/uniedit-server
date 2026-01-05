@@ -1,6 +1,7 @@
 package adapter
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -79,4 +80,14 @@ func (r *Registry) Types() []provider.ProviderType {
 		types = append(types, t)
 	}
 	return types
+}
+
+// HealthCheck performs a health check on a provider using the appropriate adapter.
+// This implements the provider.HealthChecker interface.
+func (r *Registry) HealthCheck(ctx context.Context, prov *provider.Provider) error {
+	adapter, err := r.Get(prov.Type)
+	if err != nil {
+		return fmt.Errorf("get adapter: %w", err)
+	}
+	return adapter.HealthCheck(ctx, prov)
 }
