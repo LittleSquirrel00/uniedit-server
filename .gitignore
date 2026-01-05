@@ -1,0 +1,79 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Build output
+dist/
+build/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Keys and secrets
+*.pem
+*.key
+*.crt
+*.p12
+
+# Config overrides
+config.local.yaml
+config.local.json
+
+# Air live reload
+.air.toml
+tmp/
+
+# Delve debugger
+__debug_bin*
+
+# Go profiling
+*.prof
+*.pprof
+
+# Docker
+docker-compose.override.yml

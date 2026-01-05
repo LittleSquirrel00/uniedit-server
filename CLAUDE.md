@@ -204,10 +204,10 @@ Q3: 是否易于扩展测试？   → 考虑可维护性
 • 扩展性：[评估]
 
 【实施步骤】
-1. 定义接口
-2. 实现具体逻辑
-3. 编写测试
-4. 更新文档
+1. 定义接口和类型
+2. 实现抽象层
+3. 编写具体实现
+4. 编写测试
 ```
 
 ---
@@ -219,7 +219,7 @@ Q3: 是否易于扩展测试？   → 考虑可维护性
 ```
 S - Single Responsibility  → 单一职责：一个模块只做一件事
 O - Open/Closed           → 开闭原则：对扩展开放，对修改关闭
-L - Liskov Substitution   → 里氏替换：实现可替换接口
+L - Liskov Substitution   → 里氏替换：子类可替换父类
 I - Interface Segregation → 接口隔离：接口小而专一
 D - Dependency Inversion  → 依赖倒置：依赖抽象而非具体
 ```
