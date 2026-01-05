@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS ai_tasks;
+DROP TABLE IF EXISTS ai_groups;
+DROP TABLE IF EXISTS ai_models;
+DROP TABLE IF EXISTS ai_providers;

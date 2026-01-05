@@ -3,7 +3,13 @@
     "allow": [
       "Bash(wc:*)",
       "Bash(tree:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Skill(openspec:proposal)",
+      "Skill(openspec:proposal:*)",
+      "Bash(openspec validate:*)",
+      "Bash(openspec show:*)",
+      "Bash(go build:*)",
+      "Bash(go mod tidy:*)"
     ]
   }
 }
