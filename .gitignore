@@ -31,11 +31,16 @@ go.work.sum
 .DS_Store
 Thumbs.db
 
-# Environment
+# Environment and secrets
 .env
 .env.local
 .env.*.local
 *.env
+
+# Config files (use config.example.yaml as template)
+config.yaml
+config.local.yaml
+config.local.json
 
 # Logs
 logs/
@@ -47,7 +52,6 @@ temp/
 
 # Build output
 dist/
-build/
 
 # Database
 *.db
@@ -60,13 +64,8 @@ build/
 *.crt
 *.p12
 
-# Config overrides
-config.local.yaml
-config.local.json
-
 # Air live reload
 .air.toml
-tmp/
 
 # Delve debugger
 __debug_bin*
@@ -77,3 +76,12 @@ __debug_bin*
 
 # Docker
 docker-compose.override.yml
+
+# Wire generated files (optional - can be committed)
+# wire_gen.go
+
+# Mage binary
+mage_output_file.go
+
+# Claude Code
+.claude/plans/

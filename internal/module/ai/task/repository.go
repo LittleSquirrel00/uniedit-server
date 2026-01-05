@@ -23,6 +23,7 @@ type Repository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, status Status, progress int) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListPendingOrRunning(ctx context.Context) ([]*Task, error)
+	ListByExternalTaskID(ctx context.Context) ([]*Task, error)
 	CountByUserAndStatus(ctx context.Context, userID uuid.UUID, status Status) (int64, error)
 }
 
@@ -174,4 +175,17 @@ func (r *repository) CountByUserAndStatus(ctx context.Context, userID uuid.UUID,
 		return 0, fmt.Errorf("count tasks: %w", err)
 	}
 	return count, nil
+}
+
+// ListByExternalTaskID lists all running tasks with an external task ID.
+func (r *repository) ListByExternalTaskID(ctx context.Context) ([]*Task, error) {
+	var tasks []*Task
+	err := r.db.WithContext(ctx).
+		Where("status = ? AND external_task_id IS NOT NULL AND external_task_id != ''", StatusRunning).
+		Order("created_at ASC").
+		Find(&tasks).Error
+	if err != nil {
+		return nil, fmt.Errorf("list external tasks: %w", err)
+	}
+	return tasks, nil
 }

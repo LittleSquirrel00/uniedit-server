@@ -10,7 +10,15 @@ import (
 )
 
 // Executor defines the function signature for task executors.
+// It can return an external task ID if the task is async (requires polling).
 type Executor func(ctx context.Context, task *Task, onProgress func(int)) error
+
+// ExternalTaskPoller defines the interface for polling external task status.
+type ExternalTaskPoller interface {
+	// PollStatus polls the status of an external task.
+	// Returns progress (0-100), completed status, output (if completed), and error.
+	PollStatus(ctx context.Context, task *Task) (progress int, completed bool, output map[string]any, err error)
+}
 
 // Manager manages AI tasks.
 type Manager struct {
@@ -18,9 +26,13 @@ type Manager struct {
 
 	repo      Repository
 	executors map[Type]Executor
+	pollers   map[Type]ExternalTaskPoller
+
+	// Configuration
+	config *ManagerConfig
 
 	// Concurrency control
-	semaphore chan struct{}
+	semaphore     chan struct{}
 	maxConcurrent int
 
 	// Progress subscriptions
@@ -33,13 +45,19 @@ type Manager struct {
 
 // ManagerConfig contains manager configuration.
 type ManagerConfig struct {
-	MaxConcurrent int
+	MaxConcurrent   int
+	PollInterval    time.Duration
+	PollTimeout     time.Duration
+	MaxPollAttempts int
 }
 
 // DefaultManagerConfig returns the default manager configuration.
 func DefaultManagerConfig() *ManagerConfig {
 	return &ManagerConfig{
-		MaxConcurrent: 10,
+		MaxConcurrent:   10,
+		PollInterval:    5 * time.Second,
+		PollTimeout:     30 * time.Minute,
+		MaxPollAttempts: 360, // 30 minutes at 5 second intervals
 	}
 }
 
@@ -52,6 +70,8 @@ func NewManager(repo Repository, config *ManagerConfig) *Manager {
 	return &Manager{
 		repo:          repo,
 		executors:     make(map[Type]Executor),
+		pollers:       make(map[Type]ExternalTaskPoller),
+		config:        config,
 		semaphore:     make(chan struct{}, config.MaxConcurrent),
 		maxConcurrent: config.MaxConcurrent,
 		subscribers:   make(map[uuid.UUID][]func(*Task)),
@@ -64,6 +84,11 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Recover pending tasks
 	if err := m.RecoverPendingTasks(ctx); err != nil {
 		return fmt.Errorf("recover pending tasks: %w", err)
+	}
+
+	// Recover external polling tasks
+	if err := m.RecoverExternalTasks(ctx); err != nil {
+		return fmt.Errorf("recover external tasks: %w", err)
 	}
 
 	return nil
@@ -82,7 +107,14 @@ func (m *Manager) RegisterExecutor(taskType Type, executor Executor) {
 	m.executors[taskType] = executor
 }
 
-// Submit submits a new task.
+// RegisterPoller registers an external task poller for a task type.
+func (m *Manager) RegisterPoller(taskType Type, poller ExternalTaskPoller) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pollers[taskType] = poller
+}
+
+// Submit submits a new task for immediate execution.
 func (m *Manager) Submit(ctx context.Context, userID uuid.UUID, input *Input) (*Task, error) {
 	task := &Task{
 		ID:        uuid.New(),
@@ -102,6 +134,34 @@ func (m *Manager) Submit(ctx context.Context, userID uuid.UUID, input *Input) (*
 	// Start execution in background
 	m.wg.Add(1)
 	go m.executeTask(task)
+
+	return task, nil
+}
+
+// SubmitExternal submits a task that requires external polling.
+// The externalTaskID is the ID returned by the external service.
+func (m *Manager) SubmitExternal(ctx context.Context, userID uuid.UUID, input *Input, externalTaskID string, providerID *uuid.UUID, modelID string) (*Task, error) {
+	task := &Task{
+		ID:             uuid.New(),
+		UserID:         userID,
+		Type:           input.Type,
+		Status:         StatusRunning, // External tasks start as running
+		Progress:       0,
+		Input:          input.Payload,
+		ExternalTaskID: externalTaskID,
+		ProviderID:     providerID,
+		ModelID:        modelID,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+
+	if err := m.repo.Create(ctx, task); err != nil {
+		return nil, fmt.Errorf("create task: %w", err)
+	}
+
+	// Start polling in background
+	m.wg.Add(1)
+	go m.pollExternalTask(task)
 
 	return task, nil
 }
@@ -270,4 +330,99 @@ func (m *Manager) notifySubscribers(task *Task) {
 	for _, sub := range subs {
 		sub(task)
 	}
+}
+
+// pollExternalTask polls an external task until completion.
+func (m *Manager) pollExternalTask(task *Task) {
+	defer m.wg.Done()
+
+	ctx := context.Background()
+
+	// Get poller for task type
+	m.mu.RLock()
+	poller, ok := m.pollers[task.Type]
+	m.mu.RUnlock()
+
+	if !ok {
+		m.failTask(ctx, task, "no poller registered for task type")
+		return
+	}
+
+	ticker := time.NewTicker(m.config.PollInterval)
+	defer ticker.Stop()
+
+	timeout := time.NewTimer(m.config.PollTimeout)
+	defer timeout.Stop()
+
+	attempts := 0
+
+	for {
+		select {
+		case <-m.stopCh:
+			return
+
+		case <-timeout.C:
+			m.failTask(ctx, task, "task polling timed out")
+			return
+
+		case <-ticker.C:
+			attempts++
+			if attempts > m.config.MaxPollAttempts {
+				m.failTask(ctx, task, "exceeded maximum poll attempts")
+				return
+			}
+
+			// Poll external task status
+			pollCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			progress, completed, output, err := poller.PollStatus(pollCtx, task)
+			cancel()
+
+			if err != nil {
+				// Log error but continue polling
+				continue
+			}
+
+			// Update progress
+			if progress != task.Progress {
+				task.Progress = progress
+				task.UpdatedAt = time.Now()
+				_ = m.repo.UpdateStatus(ctx, task.ID, task.Status, progress)
+				m.notifySubscribers(task)
+			}
+
+			// Check if completed
+			if completed {
+				task.Status = StatusCompleted
+				task.Progress = 100
+				task.Output = output
+				now := time.Now()
+				task.CompletedAt = &now
+				task.UpdatedAt = now
+
+				if err := m.repo.Update(ctx, task); err != nil {
+					return
+				}
+				m.notifySubscribers(task)
+				return
+			}
+		}
+	}
+}
+
+// RecoverExternalTasks recovers external tasks that were polling when server stopped.
+func (m *Manager) RecoverExternalTasks(ctx context.Context) error {
+	tasks, err := m.repo.ListByExternalTaskID(ctx)
+	if err != nil {
+		return fmt.Errorf("list external tasks: %w", err)
+	}
+
+	for _, task := range tasks {
+		if task.Status == StatusRunning && task.ExternalTaskID != "" {
+			// Resume polling
+			m.wg.Add(1)
+			go m.pollExternalTask(task)
+		}
+	}
+
+	return nil
 }
