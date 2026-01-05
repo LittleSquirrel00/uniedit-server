@@ -35,9 +35,19 @@ ai:
   embedding_cache_ttl: 24h
 
 auth:
-  jwt_secret: ""  # Set via UNIEDIT_JWT_SECRET env var (required)
+  jwt_secret: ""  # Set via UNIEDIT_JWT_SECRET env var (required, min 32 chars)
   access_token_expiry: 15m
   refresh_token_expiry: 168h  # 7 days
+  master_key: ""  # Set via UNIEDIT_MASTER_KEY env var (required, 32 chars for AES-256)
+  oauth:
+    github:
+      client_id: ""      # Set via UNIEDIT_GITHUB_CLIENT_ID env var
+      client_secret: ""  # Set via UNIEDIT_GITHUB_CLIENT_SECRET env var
+      redirect_url: "http://localhost:8080/api/v1/auth/callback"
+    google:
+      client_id: ""      # Set via UNIEDIT_GOOGLE_CLIENT_ID env var
+      client_secret: ""  # Set via UNIEDIT_GOOGLE_CLIENT_SECRET env var
+      redirect_url: "http://localhost:8080/api/v1/auth/callback"
 
 storage:
   endpoint: ""

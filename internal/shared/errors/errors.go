@@ -8,22 +8,26 @@ import (
 
 // Common error types.
 var (
-	ErrNotFound      = errors.New("resource not found")
-	ErrUnauthorized  = errors.New("unauthorized")
-	ErrForbidden     = errors.New("forbidden")
-	ErrBadRequest    = errors.New("bad request")
-	ErrConflict      = errors.New("resource conflict")
-	ErrInternal      = errors.New("internal error")
-	ErrQuotaExceeded = errors.New("quota exceeded")
-	ErrRateLimited   = errors.New("rate limited")
+	ErrNotFound         = errors.New("resource not found")
+	ErrUnauthorized     = errors.New("unauthorized")
+	ErrForbidden        = errors.New("forbidden")
+	ErrBadRequest       = errors.New("bad request")
+	ErrConflict         = errors.New("resource conflict")
+	ErrInternal         = errors.New("internal error")
+	ErrQuotaExceeded    = errors.New("quota exceeded")
+	ErrRateLimited      = errors.New("rate limited")
+	ErrTimeout          = errors.New("timeout")
+	ErrServiceUnavail   = errors.New("service unavailable")
+	ErrPreconditionFail = errors.New("precondition failed")
 )
 
 // AppError represents an application error with HTTP status and error code.
 type AppError struct {
-	Code       string `json:"code"`
-	Message    string `json:"message"`
-	StatusCode int    `json:"-"`
-	Err        error  `json:"-"`
+	Code       string         `json:"code"`
+	Message    string         `json:"message"`
+	Details    map[string]any `json:"details,omitempty"`
+	StatusCode int            `json:"-"`
+	Err        error          `json:"-"`
 }
 
 // Error implements the error interface.
@@ -193,7 +197,86 @@ func GetStatusCode(err error) int {
 		return http.StatusPaymentRequired
 	case errors.Is(err, ErrRateLimited):
 		return http.StatusTooManyRequests
+	case errors.Is(err, ErrTimeout):
+		return http.StatusGatewayTimeout
+	case errors.Is(err, ErrServiceUnavail):
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}
+}
+
+// WithDetails adds details to the error.
+func (e *AppError) WithDetails(details map[string]any) *AppError {
+	e.Details = details
+	return e
+}
+
+// WithError wraps an underlying error.
+func (e *AppError) WithError(err error) *AppError {
+	e.Err = err
+	return e
+}
+
+// Is reports whether target matches this error.
+func (e *AppError) Is(target error) bool {
+	if t, ok := target.(*AppError); ok {
+		return e.Code == t.Code
+	}
+	return errors.Is(e.Err, target)
+}
+
+// --- Additional Error Constructors ---
+
+// Timeout creates a timeout error.
+func Timeout(message string) *AppError {
+	if message == "" {
+		message = "request timeout"
+	}
+	return &AppError{
+		Code:       "TIMEOUT",
+		Message:    message,
+		StatusCode: http.StatusGatewayTimeout,
+		Err:        ErrTimeout,
+	}
+}
+
+// ServiceUnavailable creates a service unavailable error.
+func ServiceUnavailable(message string) *AppError {
+	if message == "" {
+		message = "service temporarily unavailable"
+	}
+	return &AppError{
+		Code:       "SERVICE_UNAVAILABLE",
+		Message:    message,
+		StatusCode: http.StatusServiceUnavailable,
+		Err:        ErrServiceUnavail,
+	}
+}
+
+// --- Error Checking Helpers ---
+
+// IsNotFound checks if the error is a not found error.
+func IsNotFound(err error) bool {
+	return errors.Is(err, ErrNotFound)
+}
+
+// IsUnauthorized checks if the error is an unauthorized error.
+func IsUnauthorized(err error) bool {
+	return errors.Is(err, ErrUnauthorized)
+}
+
+// IsForbidden checks if the error is a forbidden error.
+func IsForbidden(err error) bool {
+	return errors.Is(err, ErrForbidden)
+}
+
+// IsConflict checks if the error is a conflict error.
+func IsConflict(err error) bool {
+	return errors.Is(err, ErrConflict)
+}
+
+// IsRateLimited checks if the error is a rate limited error.
+func IsRateLimited(err error) bool {
+	return errors.Is(err, ErrRateLimited)
 }

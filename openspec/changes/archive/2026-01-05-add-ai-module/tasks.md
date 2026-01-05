@@ -29,7 +29,7 @@
 - [x] 3.3 Implement HealthMonitor with health check scheduler
 - [x] 3.4 Implement CircuitBreaker using sony/gobreaker
 - [x] 3.5 Integrate health status with ProviderRegistry
-- [ ] 3.6 Write unit tests for registry and health monitoring
+- [x] 3.6 Write unit tests for registry and health monitoring (59.1% coverage)
 
 ## 4. Routing System ✅
 
@@ -44,7 +44,7 @@
 - [x] 4.9 Implement RoutingManager with group support
 - [x] 4.10 Implement GroupManager with 7 selection strategies
 - [x] 4.11 Implement fallback logic for group routing
-- [ ] 4.12 Write unit tests for strategies and routing
+- [x] 4.12 Write unit tests for strategies and routing (60.3% coverage)
 
 ## 5. Task System ✅
 
@@ -54,7 +54,7 @@
 - [x] 5.4 Implement external task polling mechanism
 - [x] 5.5 Implement task recovery on server startup
 - [x] 5.6 Implement progress subscription (in-memory pub/sub)
-- [ ] 5.7 Write unit tests for task management
+- [x] 5.7 Write unit tests for task management (55.6% coverage)
 
 ## 6. Media Service ✅
 
@@ -113,21 +113,22 @@
 |-------|--------|------------|
 | 1. Database | ✅ Complete | 100% |
 | 2. Adapter | ✅ Complete | 90% (missing tests) |
-| 3. Provider | ✅ Complete | 90% (missing tests) |
-| 4. Routing | ✅ Complete | 90% (missing tests) |
-| 5. Task | ✅ Complete | 90% (missing tests) |
+| 3. Provider | ✅ Complete | 100% (59.1% coverage) |
+| 4. Routing | ✅ Complete | 100% (60.3% coverage) |
+| 5. Task | ✅ Complete | 100% (55.6% coverage) |
 | 6. Media | ✅ Complete | 85% (missing video adapter, tests) |
 | 7. LLM | ✅ Complete | 90% (missing tests) |
 | 8. Handler | ✅ Complete | 95% (missing auth middleware) |
-| 9. Testing | ⏳ Pending | 0% |
+| 9. Testing | ⏳ Pending | 10% (unit tests added) |
 | 10. Docs | 🔄 Partial | 50% |
 
-**Overall: ~85%**
+**Overall: ~90%**
 
 ## Remaining Priority Tasks
 
 ### P1 - Quality
-- [ ] 2.7, 3.6, 4.12, 5.7, 6.8, 7.6 Unit tests for all modules
+- [x] 3.6, 4.12, 5.7 Unit tests for core modules (provider, routing, task)
+- [ ] 2.7, 6.8, 7.6 Unit tests for remaining modules (adapter, media, llm)
 - [ ] 9.1-9.4 Integration tests
 
 ### P2 - Polish

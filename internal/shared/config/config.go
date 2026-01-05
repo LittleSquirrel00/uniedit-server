@@ -73,6 +73,21 @@ type AuthConfig struct {
 	JWTSecret          string        `mapstructure:"jwt_secret"`
 	AccessTokenExpiry  time.Duration `mapstructure:"access_token_expiry"`
 	RefreshTokenExpiry time.Duration `mapstructure:"refresh_token_expiry"`
+	MasterKey          string        `mapstructure:"master_key"` // For API key encryption
+	OAuth              OAuthConfig   `mapstructure:"oauth"`
+}
+
+// OAuthConfig holds OAuth provider configurations.
+type OAuthConfig struct {
+	GitHub OAuthProviderConfig `mapstructure:"github"`
+	Google OAuthProviderConfig `mapstructure:"google"`
+}
+
+// OAuthProviderConfig holds configuration for a single OAuth provider.
+type OAuthProviderConfig struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL  string `mapstructure:"redirect_url"`
 }
 
 // StorageConfig holds object storage configuration.
@@ -126,6 +141,9 @@ func Load() (*Config, error) {
 	if secret := os.Getenv("UNIEDIT_JWT_SECRET"); secret != "" {
 		cfg.Auth.JWTSecret = secret
 	}
+	if masterKey := os.Getenv("UNIEDIT_MASTER_KEY"); masterKey != "" {
+		cfg.Auth.MasterKey = masterKey
+	}
 	if password := os.Getenv("UNIEDIT_DB_PASSWORD"); password != "" {
 		cfg.Database.Password = password
 	}
@@ -134,6 +152,19 @@ func Load() (*Config, error) {
 	}
 	if key := os.Getenv("UNIEDIT_STORAGE_SECRET_KEY"); key != "" {
 		cfg.Storage.SecretAccessKey = key
+	}
+	// OAuth credentials from environment
+	if clientID := os.Getenv("UNIEDIT_GITHUB_CLIENT_ID"); clientID != "" {
+		cfg.Auth.OAuth.GitHub.ClientID = clientID
+	}
+	if clientSecret := os.Getenv("UNIEDIT_GITHUB_CLIENT_SECRET"); clientSecret != "" {
+		cfg.Auth.OAuth.GitHub.ClientSecret = clientSecret
+	}
+	if clientID := os.Getenv("UNIEDIT_GOOGLE_CLIENT_ID"); clientID != "" {
+		cfg.Auth.OAuth.Google.ClientID = clientID
+	}
+	if clientSecret := os.Getenv("UNIEDIT_GOOGLE_CLIENT_SECRET"); clientSecret != "" {
+		cfg.Auth.OAuth.Google.ClientSecret = clientSecret
 	}
 
 	return &cfg, nil

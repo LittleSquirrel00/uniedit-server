@@ -16,7 +16,12 @@
       "Bash(go install:*)",
       "Bash(wire:*)",
       "Bash(mage:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Skill(openspec:archive)",
+      "Skill(openspec:archive:*)",
+      "Bash(openspec list:*)",
+      "Bash(openspec archive add-ai-module:*)",
+      "Bash(cat:*)"
     ]
   }
 }

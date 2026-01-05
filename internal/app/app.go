@@ -13,6 +13,7 @@ import (
 	sharedcache "github.com/uniedit/server/internal/shared/cache"
 	"github.com/uniedit/server/internal/shared/config"
 	"github.com/uniedit/server/internal/shared/database"
+	"github.com/uniedit/server/internal/shared/logger"
 	"github.com/uniedit/server/internal/shared/middleware"
 	"gorm.io/gorm"
 )
@@ -23,6 +24,7 @@ type App struct {
 	db     *gorm.DB
 	redis  redis.UniversalClient
 	router *gin.Engine
+	logger *logger.Logger
 
 	// Modules
 	aiModule *ai.Module
@@ -30,8 +32,15 @@ type App struct {
 
 // New creates a new application instance.
 func New(cfg *config.Config) (*App, error) {
+	// Initialize logger
+	log := logger.New(&logger.Config{
+		Level:  cfg.Log.Level,
+		Format: cfg.Log.Format,
+	})
+
 	app := &App{
 		config: cfg,
+		logger: log,
 	}
 
 	// Initialize database
@@ -81,8 +90,9 @@ func (a *App) setupRouter() *gin.Engine {
 	r := gin.New()
 
 	// Apply global middleware
-	r.Use(middleware.Recovery())
+	r.Use(middleware.Recovery(a.logger))
 	r.Use(middleware.RequestID())
+	r.Use(middleware.Logging(a.logger))
 	r.Use(middleware.CORS(middleware.DefaultCORSConfig()))
 
 	// Health check endpoint
