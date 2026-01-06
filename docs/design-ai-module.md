@@ -1,8 +1,8 @@
 # AI 模块设计文档
 
-> **版本**: v1.0 | **更新**: 2026-01-05
-> **范围**: Provider、Adapter、Model、Routing、Grouping、Config、Task、Media
-> **目标**: 完整的 AI 代理服务，支持多提供商、智能路由、媒体生成
+> **版本**: v1.1 | **更新**: 2026-01-06
+> **范围**: Provider、Adapter、Model、Routing、Grouping、Config、Task、Media、SDK 兼容 API
+> **目标**: 完整的 AI 代理服务，支持多提供商、智能路由、媒体生成、OpenAI/Anthropic SDK 兼容
 
 ---
 
@@ -929,3 +929,272 @@ POST /api/v1/admin/ai/groups:
 - 错误包装 `fmt.Errorf("xxx: %w", err)`
 - Context 贯穿调用链
 - sync.RWMutex 保护共享状态
+
+---
+
+## 九、SDK 兼容 API
+
+### 9.1 设计目标
+
+让用户可以使用官方 SDK（openai-python、anthropic-sdk 等）直接访问 UniEdit 服务，只需更改 base URL。
+
+### 9.2 架构设计
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       API Layer                                  │
+├────────────────┬────────────────────┬──────────────────────────┤
+│  /api/v1/ai/*  │  /v1/chat/...      │  /v1/messages            │
+│  (UniEdit)     │  (OpenAI Compat)   │  (Anthropic Compat)      │
+├────────────────┴────────────────────┴──────────────────────────┤
+│                    Format Translation                           │
+│  ┌──────────────────┐         ┌────────────────────┐           │
+│  │ OpenAI Adapter   │         │ Anthropic Adapter  │           │
+│  │ - toInternal()   │         │ - toInternal()     │           │
+│  │ - toOpenAI()     │         │ - toAnthropic()    │           │
+│  └──────────────────┘         └────────────────────┘           │
+├─────────────────────────────────────────────────────────────────┤
+│                    LLM Service (Existing)                       │
+│  Chat() / ChatStream() / Embed()                                │
+├─────────────────────────────────────────────────────────────────┤
+│                    Adapter Layer (Existing)                     │
+│  OpenAI / Anthropic / Generic Adapters                          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 9.3 新增端点
+
+#### OpenAI 兼容端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/v1/chat/completions` | 聊天完成（支持流式） |
+| POST | `/v1/embeddings` | 文本嵌入 |
+| GET | `/v1/models` | 列出可用模型 |
+
+#### Anthropic 兼容端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/v1/messages` | 消息 API（支持流式） |
+
+### 9.4 OpenAI 格式
+
+#### 请求格式
+
+```json
+{
+  "model": "gpt-4o",
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Hello!"}
+  ],
+  "temperature": 0.7,
+  "max_tokens": 1000,
+  "stream": false
+}
+```
+
+#### 响应格式
+
+```json
+{
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion",
+  "created": 1704067200,
+  "model": "gpt-4o",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! How can I help you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 20,
+    "completion_tokens": 10,
+    "total_tokens": 30
+  }
+}
+```
+
+#### 流式响应格式
+
+```
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+```
+
+### 9.5 Anthropic 格式
+
+#### 请求格式
+
+```json
+{
+  "model": "claude-opus-4-5-20251101",
+  "max_tokens": 1024,
+  "system": "You are a helpful assistant.",
+  "messages": [
+    {"role": "user", "content": "Hello!"}
+  ]
+}
+```
+
+#### 响应格式
+
+```json
+{
+  "id": "msg_abc123",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-5-20251101",
+  "content": [
+    {
+      "type": "text",
+      "text": "Hello! How can I help you today?"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 20,
+    "output_tokens": 10
+  }
+}
+```
+
+#### 流式响应格式
+
+```
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_abc123","type":"message","role":"assistant","model":"claude-opus-4-5-20251101","content":[],"stop_reason":null}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"!"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":10}}
+
+event: message_stop
+data: {"type":"message_stop"}
+```
+
+### 9.6 错误响应格式
+
+#### OpenAI 错误格式
+
+```json
+{
+  "error": {
+    "message": "Invalid API key provided",
+    "type": "invalid_request_error",
+    "code": "invalid_api_key"
+  }
+}
+```
+
+#### Anthropic 错误格式
+
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "authentication_error",
+    "message": "Invalid API key provided"
+  }
+}
+```
+
+### 9.7 使用示例
+
+#### OpenAI Python SDK
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="your-uniedit-api-key",
+    base_url="https://api.uniedit.io/v1"
+)
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {"role": "user", "content": "Hello!"}
+    ]
+)
+print(response.choices[0].message.content)
+```
+
+#### Anthropic Python SDK
+
+```python
+import anthropic
+
+client = anthropic.Anthropic(
+    api_key="your-uniedit-api-key",
+    base_url="https://api.uniedit.io/v1"
+)
+
+message = client.messages.create(
+    model="claude-opus-4-5-20251101",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello!"}
+    ]
+)
+print(message.content[0].text)
+```
+
+### 9.8 实现文件
+
+```
+internal/module/ai/handler/
+├── openai_compat.go       # OpenAI 兼容 Handler
+├── anthropic_compat.go    # Anthropic 兼容 Handler
+├── compat_types.go        # SDK 格式类型定义
+└── routes.go              # 更新路由注册
+```
+
+### 9.9 认证方式
+
+支持两种认证方式：
+
+1. **Bearer Token**（推荐）
+   ```
+   Authorization: Bearer sk-xxx
+   ```
+
+2. **x-api-key Header**（Anthropic 风格）
+   ```
+   x-api-key: sk-xxx
+   ```
+
+两种方式都使用 UniEdit API Key 进行验证。
+
+### 9.10 模型映射
+
+SDK 兼容 API 支持直接使用模型 ID：
+- `gpt-4o` → 路由到 OpenAI gpt-4o
+- `claude-opus-4-5-20251101` → 路由到 Anthropic claude-opus-4-5-20251101
+- `auto` → 使用智能路由选择最佳模型
+
+也支持模型别名配置（可选功能）。

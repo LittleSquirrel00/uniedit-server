@@ -80,6 +80,10 @@ docker-compose.override.yml
 # Wire generated files (optional - can be committed)
 # wire_gen.go
 
+# Swagger generated files (optional - can be committed)
+# Swagger docs are in cmd/server/docs/ and should typically be committed
+# cmd/server/docs/
+
 # Mage binary
 mage_output_file.go
 
