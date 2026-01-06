@@ -5,20 +5,24 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/uniedit/server/internal/module/auth/oauth"
 )
 
 // Service provides authentication operations.
 type Service struct {
-	userRepo    UserRepository
-	tokenRepo   RefreshTokenRepository
-	apiKeyRepo  APIKeyRepository
-	jwt         *JWTManager
-	crypto      *CryptoManager
-	oauth       *oauth.Registry
-	stateStore  StateStore
+	userRepo         UserRepository
+	tokenRepo        RefreshTokenRepository
+	apiKeyRepo       APIKeyRepository
+	systemAPIKeyRepo SystemAPIKeyRepository
+	jwt              *JWTManager
+	crypto           *CryptoManager
+	oauth            *oauth.Registry
+	stateStore       StateStore
+	maxAPIKeysPerUser int
 }
 
 // StateStore defines the interface for OAuth state management.
@@ -30,8 +34,9 @@ type StateStore interface {
 
 // ServiceConfig holds service configuration.
 type ServiceConfig struct {
-	JWTConfig   *JWTConfig
-	MasterKey   string
+	JWTConfig         *JWTConfig
+	MasterKey         string
+	MaxAPIKeysPerUser int
 }
 
 // NewService creates a new auth service.
@@ -39,6 +44,7 @@ func NewService(
 	userRepo UserRepository,
 	tokenRepo RefreshTokenRepository,
 	apiKeyRepo APIKeyRepository,
+	systemAPIKeyRepo SystemAPIKeyRepository,
 	oauthRegistry *oauth.Registry,
 	stateStore StateStore,
 	config *ServiceConfig,
@@ -48,14 +54,21 @@ func NewService(
 		return nil, fmt.Errorf("create crypto manager: %w", err)
 	}
 
+	maxKeys := config.MaxAPIKeysPerUser
+	if maxKeys <= 0 {
+		maxKeys = 10 // Default max API keys per user
+	}
+
 	return &Service{
-		userRepo:   userRepo,
-		tokenRepo:  tokenRepo,
-		apiKeyRepo: apiKeyRepo,
-		jwt:        NewJWTManager(config.JWTConfig),
-		crypto:     crypto,
-		oauth:      oauthRegistry,
-		stateStore: stateStore,
+		userRepo:         userRepo,
+		tokenRepo:        tokenRepo,
+		apiKeyRepo:       apiKeyRepo,
+		systemAPIKeyRepo: systemAPIKeyRepo,
+		jwt:              NewJWTManager(config.JWTConfig),
+		crypto:           crypto,
+		oauth:            oauthRegistry,
+		stateStore:       stateStore,
+		maxAPIKeysPerUser: maxKeys,
 	}, nil
 }
 
@@ -397,4 +410,211 @@ func generateRandomString(length int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+// --- System API Key Operations ---
+
+// CreateSystemAPIKey creates a new system API key.
+func (s *Service) CreateSystemAPIKey(ctx context.Context, userID uuid.UUID, req *CreateSystemAPIKeyRequest) (*SystemAPIKeyCreateResponse, error) {
+	// Check limit
+	count, err := s.systemAPIKeyRepo.CountByUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("count api keys: %w", err)
+	}
+	if count >= int64(s.maxAPIKeysPerUser) {
+		return nil, ErrSystemAPIKeyLimitExceeded
+	}
+
+	// Validate scopes
+	scopes := req.Scopes
+	if len(scopes) == 0 {
+		scopes = DefaultScopes()
+	}
+	if err := ValidateScopes(scopes); err != nil {
+		return nil, ErrInvalidAPIKeyScope
+	}
+
+	// Generate API key
+	key, keyHash, keyPrefix, err := GenerateAPIKey()
+	if err != nil {
+		return nil, fmt.Errorf("generate api key: %w", err)
+	}
+
+	// Set defaults
+	rateLimitRPM := 60
+	rateLimitTPM := 100000
+	if req.RateLimitRPM != nil && *req.RateLimitRPM > 0 {
+		rateLimitRPM = *req.RateLimitRPM
+	}
+	if req.RateLimitTPM != nil && *req.RateLimitTPM > 0 {
+		rateLimitTPM = *req.RateLimitTPM
+	}
+
+	// Calculate expiration
+	var expiresAt *time.Time
+	if req.ExpiresInDays != nil && *req.ExpiresInDays > 0 {
+		t := time.Now().AddDate(0, 0, *req.ExpiresInDays)
+		expiresAt = &t
+	}
+
+	// Create record
+	apiKey := &SystemAPIKey{
+		ID:           uuid.New(),
+		UserID:       userID,
+		Name:         req.Name,
+		KeyHash:      keyHash,
+		KeyPrefix:    keyPrefix,
+		Scopes:       pq.StringArray(scopes),
+		RateLimitRPM: rateLimitRPM,
+		RateLimitTPM: rateLimitTPM,
+		IsActive:     true,
+		ExpiresAt:    expiresAt,
+	}
+
+	if err := s.systemAPIKeyRepo.Create(ctx, apiKey); err != nil {
+		return nil, fmt.Errorf("create system api key: %w", err)
+	}
+
+	return &SystemAPIKeyCreateResponse{
+		SystemAPIKeyResponse: apiKey.ToResponse(),
+		Key:                  key, // Only returned on creation
+	}, nil
+}
+
+// GetSystemAPIKey returns a system API key by ID.
+func (s *Service) GetSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID) (*SystemAPIKey, error) {
+	key, err := s.systemAPIKeyRepo.GetByID(ctx, keyID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify ownership
+	if key.UserID != userID {
+		return nil, ErrForbidden
+	}
+
+	return key, nil
+}
+
+// ListSystemAPIKeys returns all system API keys for a user.
+func (s *Service) ListSystemAPIKeys(ctx context.Context, userID uuid.UUID) ([]*SystemAPIKey, error) {
+	return s.systemAPIKeyRepo.ListByUser(ctx, userID)
+}
+
+// UpdateSystemAPIKey updates a system API key.
+func (s *Service) UpdateSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID, req *UpdateSystemAPIKeyRequest) (*SystemAPIKey, error) {
+	key, err := s.systemAPIKeyRepo.GetByID(ctx, keyID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify ownership
+	if key.UserID != userID {
+		return nil, ErrForbidden
+	}
+
+	// Apply updates
+	if req.Name != nil {
+		key.Name = *req.Name
+	}
+	if len(req.Scopes) > 0 {
+		if err := ValidateScopes(req.Scopes); err != nil {
+			return nil, ErrInvalidAPIKeyScope
+		}
+		key.Scopes = pq.StringArray(req.Scopes)
+	}
+	if req.RateLimitRPM != nil {
+		key.RateLimitRPM = *req.RateLimitRPM
+	}
+	if req.RateLimitTPM != nil {
+		key.RateLimitTPM = *req.RateLimitTPM
+	}
+	if req.IsActive != nil {
+		key.IsActive = *req.IsActive
+	}
+
+	if err := s.systemAPIKeyRepo.Update(ctx, key); err != nil {
+		return nil, fmt.Errorf("update system api key: %w", err)
+	}
+
+	return key, nil
+}
+
+// DeleteSystemAPIKey deletes a system API key.
+func (s *Service) DeleteSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID) error {
+	key, err := s.systemAPIKeyRepo.GetByID(ctx, keyID)
+	if err != nil {
+		return err
+	}
+
+	// Verify ownership
+	if key.UserID != userID {
+		return ErrForbidden
+	}
+
+	return s.systemAPIKeyRepo.Delete(ctx, keyID)
+}
+
+// RotateSystemAPIKey generates a new key for an existing system API key.
+func (s *Service) RotateSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID) (*SystemAPIKeyCreateResponse, error) {
+	key, err := s.systemAPIKeyRepo.GetByID(ctx, keyID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify ownership
+	if key.UserID != userID {
+		return nil, ErrForbidden
+	}
+
+	// Generate new API key
+	newKey, keyHash, keyPrefix, err := GenerateAPIKey()
+	if err != nil {
+		return nil, fmt.Errorf("generate api key: %w", err)
+	}
+
+	// Update record
+	key.KeyHash = keyHash
+	key.KeyPrefix = keyPrefix
+
+	if err := s.systemAPIKeyRepo.Update(ctx, key); err != nil {
+		return nil, fmt.Errorf("update system api key: %w", err)
+	}
+
+	return &SystemAPIKeyCreateResponse{
+		SystemAPIKeyResponse: key.ToResponse(),
+		Key:                  newKey,
+	}, nil
+}
+
+// ValidateSystemAPIKey validates a system API key and returns the key record.
+func (s *Service) ValidateSystemAPIKey(ctx context.Context, apiKey string) (*SystemAPIKey, error) {
+	// Check format
+	if !IsValidAPIKeyFormat(apiKey) {
+		return nil, ErrInvalidAPIKeyFormat
+	}
+
+	// Hash and lookup
+	keyHash := HashAPIKey(apiKey)
+	key, err := s.systemAPIKeyRepo.GetByHash(ctx, keyHash)
+	if err != nil {
+		return nil, ErrSystemAPIKeyNotFound
+	}
+
+	// Check if active
+	if !key.IsActive {
+		return nil, ErrSystemAPIKeyDisabled
+	}
+
+	// Check expiration
+	if key.IsExpired() {
+		return nil, ErrSystemAPIKeyExpired
+	}
+
+	// Update last used (async, don't fail on error)
+	go func() {
+		_ = s.systemAPIKeyRepo.UpdateLastUsed(context.Background(), key.ID)
+	}()
+
+	return key, nil
 }

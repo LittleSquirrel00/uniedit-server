@@ -107,19 +107,23 @@ func (s *Subscription) IsCanceled() bool {
 
 // UsageRecord represents a single AI usage event.
 type UsageRecord struct {
-	ID           int64     `gorm:"primaryKey;autoIncrement"`
-	UserID       uuid.UUID `gorm:"type:uuid;not null"`
-	Timestamp    time.Time `gorm:"not null"`
-	RequestID    string    `gorm:"not null"`
-	TaskType     string    `gorm:"not null"` // chat, image, video, embedding
-	ProviderID   uuid.UUID `gorm:"type:uuid;not null"`
-	ModelID      string    `gorm:"not null"`
-	InputTokens  int       `gorm:"not null;default:0"`
-	OutputTokens int       `gorm:"not null;default:0"`
-	TotalTokens  int       `gorm:"not null;default:0"`
-	CostUSD      float64   `gorm:"type:decimal(10,6);not null"`
-	LatencyMs    int       `gorm:"not null"`
-	Success      bool      `gorm:"not null"`
+	ID           int64      `gorm:"primaryKey;autoIncrement"`
+	UserID       uuid.UUID  `gorm:"type:uuid;not null"`
+	APIKeyID     *uuid.UUID `gorm:"type:uuid"` // System API key used (nil for JWT auth)
+	Timestamp    time.Time  `gorm:"not null"`
+	RequestID    string     `gorm:"not null"`
+	TaskType     string     `gorm:"not null"` // chat, image, video, embedding
+	ProviderID   uuid.UUID  `gorm:"type:uuid;not null"`
+	ModelID      string     `gorm:"not null"`
+	InputTokens  int        `gorm:"not null;default:0"`
+	OutputTokens int        `gorm:"not null;default:0"`
+	TotalTokens  int        `gorm:"not null;default:0"`
+	CostUSD      float64    `gorm:"type:decimal(10,6);not null"`
+	LatencyMs    int        `gorm:"not null"`
+	Success      bool       `gorm:"not null"`
+
+	// Cache statistics
+	CacheHit bool `gorm:"not null;default:false"` // Whether cache was hit
 }
 
 // TableName returns the database table name.

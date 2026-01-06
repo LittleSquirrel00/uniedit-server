@@ -28,6 +28,16 @@ var (
 	ErrDecryptionFailed    = errors.New("failed to decrypt API key")
 	ErrEncryptionFailed    = errors.New("failed to encrypt API key")
 
+	// System API Key errors
+	ErrSystemAPIKeyNotFound  = errors.New("system API key not found")
+	ErrSystemAPIKeyDisabled  = errors.New("system API key is disabled")
+	ErrSystemAPIKeyExpired   = errors.New("system API key has expired")
+	ErrSystemAPIKeyLimitExceeded = errors.New("maximum number of API keys reached")
+	ErrInvalidAPIKeyFormat   = errors.New("invalid API key format")
+	ErrInvalidAPIKeyScope    = errors.New("invalid API key scope")
+	ErrRateLimitExceeded     = errors.New("rate limit exceeded")
+	ErrTPMExceeded           = errors.New("tokens per minute limit exceeded")
+
 	// Authorization errors
 	ErrUnauthorized = errors.New("unauthorized")
 	ErrForbidden    = errors.New("forbidden")

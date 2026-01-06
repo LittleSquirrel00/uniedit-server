@@ -17,21 +17,26 @@ type EmbeddingCache struct {
 	prefix     string
 	ttl        time.Duration
 	maxEntries int
+
+	// Stats tracking
+	statsPrefix string
 }
 
 // EmbeddingCacheConfig contains cache configuration.
 type EmbeddingCacheConfig struct {
-	Prefix     string
-	TTL        time.Duration
-	MaxEntries int
+	Prefix      string
+	StatsPrefix string
+	TTL         time.Duration
+	MaxEntries  int
 }
 
 // DefaultEmbeddingCacheConfig returns the default cache configuration.
 func DefaultEmbeddingCacheConfig() *EmbeddingCacheConfig {
 	return &EmbeddingCacheConfig{
-		Prefix:     "emb:",
-		TTL:        24 * time.Hour,
-		MaxEntries: 100000,
+		Prefix:      "emb:",
+		StatsPrefix: "emb_stats:",
+		TTL:         24 * time.Hour,
+		MaxEntries:  100000,
 	}
 }
 
@@ -42,10 +47,11 @@ func NewEmbeddingCache(client redis.UniversalClient, config *EmbeddingCacheConfi
 	}
 
 	return &EmbeddingCache{
-		client:     client,
-		prefix:     config.Prefix,
-		ttl:        config.TTL,
-		maxEntries: config.MaxEntries,
+		client:      client,
+		prefix:      config.Prefix,
+		statsPrefix: config.StatsPrefix,
+		ttl:         config.TTL,
+		maxEntries:  config.MaxEntries,
 	}
 }
 
@@ -244,6 +250,80 @@ type CacheStats struct {
 	EntryCount int64         `json:"entry_count"`
 	MaxEntries int64         `json:"max_entries"`
 	TTL        time.Duration `json:"ttl"`
+}
+
+// APIKeyCacheStats represents cache hit/miss stats for an API key.
+type APIKeyCacheStats struct {
+	Hits   int64 `json:"hits"`
+	Misses int64 `json:"misses"`
+}
+
+// RecordHit records a cache hit for an API key.
+func (c *EmbeddingCache) RecordHit(ctx context.Context, apiKeyID string) error {
+	key := c.statsPrefix + "hits:" + apiKeyID
+	return c.client.Incr(ctx, key).Err()
+}
+
+// RecordMiss records a cache miss for an API key.
+func (c *EmbeddingCache) RecordMiss(ctx context.Context, apiKeyID string) error {
+	key := c.statsPrefix + "misses:" + apiKeyID
+	return c.client.Incr(ctx, key).Err()
+}
+
+// RecordBatchStats records cache hits and misses for an API key.
+func (c *EmbeddingCache) RecordBatchStats(ctx context.Context, apiKeyID string, hits, misses int64) error {
+	if hits == 0 && misses == 0 {
+		return nil
+	}
+
+	pipe := c.client.Pipeline()
+
+	if hits > 0 {
+		key := c.statsPrefix + "hits:" + apiKeyID
+		pipe.IncrBy(ctx, key, hits)
+	}
+	if misses > 0 {
+		key := c.statsPrefix + "misses:" + apiKeyID
+		pipe.IncrBy(ctx, key, misses)
+	}
+
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+// GetAPIKeyStats returns cache statistics for an API key.
+func (c *EmbeddingCache) GetAPIKeyStats(ctx context.Context, apiKeyID string) (*APIKeyCacheStats, error) {
+	hitsKey := c.statsPrefix + "hits:" + apiKeyID
+	missesKey := c.statsPrefix + "misses:" + apiKeyID
+
+	results, err := c.client.MGet(ctx, hitsKey, missesKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("get stats: %w", err)
+	}
+
+	var hits, misses int64
+	if results[0] != nil {
+		if v, ok := results[0].(string); ok {
+			fmt.Sscanf(v, "%d", &hits)
+		}
+	}
+	if results[1] != nil {
+		if v, ok := results[1].(string); ok {
+			fmt.Sscanf(v, "%d", &misses)
+		}
+	}
+
+	return &APIKeyCacheStats{
+		Hits:   hits,
+		Misses: misses,
+	}, nil
+}
+
+// ResetAPIKeyStats resets cache statistics for an API key.
+func (c *EmbeddingCache) ResetAPIKeyStats(ctx context.Context, apiKeyID string) error {
+	hitsKey := c.statsPrefix + "hits:" + apiKeyID
+	missesKey := c.statsPrefix + "misses:" + apiKeyID
+	return c.client.Del(ctx, hitsKey, missesKey).Err()
 }
 
 // makeKey creates a cache key for an embedding.

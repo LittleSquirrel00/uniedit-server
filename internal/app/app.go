@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/uniedit/server/internal/module/ai"
 	"github.com/uniedit/server/internal/module/ai/cache"
@@ -14,6 +15,9 @@ import (
 	"github.com/uniedit/server/internal/module/billing"
 	billingquota "github.com/uniedit/server/internal/module/billing/quota"
 	billingusage "github.com/uniedit/server/internal/module/billing/usage"
+	"github.com/uniedit/server/internal/module/git"
+	"github.com/uniedit/server/internal/module/git/lfs"
+	gitstorage "github.com/uniedit/server/internal/module/git/storage"
 	"github.com/uniedit/server/internal/module/order"
 	"github.com/uniedit/server/internal/module/payment"
 	paymentprovider "github.com/uniedit/server/internal/module/payment/provider"
@@ -38,12 +42,18 @@ type App struct {
 
 	// Modules
 	aiModule       *ai.Module
+	authHandler    *auth.Handler
+	authService    *auth.Service
+	rateLimiter    *auth.RateLimiter
 	userHandler    *user.Handler
 	userAdmin      *user.AdminHandler
 	billingHandler *billing.Handler
 	orderHandler   *order.Handler
 	paymentHandler *payment.Handler
 	webhookHandler *payment.WebhookHandler
+	gitHandler     *git.Handler
+	gitHTTPHandler *git.GitHandler
+	lfsHandler     *lfs.BatchHandler
 
 	// Services (for cross-module dependencies)
 	billingService billing.ServiceInterface
@@ -52,6 +62,8 @@ type App struct {
 	paymentService *payment.Service
 	usageRecorder  *billingusage.Recorder
 	quotaChecker   *billingquota.Checker
+	gitService     *git.Service
+	r2Client       *gitstorage.R2Client
 }
 
 // New creates a new application instance.
@@ -164,6 +176,11 @@ func (a *App) initModules() error {
 	}
 	a.aiModule = aiModule
 
+	// Initialize auth module (for System API Keys)
+	if err := a.initAuthModule(); err != nil {
+		return fmt.Errorf("init auth module: %w", err)
+	}
+
 	// Initialize user module
 	if err := a.initUserModule(); err != nil {
 		return fmt.Errorf("init user module: %w", err)
@@ -183,6 +200,61 @@ func (a *App) initModules() error {
 	if err := a.initPaymentModule(); err != nil {
 		return fmt.Errorf("init payment module: %w", err)
 	}
+
+	// Initialize git module
+	if err := a.initGitModule(); err != nil {
+		return fmt.Errorf("init git module: %w", err)
+	}
+
+	return nil
+}
+
+// initAuthModule initializes the auth module for System API Key management.
+func (a *App) initAuthModule() error {
+	// Create repositories
+	userRepo := auth.NewUserRepository(a.db)
+	tokenRepo := auth.NewRefreshTokenRepository(a.db)
+	apiKeyRepo := auth.NewAPIKeyRepository(a.db)
+	systemAPIKeyRepo := auth.NewSystemAPIKeyRepository(a.db)
+
+	// Create state store (Redis-based for OAuth state)
+	var stateStore auth.StateStore
+	if a.redis != nil {
+		stateStore = auth.NewRedisStateStore(a.redis)
+	} else {
+		stateStore = auth.NewInMemoryStateStore()
+	}
+
+	// Create auth service
+	authService, err := auth.NewService(
+		userRepo,
+		tokenRepo,
+		apiKeyRepo,
+		systemAPIKeyRepo,
+		nil, // OAuth registry (optional, user module handles OAuth)
+		stateStore,
+		&auth.ServiceConfig{
+			JWTConfig: &auth.JWTConfig{
+				Secret:             a.config.Auth.JWTSecret,
+				AccessTokenExpiry:  a.config.Auth.AccessTokenExpiry,
+				RefreshTokenExpiry: a.config.Auth.RefreshTokenExpiry,
+			},
+			MasterKey:         a.config.Auth.MasterKey,
+			MaxAPIKeysPerUser: 10,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("create auth service: %w", err)
+	}
+	a.authService = authService
+
+	// Create rate limiter (only if Redis is available)
+	if a.redis != nil {
+		a.rateLimiter = auth.NewRateLimiter(a.redis)
+	}
+
+	// Create handler
+	a.authHandler = auth.NewHandler(authService)
 
 	return nil
 }
@@ -360,6 +432,121 @@ func (a *App) initPaymentModule() error {
 	return nil
 }
 
+// initGitModule initializes the git module.
+func (a *App) initGitModule() error {
+	// Skip if storage is not configured
+	if a.config.Storage.Endpoint == "" || a.config.Storage.Bucket == "" {
+		fmt.Println("Warning: Git module disabled - storage not configured")
+		return nil
+	}
+
+	// Create R2 client
+	r2Client, err := gitstorage.NewR2Client(&gitstorage.R2Config{
+		Endpoint:        a.config.Storage.Endpoint,
+		Region:          a.config.Storage.Region,
+		AccessKeyID:     a.config.Storage.AccessKeyID,
+		SecretAccessKey: a.config.Storage.SecretAccessKey,
+		Bucket:          a.config.Storage.Bucket,
+	})
+	if err != nil {
+		return fmt.Errorf("create R2 client: %w", err)
+	}
+	a.r2Client = r2Client
+
+	// Create git repository
+	gitRepo := git.NewRepository(a.db)
+
+	// Create git service
+	a.gitService = git.NewService(
+		gitRepo,
+		r2Client,
+		nil, // No quota checker for now
+		&a.config.Git,
+		a.zapLogger,
+	)
+
+	// Determine base URL for clone URLs
+	baseURL := a.config.Email.BaseURL
+	if baseURL == "" {
+		baseURL = "http://localhost" + a.config.Server.Address
+	}
+
+	// Create REST API handler
+	a.gitHandler = git.NewHandler(a.gitService, baseURL)
+
+	// Create Git HTTP handler
+	a.gitHTTPHandler = git.NewGitHandler(
+		a.gitService,
+		r2Client,
+		nil, // No authenticator for now
+		a.zapLogger,
+	)
+
+	// Create LFS storage manager
+	lfsStorage := lfs.NewStorageManager(r2Client, &a.config.Git)
+
+	// Create LFS batch handler with a simple resolver
+	lfsResolver := &gitLFSResolver{
+		service: a.gitService,
+		repo:    gitRepo,
+	}
+	a.lfsHandler = lfs.NewBatchHandler(
+		lfsStorage,
+		lfsResolver,
+		baseURL,
+		a.zapLogger,
+	)
+
+	return nil
+}
+
+// gitLFSResolver implements lfs.RepoResolver interface.
+type gitLFSResolver struct {
+	service *git.Service
+	repo    git.Repository
+}
+
+func (r *gitLFSResolver) GetRepoByOwnerAndSlug(ctx context.Context, ownerID uuid.UUID, slug string) (repoID uuid.UUID, lfsEnabled bool, ownerUserID uuid.UUID, err error) {
+	repo, err := r.service.GetRepoByOwnerAndSlug(ctx, ownerID, slug)
+	if err != nil {
+		return uuid.Nil, false, uuid.Nil, err
+	}
+	return repo.ID, repo.LFSEnabled, repo.OwnerID, nil
+}
+
+func (r *gitLFSResolver) CanAccess(ctx context.Context, repoID uuid.UUID, userID *uuid.UUID, write bool) (bool, error) {
+	perm := git.PermissionRead
+	if write {
+		perm = git.PermissionWrite
+	}
+	return r.service.CanAccess(ctx, repoID, userID, perm)
+}
+
+func (r *gitLFSResolver) LinkLFSObject(ctx context.Context, repoID uuid.UUID, oid string, size int64, storageKey string) error {
+	// Create LFS object record if not exists
+	lfsObj := &git.LFSObject{
+		OID:        oid,
+		Size:       size,
+		StorageKey: storageKey,
+	}
+	if err := r.repo.CreateLFSObject(ctx, lfsObj); err != nil {
+		// Ignore duplicate key errors
+	}
+	// Link to repo
+	return r.repo.LinkLFSObject(ctx, repoID, oid)
+}
+
+func (r *gitLFSResolver) GetLFSObject(ctx context.Context, oid string) (size int64, exists bool, err error) {
+	obj, err := r.repo.GetLFSObject(ctx, oid)
+	if err != nil {
+		if err == git.ErrLFSObjectNotFound {
+			return 0, false, nil
+		}
+		return 0, false, err
+	}
+	return obj.Size, true, nil
+}
+
 // startModules starts all application modules.
 func (a *App) startModules(ctx context.Context) error {
 	// Start AI module
@@ -390,6 +577,11 @@ func (a *App) registerRoutes() {
 	// Register AI module routes
 	a.aiModule.RegisterRoutes(publicRouter, adminRouter)
 
+	// Register auth module routes (for System API Key management)
+	if a.authHandler != nil {
+		a.authHandler.RegisterRoutes(publicRouter)
+	}
+
 	// Register new module routes
 	a.userHandler.RegisterRoutes(publicRouter)
 	a.userAdmin.RegisterRoutes(adminRouter)
@@ -397,6 +589,17 @@ func (a *App) registerRoutes() {
 	a.orderHandler.RegisterRoutes(publicRouter)
 	a.paymentHandler.RegisterRoutes(publicRouter)
 	a.webhookHandler.RegisterRoutes(webhookRouter)
+
+	// Register git module routes (if initialized)
+	if a.gitHandler != nil {
+		a.gitHandler.RegisterRoutes(publicRouter)
+	}
+	if a.gitHTTPHandler != nil {
+		a.gitHTTPHandler.RegisterGitRoutes(v1)
+	}
+	if a.lfsHandler != nil {
+		a.lfsHandler.RegisterRoutes(v1)
+	}
 }
 
 // Router returns the HTTP router.

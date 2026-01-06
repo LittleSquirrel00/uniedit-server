@@ -241,3 +241,98 @@ func (r *apiKeyRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+// --- System API Key Repository ---
+
+// SystemAPIKeyRepository defines the interface for system API key data access.
+type SystemAPIKeyRepository interface {
+	Create(ctx context.Context, key *SystemAPIKey) error
+	GetByID(ctx context.Context, id uuid.UUID) (*SystemAPIKey, error)
+	GetByHash(ctx context.Context, keyHash string) (*SystemAPIKey, error)
+	ListByUser(ctx context.Context, userID uuid.UUID) ([]*SystemAPIKey, error)
+	Update(ctx context.Context, key *SystemAPIKey) error
+	UpdateLastUsed(ctx context.Context, id uuid.UUID) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	CountByUser(ctx context.Context, userID uuid.UUID) (int64, error)
+}
+
+type systemAPIKeyRepository struct {
+	db *gorm.DB
+}
+
+// NewSystemAPIKeyRepository creates a new system API key repository.
+func NewSystemAPIKeyRepository(db *gorm.DB) SystemAPIKeyRepository {
+	return &systemAPIKeyRepository{db: db}
+}
+
+func (r *systemAPIKeyRepository) Create(ctx context.Context, key *SystemAPIKey) error {
+	if err := r.db.WithContext(ctx).Create(key).Error; err != nil {
+		return fmt.Errorf("create system api key: %w", err)
+	}
+	return nil
+}
+
+func (r *systemAPIKeyRepository) GetByID(ctx context.Context, id uuid.UUID) (*SystemAPIKey, error) {
+	var key SystemAPIKey
+	if err := r.db.WithContext(ctx).First(&key, "id = ?", id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrSystemAPIKeyNotFound
+		}
+		return nil, fmt.Errorf("get system api key: %w", err)
+	}
+	return &key, nil
+}
+
+func (r *systemAPIKeyRepository) GetByHash(ctx context.Context, keyHash string) (*SystemAPIKey, error) {
+	var key SystemAPIKey
+	if err := r.db.WithContext(ctx).First(&key, "key_hash = ?", keyHash).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrSystemAPIKeyNotFound
+		}
+		return nil, fmt.Errorf("get system api key by hash: %w", err)
+	}
+	return &key, nil
+}
+
+func (r *systemAPIKeyRepository) ListByUser(ctx context.Context, userID uuid.UUID) ([]*SystemAPIKey, error) {
+	var keys []*SystemAPIKey
+	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&keys).Error; err != nil {
+		return nil, fmt.Errorf("list system api keys: %w", err)
+	}
+	return keys, nil
+}
+
+func (r *systemAPIKeyRepository) Update(ctx context.Context, key *SystemAPIKey) error {
+	if err := r.db.WithContext(ctx).Save(key).Error; err != nil {
+		return fmt.Errorf("update system api key: %w", err)
+	}
+	return nil
+}
+
+func (r *systemAPIKeyRepository) UpdateLastUsed(ctx context.Context, id uuid.UUID) error {
+	now := time.Now()
+	result := r.db.WithContext(ctx).Model(&SystemAPIKey{}).Where("id = ?", id).Update("last_used_at", now)
+	if result.Error != nil {
+		return fmt.Errorf("update last used: %w", result.Error)
+	}
+	return nil
+}
+
+func (r *systemAPIKeyRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	result := r.db.WithContext(ctx).Delete(&SystemAPIKey{}, "id = ?", id)
+	if result.Error != nil {
+		return fmt.Errorf("delete system api key: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrSystemAPIKeyNotFound
+	}
+	return nil
+}
+
+func (r *systemAPIKeyRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&SystemAPIKey{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("count system api keys: %w", err)
+	}
+	return count, nil
+}

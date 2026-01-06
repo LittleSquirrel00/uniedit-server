@@ -16,6 +16,7 @@ type Config struct {
 	AI       AIConfig       `mapstructure:"ai"`
 	Auth     AuthConfig     `mapstructure:"auth"`
 	Storage  StorageConfig  `mapstructure:"storage"`
+	Git      GitConfig      `mapstructure:"git"`
 	Log      LogConfig      `mapstructure:"log"`
 	Stripe   StripeConfig   `mapstructure:"stripe"`
 	Alipay   AlipayConfig   `mapstructure:"alipay"`
@@ -101,6 +102,14 @@ type StorageConfig struct {
 	AccessKeyID     string `mapstructure:"access_key_id"`
 	SecretAccessKey string `mapstructure:"secret_access_key"`
 	Bucket          string `mapstructure:"bucket"`
+}
+
+// GitConfig holds Git module configuration.
+type GitConfig struct {
+	RepoPrefix     string        `mapstructure:"repo_prefix"`      // R2 prefix for repos (default: "repos/")
+	LFSPrefix      string        `mapstructure:"lfs_prefix"`       // R2 prefix for LFS objects (default: "lfs/")
+	LFSURLExpiry   time.Duration `mapstructure:"lfs_url_expiry"`   // Presigned URL expiry (default: 1h)
+	LFSMaxFileSize int64         `mapstructure:"lfs_max_file_size"` // Max LFS file size in bytes (default: 100GB)
 }
 
 // LogConfig holds logging configuration.
@@ -300,4 +309,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("email.provider", "noop")
 	v.SetDefault("email.smtp.port", 587)
 	v.SetDefault("email.from_name", "UniEdit")
+
+	// Git defaults
+	v.SetDefault("git.repo_prefix", "repos/")
+	v.SetDefault("git.lfs_prefix", "lfs/")
+	v.SetDefault("git.lfs_url_expiry", time.Hour)
+	v.SetDefault("git.lfs_max_file_size", 100*1024*1024*1024) // 100GB
 }

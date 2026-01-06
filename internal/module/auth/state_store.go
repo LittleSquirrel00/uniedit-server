@@ -5,7 +5,53 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
+
+const (
+	stateKeyPrefix = "oauth:state:"
+	defaultStateTTL = 10 * time.Minute
+)
+
+// RedisStateStore implements StateStore using Redis.
+type RedisStateStore struct {
+	client redis.UniversalClient
+	ttl    time.Duration
+}
+
+// NewRedisStateStore creates a new Redis-based state store.
+func NewRedisStateStore(client redis.UniversalClient) *RedisStateStore {
+	return &RedisStateStore{
+		client: client,
+		ttl:    defaultStateTTL,
+	}
+}
+
+// Set stores a state value.
+func (s *RedisStateStore) Set(ctx context.Context, state string, data string) error {
+	key := stateKeyPrefix + state
+	return s.client.Set(ctx, key, data, s.ttl).Err()
+}
+
+// Get retrieves a state value.
+func (s *RedisStateStore) Get(ctx context.Context, state string) (string, error) {
+	key := stateKeyPrefix + state
+	data, err := s.client.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return "", fmt.Errorf("state not found")
+		}
+		return "", err
+	}
+	return data, nil
+}
+
+// Delete removes a state value.
+func (s *RedisStateStore) Delete(ctx context.Context, state string) error {
+	key := stateKeyPrefix + state
+	return s.client.Del(ctx, key).Err()
+}
 
 // MemoryStateStore is an in-memory implementation of StateStore.
 // Suitable for single-instance deployments.
@@ -24,7 +70,7 @@ type stateEntry struct {
 // NewMemoryStateStore creates a new in-memory state store.
 func NewMemoryStateStore(ttl time.Duration) *MemoryStateStore {
 	if ttl <= 0 {
-		ttl = 10 * time.Minute
+		ttl = defaultStateTTL
 	}
 	store := &MemoryStateStore{
 		states: make(map[string]*stateEntry),
@@ -33,6 +79,12 @@ func NewMemoryStateStore(ttl time.Duration) *MemoryStateStore {
 	// Start cleanup goroutine
 	go store.cleanup()
 	return store
+}
+
+// NewInMemoryStateStore creates a new in-memory state store with default TTL.
+// Alias for NewMemoryStateStore for convenience.
+func NewInMemoryStateStore() *MemoryStateStore {
+	return NewMemoryStateStore(defaultStateTTL)
 }
 
 // Set stores a state with data.

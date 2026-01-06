@@ -21,7 +21,28 @@
       "Skill(openspec:archive:*)",
       "Bash(openspec list:*)",
       "Bash(openspec archive add-ai-module:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(go doc github.com/go-pay/gopay/alipay Client)",
+      "Bash(go doc github.com/go-pay/gopay/alipay ParseNotifyToBodyMap)",
+      "Bash(go doc github.com/go-pay/gopay/wechat/v3)",
+      "Bash(go doc github.com/go-pay/gopay/wechat/v3 V3ParseNotifyToBodyMap)",
+      "Bash(go doc github.com/go-pay/gopay/wechat/v3 V3DecryptNotifyCipherTextToStruct)",
+      "Bash(go doc github.com/go-pay/gopay/wechat/v3 ClientV3.ParseNotifyToBodyMap)",
+      "Bash(go doc github.com/go-pay/gopay/wechat/v3 ClientV3)",
+      "Bash(go doc github.com/go-pay/gopay/wechat/v3 V3ParseNotify)",
+      "Bash(go doc github.com/go-pay/gopay/wechat/v3 V3NotifyReq)",
+      "Bash(git add internal/module/billing/ internal/module/order/ internal/module/payment/ internal/module/user/ migrations/000004_extend_users.down.sql migrations/000004_extend_users.up.sql migrations/000005_create_billing_tables.down.sql migrations/000005_create_billing_tables.up.sql migrations/000006_create_order_tables.down.sql migrations/000006_create_order_tables.up.sql migrations/000007_create_payment_tables.down.sql migrations/000007_create_payment_tables.up.sql migrations/000008_seed_plans.down.sql migrations/000008_seed_plans.up.sql migrations/000009_add_china_payment_support.down.sql migrations/000009_add_china_payment_support.up.sql go.mod go.sum internal/app/app.go internal/shared/config/config.go internal/shared/logger/logger.go)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: implement user/billing/order/payment modules with Alipay/WeChat support\n\n## User Module\n- User profile management \\(name, phone, avatar\\)\n- Email verification flow\n- Admin user management API\n\n## Billing Module  \n- Subscription plans \\(Free, Pro, Enterprise\\)\n- Credit balance and transactions\n- Usage tracking and recording\n- Quota management with limit checks\n\n## Order Module\n- Order creation and management\n- Order types: subscription, topup, credits\n- State machine for order lifecycle\n- Stripe integration support\n\n## Payment Module\n- Multi-provider architecture with ProviderRegistry\n- Stripe PaymentIntent flow\n- Alipay integration \\(web, h5, app, native\\)\n- WeChat Pay V3 integration \\(native, h5, app, mini, jsapi\\)\n- Webhook handlers for all providers\n- Idempotent webhook processing\n\n## Database Migrations\n- 000004: Extend users table\n- 000005: Billing tables \\(plans, subscriptions, credits\\)\n- 000006: Order tables\n- 000007: Payment tables \\(payments, stripe_webhook_events\\)\n- 000008: Seed default plans\n- 000009: China payment support \\(Alipay/WeChat fields\\)\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push origin main)",
+      "Bash(openspec archive add-user-billing-payment --yes)",
+      "Bash(git add openspec/changes/archive/2026-01-06-add-user-billing-payment/ openspec/specs/billing/ openspec/specs/order/ openspec/specs/payment/ openspec/specs/user-management/)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ndocs: archive add-user-billing-payment change and update specs\n\nArchive completed implementation of user/billing/order/payment modules.\n\nNew specs added:\n- billing: 6 requirements \\(plans, subscriptions, quotas, usage, credits\\)\n- order: 8 requirements \\(order lifecycle, state machine, invoices\\)\n- payment: 11 requirements \\(Stripe, Alipay, WeChat providers, webhooks\\)\n- user-management: 8 requirements \\(registration, verification, admin\\)\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(go doc github.com/go-git/go-git/v5/config Config.Core)",
+      "Bash(go doc github.com/go-git/go-git/v5/plumbing/format/config.RepositoryFormatVersion)",
+      "Bash(ls -la /Users/zhangfeng144/Git/uniedit-server/migrations/000010_*.sql)",
+      "Bash(echo \"Migration files:\" ls /Users/zhangfeng144/Git/uniedit-server/migrations/*.sql)",
+      "Bash(find /Users/zhangfeng144/Git/uniedit-server/migrations -name \"*.sql\" -exec grep -l \"cache\\\\|rate_limit\\\\|throttle\" {} ;)",
+      "Bash(ls -la /Users/zhangfeng144/Git/uniedit-server/migrations/*.sql)"
     ]
   }
 }

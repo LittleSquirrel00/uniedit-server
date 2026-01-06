@@ -216,3 +216,131 @@ func (u *User) ToResponse() *UserResponse {
 		CreatedAt: u.CreatedAt,
 	}
 }
+
+// SystemAPIKey represents a system-generated API key for API access (OpenAI-style).
+type SystemAPIKey struct {
+	ID        uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	UserID    uuid.UUID      `json:"user_id" gorm:"type:uuid;not null;index"`
+	Name      string         `json:"name" gorm:"not null"`
+	KeyHash   string         `json:"-" gorm:"uniqueIndex;not null"`
+	KeyPrefix string         `json:"key_prefix" gorm:"not null"`
+	Scopes    pq.StringArray `json:"scopes" gorm:"type:text[]"`
+
+	// Rate limiting
+	RateLimitRPM int `json:"rate_limit_rpm" gorm:"default:60"`
+	RateLimitTPM int `json:"rate_limit_tpm" gorm:"default:100000"`
+
+	// Usage statistics (denormalized)
+	TotalRequests     int64   `json:"total_requests" gorm:"default:0"`
+	TotalInputTokens  int64   `json:"total_input_tokens" gorm:"default:0"`
+	TotalOutputTokens int64   `json:"total_output_tokens" gorm:"default:0"`
+	TotalCostUSD      float64 `json:"total_cost_usd" gorm:"type:decimal(12,6);default:0"`
+
+	// Cache statistics
+	CacheHits   int64 `json:"cache_hits" gorm:"default:0"`
+	CacheMisses int64 `json:"cache_misses" gorm:"default:0"`
+
+	// Status
+	IsActive   bool       `json:"is_active" gorm:"default:true"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// TableName returns the database table name.
+func (SystemAPIKey) TableName() string {
+	return "system_api_keys"
+}
+
+// IsExpired checks if the API key has expired.
+func (k *SystemAPIKey) IsExpired() bool {
+	if k.ExpiresAt == nil {
+		return false
+	}
+	return time.Now().After(*k.ExpiresAt)
+}
+
+// IsValid checks if the API key is valid (active and not expired).
+func (k *SystemAPIKey) IsValid() bool {
+	return k.IsActive && !k.IsExpired()
+}
+
+// HasScope checks if the API key has the specified scope.
+func (k *SystemAPIKey) HasScope(scope APIKeyScope) bool {
+	for _, s := range k.Scopes {
+		if s == string(scope) {
+			return true
+		}
+	}
+	return false
+}
+
+// CreateSystemAPIKeyRequest represents a request to create a new system API key.
+type CreateSystemAPIKeyRequest struct {
+	Name         string   `json:"name" binding:"required"`
+	Scopes       []string `json:"scopes,omitempty"`
+	RateLimitRPM *int     `json:"rate_limit_rpm,omitempty"`
+	RateLimitTPM *int     `json:"rate_limit_tpm,omitempty"`
+	ExpiresInDays *int    `json:"expires_in_days,omitempty"` // NULL = never expires
+}
+
+// UpdateSystemAPIKeyRequest represents a request to update a system API key.
+type UpdateSystemAPIKeyRequest struct {
+	Name         *string  `json:"name,omitempty"`
+	Scopes       []string `json:"scopes,omitempty"`
+	RateLimitRPM *int     `json:"rate_limit_rpm,omitempty"`
+	RateLimitTPM *int     `json:"rate_limit_tpm,omitempty"`
+	IsActive     *bool    `json:"is_active,omitempty"`
+}
+
+// SystemAPIKeyResponse represents system API key information for API responses.
+type SystemAPIKeyResponse struct {
+	ID                uuid.UUID  `json:"id"`
+	Name              string     `json:"name"`
+	KeyPrefix         string     `json:"key_prefix"`
+	Scopes            []string   `json:"scopes"`
+	RateLimitRPM      int        `json:"rate_limit_rpm"`
+	RateLimitTPM      int        `json:"rate_limit_tpm"`
+	TotalRequests     int64      `json:"total_requests"`
+	TotalInputTokens  int64      `json:"total_input_tokens"`
+	TotalOutputTokens int64      `json:"total_output_tokens"`
+	TotalCostUSD      float64    `json:"total_cost_usd"`
+	CacheHits         int64      `json:"cache_hits"`
+	CacheMisses       int64      `json:"cache_misses"`
+	IsActive          bool       `json:"is_active"`
+	LastUsedAt        *time.Time `json:"last_used_at,omitempty"`
+	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+}
+
+// ToResponse converts SystemAPIKey to SystemAPIKeyResponse.
+func (k *SystemAPIKey) ToResponse() *SystemAPIKeyResponse {
+	scopes := make([]string, len(k.Scopes))
+	copy(scopes, k.Scopes)
+	return &SystemAPIKeyResponse{
+		ID:                k.ID,
+		Name:              k.Name,
+		KeyPrefix:         k.KeyPrefix,
+		Scopes:            scopes,
+		RateLimitRPM:      k.RateLimitRPM,
+		RateLimitTPM:      k.RateLimitTPM,
+		TotalRequests:     k.TotalRequests,
+		TotalInputTokens:  k.TotalInputTokens,
+		TotalOutputTokens: k.TotalOutputTokens,
+		TotalCostUSD:      k.TotalCostUSD,
+		CacheHits:         k.CacheHits,
+		CacheMisses:       k.CacheMisses,
+		IsActive:          k.IsActive,
+		LastUsedAt:        k.LastUsedAt,
+		ExpiresAt:         k.ExpiresAt,
+		CreatedAt:         k.CreatedAt,
+	}
+}
+
+// SystemAPIKeyCreateResponse includes the full key (only returned on creation).
+type SystemAPIKeyCreateResponse struct {
+	*SystemAPIKeyResponse
+	Key string `json:"key"` // Full API key, only shown once
+}
