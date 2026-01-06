@@ -55,6 +55,19 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // ========== Team Handlers ==========
 
 // CreateTeam handles team creation.
+//
+//	@Summary		Create team
+//	@Description	Create a new team
+//	@Tags			Collaboration
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CreateTeamRequest	true	"Create team request"
+//	@Success		201		{object}	TeamResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		409		{object}	map[string]string
+//	@Router			/teams [post]
 func (h *Handler) CreateTeam(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -78,6 +91,18 @@ func (h *Handler) CreateTeam(c *gin.Context) {
 }
 
 // GetTeam handles getting a team.
+//
+//	@Summary		Get team
+//	@Description	Get team details by slug
+//	@Tags			Collaboration
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			slug		path		string	true	"Team slug"
+//	@Param			owner_id	query		string	false	"Owner ID"
+//	@Success		200			{object}	TeamResponse
+//	@Failure		400			{object}	map[string]string
+//	@Failure		404			{object}	map[string]string
+//	@Router			/teams/{slug} [get]
 func (h *Handler) GetTeam(c *gin.Context) {
 	userID, _ := h.tryGetUserID(c)
 	ownerID, ok := h.getOwnerID(c)
@@ -102,6 +127,17 @@ func (h *Handler) GetTeam(c *gin.Context) {
 }
 
 // ListMyTeams handles listing teams the user belongs to.
+//
+//	@Summary		List my teams
+//	@Description	Get all teams the current user belongs to
+//	@Tags			Collaboration
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			limit	query		int	false	"Limit"		default(20)
+//	@Param			offset	query		int	false	"Offset"	default(0)
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		401		{object}	map[string]string
+//	@Router			/teams [get]
 func (h *Handler) ListMyTeams(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -136,6 +172,21 @@ func (h *Handler) ListMyTeams(c *gin.Context) {
 }
 
 // UpdateTeam handles updating a team.
+//
+//	@Summary		Update team
+//	@Description	Update team settings
+//	@Tags			Collaboration
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			slug	path		string				true	"Team slug"
+//	@Param			request	body		UpdateTeamRequest	true	"Update request"
+//	@Success		200		{object}	TeamResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/teams/{slug} [patch]
 func (h *Handler) UpdateTeam(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -179,6 +230,18 @@ func (h *Handler) UpdateTeam(c *gin.Context) {
 }
 
 // DeleteTeam handles deleting a team.
+//
+//	@Summary		Delete team
+//	@Description	Permanently delete a team
+//	@Tags			Collaboration
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			slug	path		string	true	"Team slug"
+//	@Success		200		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/teams/{slug} [delete]
 func (h *Handler) DeleteTeam(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -210,6 +273,18 @@ func (h *Handler) DeleteTeam(c *gin.Context) {
 // ========== Member Handlers ==========
 
 // ListMembers handles listing team members.
+//
+//	@Summary		List team members
+//	@Description	Get all members of a team
+//	@Tags			Collaboration
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			slug	path		string	true	"Team slug"
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/teams/{slug}/members [get]
 func (h *Handler) ListMembers(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -250,6 +325,22 @@ func (h *Handler) ListMembers(c *gin.Context) {
 }
 
 // UpdateMemberRole handles updating a member's role.
+//
+//	@Summary		Update member role
+//	@Description	Update a team member's role
+//	@Tags			Collaboration
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			slug	path		string					true	"Team slug"
+//	@Param			user_id	path		string					true	"User ID"
+//	@Param			request	body		UpdateMemberRoleRequest	true	"Role update"
+//	@Success		200		{object}	map[string]string
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/teams/{slug}/members/{user_id} [patch]
 func (h *Handler) UpdateMemberRole(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -291,6 +382,19 @@ func (h *Handler) UpdateMemberRole(c *gin.Context) {
 }
 
 // RemoveMember handles removing a member.
+//
+//	@Summary		Remove member
+//	@Description	Remove a member from a team
+//	@Tags			Collaboration
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			slug	path		string	true	"Team slug"
+//	@Param			user_id	path		string	true	"User ID"
+//	@Success		200		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/teams/{slug}/members/{user_id} [delete]
 func (h *Handler) RemoveMember(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -326,6 +430,18 @@ func (h *Handler) RemoveMember(c *gin.Context) {
 }
 
 // LeaveTeam handles leaving a team.
+//
+//	@Summary		Leave team
+//	@Description	Leave a team (current user)
+//	@Tags			Collaboration
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			slug	path		string	true	"Team slug"
+//	@Success		200		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/teams/{slug}/leave [post]
 func (h *Handler) LeaveTeam(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -356,6 +472,21 @@ func (h *Handler) LeaveTeam(c *gin.Context) {
 // ========== Invitation Handlers ==========
 
 // SendInvitation handles sending an invitation.
+//
+//	@Summary		Send invitation
+//	@Description	Send a team invitation to a user
+//	@Tags			Collaboration
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			slug	path		string			true	"Team slug"
+//	@Param			request	body		InviteRequest	true	"Invitation request"
+//	@Success		201		{object}	InvitationResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		409		{object}	map[string]string
+//	@Router			/teams/{slug}/invitations [post]
 func (h *Handler) SendInvitation(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -391,6 +522,21 @@ func (h *Handler) SendInvitation(c *gin.Context) {
 }
 
 // ListTeamInvitations handles listing team invitations.
+//
+//	@Summary		List team invitations
+//	@Description	Get all invitations for a team
+//	@Tags			Collaboration
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			slug	path		string	true	"Team slug"
+//	@Param			status	query		string	false	"Filter by status"
+//	@Param			limit	query		int		false	"Limit"		default(20)
+//	@Param			offset	query		int		false	"Offset"	default(0)
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/teams/{slug}/invitations [get]
 func (h *Handler) ListTeamInvitations(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -436,6 +582,17 @@ func (h *Handler) ListTeamInvitations(c *gin.Context) {
 }
 
 // ListMyInvitations handles listing user's pending invitations.
+//
+//	@Summary		List my invitations
+//	@Description	Get all pending invitations for the current user
+//	@Tags			Collaboration
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			limit	query		int	false	"Limit"		default(20)
+//	@Param			offset	query		int	false	"Offset"	default(0)
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		401		{object}	map[string]string
+//	@Router			/invitations [get]
 func (h *Handler) ListMyInvitations(c *gin.Context) {
 	userEmail, ok := h.getUserEmail(c)
 	if !ok {
@@ -463,6 +620,20 @@ func (h *Handler) ListMyInvitations(c *gin.Context) {
 }
 
 // AcceptInvitation handles accepting an invitation.
+//
+//	@Summary		Accept invitation
+//	@Description	Accept a team invitation
+//	@Tags			Collaboration
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			token	path		string	true	"Invitation token"
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Failure		410		{object}	map[string]string
+//	@Router			/invitations/{token}/accept [post]
 func (h *Handler) AcceptInvitation(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -500,6 +671,19 @@ func (h *Handler) AcceptInvitation(c *gin.Context) {
 }
 
 // RejectInvitation handles rejecting an invitation.
+//
+//	@Summary		Reject invitation
+//	@Description	Reject a team invitation
+//	@Tags			Collaboration
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			token	path		string	true	"Invitation token"
+//	@Success		200		{object}	map[string]string
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/invitations/{token}/reject [post]
 func (h *Handler) RejectInvitation(c *gin.Context) {
 	userEmail, ok := h.getUserEmail(c)
 	if !ok {
@@ -521,6 +705,19 @@ func (h *Handler) RejectInvitation(c *gin.Context) {
 }
 
 // RevokeInvitation handles revoking an invitation.
+//
+//	@Summary		Revoke invitation
+//	@Description	Revoke a pending invitation
+//	@Tags			Collaboration
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Invitation ID"
+//	@Success		200	{object}	map[string]string
+//	@Failure		400	{object}	map[string]string
+//	@Failure		401	{object}	map[string]string
+//	@Failure		403	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/invitations/{id} [delete]
 func (h *Handler) RevokeInvitation(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {

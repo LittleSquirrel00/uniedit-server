@@ -23,6 +23,19 @@ type PlanResponse struct {
 	DailyRequests int      `json:"daily_requests"`
 	MaxAPIKeys    int      `json:"max_api_keys"`
 	Features      []string `json:"features"`
+
+	// Task-specific quotas
+	MonthlyChatTokens      int64 `json:"monthly_chat_tokens"`
+	MonthlyImageCredits    int   `json:"monthly_image_credits"`
+	MonthlyVideoMinutes    int   `json:"monthly_video_minutes"`
+	MonthlyEmbeddingTokens int64 `json:"monthly_embedding_tokens"`
+
+	// Storage quotas
+	GitStorageMB int64 `json:"git_storage_mb"`
+	LFSStorageMB int64 `json:"lfs_storage_mb"`
+
+	// Team quota
+	MaxTeamMembers int `json:"max_team_members"`
 }
 
 // ToResponse converts a Plan to PlanResponse.
@@ -30,16 +43,23 @@ func (p *Plan) ToResponse() *PlanResponse {
 	features := make([]string, len(p.Features))
 	copy(features, p.Features)
 	return &PlanResponse{
-		ID:            p.ID,
-		Type:          string(p.Type),
-		Name:          p.Name,
-		Description:   p.Description,
-		BillingCycle:  string(p.BillingCycle),
-		PriceUSD:      p.PriceUSD,
-		MonthlyTokens: p.MonthlyTokens,
-		DailyRequests: p.DailyRequests,
-		MaxAPIKeys:    p.MaxAPIKeys,
-		Features:      features,
+		ID:                     p.ID,
+		Type:                   string(p.Type),
+		Name:                   p.Name,
+		Description:            p.Description,
+		BillingCycle:           string(p.BillingCycle),
+		PriceUSD:               p.PriceUSD,
+		MonthlyTokens:          p.MonthlyTokens,
+		DailyRequests:          p.DailyRequests,
+		MaxAPIKeys:             p.MaxAPIKeys,
+		Features:               features,
+		MonthlyChatTokens:      p.MonthlyChatTokens,
+		MonthlyImageCredits:    p.MonthlyImageCredits,
+		MonthlyVideoMinutes:    p.MonthlyVideoMinutes,
+		MonthlyEmbeddingTokens: p.MonthlyEmbeddingTokens,
+		GitStorageMB:           p.GitStorageMB,
+		LFSStorageMB:           p.LFSStorageMB,
+		MaxTeamMembers:         p.MaxTeamMembers,
 	}
 }
 
@@ -85,6 +105,53 @@ type QuotaStatus struct {
 	RequestsToday   int       `json:"requests_today"`
 	RequestsLimit   int       `json:"requests_limit"`
 	ResetAt         time.Time `json:"reset_at"`
+
+	// Task-specific quotas
+	AI *AIQuotaStatus `json:"ai,omitempty"`
+
+	// Storage quotas
+	Storage *StorageQuotaStatus `json:"storage,omitempty"`
+
+	// Team quotas
+	Team *TeamQuotaStatus `json:"team,omitempty"`
+}
+
+// AIQuotaStatus represents AI task-specific quota status.
+type AIQuotaStatus struct {
+	Chat      *TaskQuotaItem `json:"chat,omitempty"`
+	Image     *TaskQuotaItem `json:"image,omitempty"`
+	Video     *TaskQuotaItem `json:"video,omitempty"`
+	Embedding *TaskQuotaItem `json:"embedding,omitempty"`
+}
+
+// TaskQuotaItem represents quota status for a specific task type.
+type TaskQuotaItem struct {
+	Used      int64 `json:"used"`
+	Limit     int64 `json:"limit"`     // -1 for unlimited
+	Remaining int64 `json:"remaining"` // -1 for unlimited
+}
+
+// StorageQuotaStatus represents storage quota status.
+type StorageQuotaStatus struct {
+	Git *StorageQuotaItem `json:"git,omitempty"`
+	LFS *StorageQuotaItem `json:"lfs,omitempty"`
+}
+
+// StorageQuotaItem represents quota status for a storage type.
+type StorageQuotaItem struct {
+	UsedMB      int64 `json:"used_mb"`
+	LimitMB     int64 `json:"limit_mb"`     // -1 for unlimited
+	RemainingMB int64 `json:"remaining_mb"` // -1 for unlimited
+	Warning     bool  `json:"warning,omitempty"`
+}
+
+// TeamQuotaStatus represents team member quota status.
+type TeamQuotaStatus struct {
+	Current   int  `json:"current"`
+	Pending   int  `json:"pending"`
+	Limit     int  `json:"limit"`     // -1 for unlimited
+	Remaining int  `json:"remaining"` // -1 for unlimited
+	OverQuota bool `json:"over_quota,omitempty"`
 }
 
 // UsagePeriod represents the time period for usage queries.

@@ -40,8 +40,22 @@ type Plan struct {
 	Features      pq.StringArray `json:"features" gorm:"type:text[]"`
 	Active        bool           `json:"active" gorm:"default:true"`
 	DisplayOrder  int            `json:"display_order" gorm:"default:0"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
+
+	// Task-specific quotas
+	MonthlyChatTokens      int64 `json:"monthly_chat_tokens" gorm:"default:0"`      // -1=unlimited, 0=use MonthlyTokens
+	MonthlyImageCredits    int   `json:"monthly_image_credits" gorm:"default:0"`    // -1=unlimited
+	MonthlyVideoMinutes    int   `json:"monthly_video_minutes" gorm:"default:0"`    // -1=unlimited
+	MonthlyEmbeddingTokens int64 `json:"monthly_embedding_tokens" gorm:"default:0"` // -1=unlimited
+
+	// Storage quotas
+	GitStorageMB int64 `json:"git_storage_mb" gorm:"default:-1"` // -1=unlimited
+	LFSStorageMB int64 `json:"lfs_storage_mb" gorm:"default:-1"` // -1=unlimited
+
+	// Team quota
+	MaxTeamMembers int `json:"max_team_members" gorm:"default:5"` // -1=unlimited
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // TableName returns the database table name.
@@ -57,6 +71,50 @@ func (p *Plan) IsUnlimitedTokens() bool {
 // IsUnlimitedRequests returns true if the plan has unlimited daily requests.
 func (p *Plan) IsUnlimitedRequests() bool {
 	return p.DailyRequests == -1
+}
+
+// IsUnlimitedChatTokens returns true if chat tokens are unlimited.
+func (p *Plan) IsUnlimitedChatTokens() bool {
+	return p.MonthlyChatTokens == -1
+}
+
+// IsUnlimitedImageCredits returns true if image credits are unlimited.
+func (p *Plan) IsUnlimitedImageCredits() bool {
+	return p.MonthlyImageCredits == -1
+}
+
+// IsUnlimitedVideoMinutes returns true if video minutes are unlimited.
+func (p *Plan) IsUnlimitedVideoMinutes() bool {
+	return p.MonthlyVideoMinutes == -1
+}
+
+// IsUnlimitedEmbeddingTokens returns true if embedding tokens are unlimited.
+func (p *Plan) IsUnlimitedEmbeddingTokens() bool {
+	return p.MonthlyEmbeddingTokens == -1
+}
+
+// IsUnlimitedGitStorage returns true if git storage is unlimited.
+func (p *Plan) IsUnlimitedGitStorage() bool {
+	return p.GitStorageMB == -1
+}
+
+// IsUnlimitedLFSStorage returns true if LFS storage is unlimited.
+func (p *Plan) IsUnlimitedLFSStorage() bool {
+	return p.LFSStorageMB == -1
+}
+
+// IsUnlimitedTeamMembers returns true if team members are unlimited.
+func (p *Plan) IsUnlimitedTeamMembers() bool {
+	return p.MaxTeamMembers == -1
+}
+
+// GetEffectiveChatTokenLimit returns the effective chat token limit.
+// If MonthlyChatTokens is 0, falls back to MonthlyTokens for backward compatibility.
+func (p *Plan) GetEffectiveChatTokenLimit() int64 {
+	if p.MonthlyChatTokens == 0 {
+		return p.MonthlyTokens
+	}
+	return p.MonthlyChatTokens
 }
 
 // SubscriptionStatus represents the status of a subscription.

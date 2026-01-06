@@ -7,6 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	swaggerfiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	_ "github.com/uniedit/server/cmd/server/docs" // swagger docs
 	"github.com/uniedit/server/internal/module/ai"
 	"github.com/uniedit/server/internal/module/ai/cache"
 	"github.com/uniedit/server/internal/module/ai/provider"
@@ -27,6 +30,7 @@ import (
 	sharedcache "github.com/uniedit/server/internal/shared/cache"
 	"github.com/uniedit/server/internal/shared/config"
 	"github.com/uniedit/server/internal/shared/database"
+	"github.com/uniedit/server/internal/shared/events"
 	"github.com/uniedit/server/internal/shared/logger"
 	"github.com/uniedit/server/internal/shared/middleware"
 	"go.uber.org/zap"
@@ -41,6 +45,9 @@ type App struct {
 	router    *gin.Engine
 	logger    *logger.Logger
 	zapLogger *zap.Logger
+
+	// Event infrastructure
+	eventBus *events.Bus
 
 	// Modules
 	aiModule           *ai.Module
@@ -62,6 +69,7 @@ type App struct {
 	// Services (for cross-module dependencies)
 	billingService billing.ServiceInterface
 	billingRepo    billing.Repository
+	orderRepo      order.Repository
 	orderService   *order.Service
 	paymentService *payment.Service
 	usageRecorder  *billingusage.Recorder
@@ -151,11 +159,17 @@ func (a *App) setupRouter() *gin.Engine {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
+	// Swagger documentation endpoint
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
+
 	return r
 }
 
 // initModules initializes all application modules.
 func (a *App) initModules() error {
+	// Initialize event bus for domain events
+	a.eventBus = events.NewBus(a.zapLogger)
+
 	// Initialize AI module
 	aiConfig := &ai.Config{
 		DB:    a.db,
@@ -206,6 +220,9 @@ func (a *App) initModules() error {
 		return fmt.Errorf("init payment module: %w", err)
 	}
 
+	// Register event handlers after all modules are initialized
+	a.registerEventHandlers()
+
 	// Initialize git module
 	if err := a.initGitModule(); err != nil {
 		return fmt.Errorf("init git module: %w", err)
@@ -222,6 +239,17 @@ func (a *App) initModules() error {
 	}
 
 	return nil
+}
+
+// registerEventHandlers registers all domain event handlers.
+func (a *App) registerEventHandlers() {
+	// Order module handles PaymentSucceeded and PaymentFailed events
+	orderEventHandler := order.NewEventHandler(a.orderRepo, a.zapLogger)
+	a.eventBus.Register(orderEventHandler)
+
+	// Billing module handles PaymentSucceeded for topup orders
+	billingEventHandler := billing.NewEventHandler(a.billingService, a.zapLogger)
+	a.eventBus.Register(billingEventHandler)
 }
 
 // initAuthModule initializes the auth module for System API Key management.
@@ -353,11 +381,11 @@ func (a *App) initBillingModule() error {
 // initOrderModule initializes the order module.
 func (a *App) initOrderModule() error {
 	// Create order repository
-	orderRepo := order.NewRepository(a.db)
+	a.orderRepo = order.NewRepository(a.db)
 
 	// Create order service (needs billing.Repository)
 	a.orderService = order.NewService(
-		orderRepo,
+		a.orderRepo,
 		a.billingRepo,
 		a.zapLogger,
 	)
@@ -420,17 +448,25 @@ func (a *App) initPaymentModule() error {
 	// Create payment repository
 	paymentRepo := payment.NewRepository(a.db)
 
+	// Create adapters for cross-module dependencies (Dependency Inversion Principle)
+	orderReader := newPaymentOrderAdapter(a.orderRepo)
+	billingReader := newPaymentBillingAdapter(a.billingService)
+
+	// Create event bus adapter for payment module
+	eventBusAdapter := newEventBusAdapter(a.eventBus)
+
 	// Determine notify base URL
 	notifyBaseURL := a.config.Server.Address
 	if a.config.Email.BaseURL != "" {
 		notifyBaseURL = a.config.Email.BaseURL
 	}
 
-	// Create payment service
+	// Create payment service with interface dependencies (not concrete Service)
 	a.paymentService = payment.NewService(
 		paymentRepo,
-		a.orderService,
-		a.billingService,
+		orderReader,     // payment.OrderReader interface
+		billingReader,   // payment.BillingReader interface
+		eventBusAdapter, // payment.EventPublisher interface
 		providerRegistry,
 		notifyBaseURL,
 		a.zapLogger,

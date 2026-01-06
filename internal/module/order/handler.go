@@ -37,6 +37,18 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 // CreateSubscriptionOrder creates a subscription order.
+//
+//	@Summary		Create subscription order
+//	@Description	Create a new order for a subscription plan
+//	@Tags			Order
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CreateSubscriptionOrderRequest	true	"Create order request"
+//	@Success		201		{object}	map[string]interface{}
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Router			/orders/subscription [post]
 func (h *Handler) CreateSubscriptionOrder(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -62,6 +74,18 @@ func (h *Handler) CreateSubscriptionOrder(c *gin.Context) {
 }
 
 // CreateTopupOrder creates a top-up order.
+//
+//	@Summary		Create top-up order
+//	@Description	Create a new order to top up credits
+//	@Tags			Order
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CreateTopupOrderRequest	true	"Create order request"
+//	@Success		201		{object}	map[string]interface{}
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Router			/orders/topup [post]
 func (h *Handler) CreateTopupOrder(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -87,6 +111,20 @@ func (h *Handler) CreateTopupOrder(c *gin.Context) {
 }
 
 // ListOrders returns orders for the current user.
+//
+//	@Summary		List orders
+//	@Description	Get all orders for the current user
+//	@Tags			Order
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			status		query		string	false	"Filter by status"
+//	@Param			type		query		string	false	"Filter by order type"
+//	@Param			page		query		int		false	"Page number"	default(1)
+//	@Param			page_size	query		int		false	"Page size"		default(20)
+//	@Success		200			{object}	OrderListResponse
+//	@Failure		400			{object}	map[string]string
+//	@Failure		401			{object}	map[string]string
+//	@Router			/orders [get]
 func (h *Handler) ListOrders(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -132,6 +170,19 @@ func (h *Handler) ListOrders(c *gin.Context) {
 }
 
 // GetOrder returns a single order.
+//
+//	@Summary		Get order
+//	@Description	Get details of a specific order
+//	@Tags			Order
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Order ID"
+//	@Success		200	{object}	OrderResponse
+//	@Failure		400	{object}	map[string]string
+//	@Failure		401	{object}	map[string]string
+//	@Failure		403	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/orders/{id} [get]
 func (h *Handler) GetOrder(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -161,6 +212,19 @@ func (h *Handler) GetOrder(c *gin.Context) {
 }
 
 // CancelOrder cancels a pending order.
+//
+//	@Summary		Cancel order
+//	@Description	Cancel a pending order
+//	@Tags			Order
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Order ID"
+//	@Success		200	{object}	map[string]string
+//	@Failure		400	{object}	map[string]string
+//	@Failure		401	{object}	map[string]string
+//	@Failure		403	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/orders/{id}/cancel [post]
 func (h *Handler) CancelOrder(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -194,6 +258,16 @@ func (h *Handler) CancelOrder(c *gin.Context) {
 }
 
 // ListInvoices returns invoices for the current user.
+//
+//	@Summary		List invoices
+//	@Description	Get all invoices for the current user
+//	@Tags			Order
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	map[string]interface{}
+//	@Failure		401	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Router			/invoices [get]
 func (h *Handler) ListInvoices(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -216,6 +290,19 @@ func (h *Handler) ListInvoices(c *gin.Context) {
 }
 
 // GetInvoice returns a single invoice.
+//
+//	@Summary		Get invoice
+//	@Description	Get details of a specific invoice
+//	@Tags			Order
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Invoice ID"
+//	@Success		200	{object}	InvoiceResponse
+//	@Failure		400	{object}	map[string]string
+//	@Failure		401	{object}	map[string]string
+//	@Failure		403	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/invoices/{id} [get]
 func (h *Handler) GetInvoice(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {

@@ -37,6 +37,20 @@ func (h *Handler) RegisterRoutes(admin *gin.RouterGroup) {
 }
 
 // AddAccount adds an account to the pool.
+//
+//	@Summary		Add provider account
+//	@Description	Add a new account to an AI provider's pool
+//	@Tags			AI
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			provider_id	path		string					true	"Provider ID"
+//	@Param			request		body		CreateAccountRequest	true	"Account data"
+//	@Success		201			{object}	AccountResponse
+//	@Failure		400			{object}	map[string]string
+//	@Failure		401			{object}	map[string]string
+//	@Failure		409			{object}	map[string]string
+//	@Router			/admin/providers/{provider_id}/accounts [post]
 func (h *Handler) AddAccount(c *gin.Context) {
 	providerID, err := uuid.Parse(c.Param("provider_id"))
 	if err != nil {
@@ -80,6 +94,17 @@ func (h *Handler) AddAccount(c *gin.Context) {
 }
 
 // ListAccounts lists all accounts for a provider.
+//
+//	@Summary		List provider accounts
+//	@Description	Get all accounts for an AI provider
+//	@Tags			AI
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			provider_id	path		string	true	"Provider ID"
+//	@Success		200			{object}	ListAccountsResponse
+//	@Failure		400			{object}	map[string]string
+//	@Failure		401			{object}	map[string]string
+//	@Router			/admin/providers/{provider_id}/accounts [get]
 func (h *Handler) ListAccounts(c *gin.Context) {
 	providerID, err := uuid.Parse(c.Param("provider_id"))
 	if err != nil {
@@ -106,6 +131,19 @@ func (h *Handler) ListAccounts(c *gin.Context) {
 }
 
 // GetAccount gets an account by ID.
+//
+//	@Summary		Get provider account
+//	@Description	Get details of a specific provider account
+//	@Tags			AI
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			provider_id	path		string	true	"Provider ID"
+//	@Param			account_id	path		string	true	"Account ID"
+//	@Success		200			{object}	AccountResponse
+//	@Failure		400			{object}	map[string]string
+//	@Failure		401			{object}	map[string]string
+//	@Failure		404			{object}	map[string]string
+//	@Router			/admin/providers/{provider_id}/accounts/{account_id} [get]
 func (h *Handler) GetAccount(c *gin.Context) {
 	accountID, err := uuid.Parse(c.Param("account_id"))
 	if err != nil {
@@ -128,6 +166,21 @@ func (h *Handler) GetAccount(c *gin.Context) {
 }
 
 // UpdateAccount updates an account.
+//
+//	@Summary		Update provider account
+//	@Description	Update a provider account's settings
+//	@Tags			AI
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			provider_id	path		string					true	"Provider ID"
+//	@Param			account_id	path		string					true	"Account ID"
+//	@Param			request		body		UpdateAccountRequest	true	"Update data"
+//	@Success		200			{object}	AccountResponse
+//	@Failure		400			{object}	map[string]string
+//	@Failure		401			{object}	map[string]string
+//	@Failure		404			{object}	map[string]string
+//	@Router			/admin/providers/{provider_id}/accounts/{account_id} [patch]
 func (h *Handler) UpdateAccount(c *gin.Context) {
 	accountID, err := uuid.Parse(c.Param("account_id"))
 	if err != nil {
@@ -185,6 +238,19 @@ func (h *Handler) UpdateAccount(c *gin.Context) {
 }
 
 // DeleteAccount removes an account from the pool.
+//
+//	@Summary		Delete provider account
+//	@Description	Remove an account from a provider's pool
+//	@Tags			AI
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			provider_id	path	string	true	"Provider ID"
+//	@Param			account_id	path	string	true	"Account ID"
+//	@Success		204			"No Content"
+//	@Failure		400			{object}	map[string]string
+//	@Failure		401			{object}	map[string]string
+//	@Failure		404			{object}	map[string]string
+//	@Router			/admin/providers/{provider_id}/accounts/{account_id} [delete]
 func (h *Handler) DeleteAccount(c *gin.Context) {
 	accountID, err := uuid.Parse(c.Param("account_id"))
 	if err != nil {
@@ -206,6 +272,19 @@ func (h *Handler) DeleteAccount(c *gin.Context) {
 }
 
 // GetAccountStats gets usage statistics for an account.
+//
+//	@Summary		Get account statistics
+//	@Description	Get usage statistics for a provider account
+//	@Tags			AI
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			provider_id	path		string	true	"Provider ID"
+//	@Param			account_id	path		string	true	"Account ID"
+//	@Success		200			{object}	AccountStatsResponse
+//	@Failure		400			{object}	map[string]string
+//	@Failure		401			{object}	map[string]string
+//	@Failure		404			{object}	map[string]string
+//	@Router			/admin/providers/{provider_id}/accounts/{account_id}/stats [get]
 func (h *Handler) GetAccountStats(c *gin.Context) {
 	accountID, err := uuid.Parse(c.Param("account_id"))
 	if err != nil {
@@ -228,6 +307,19 @@ func (h *Handler) GetAccountStats(c *gin.Context) {
 }
 
 // CheckHealth triggers a health check for an account.
+//
+//	@Summary		Check account health
+//	@Description	Trigger a health check for a provider account
+//	@Tags			AI
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			provider_id	path		string	true	"Provider ID"
+//	@Param			account_id	path		string	true	"Account ID"
+//	@Success		200			{object}	map[string]interface{}
+//	@Failure		400			{object}	map[string]string
+//	@Failure		401			{object}	map[string]string
+//	@Failure		404			{object}	map[string]string
+//	@Router			/admin/providers/{provider_id}/accounts/{account_id}/check-health [post]
 func (h *Handler) CheckHealth(c *gin.Context) {
 	accountID, err := uuid.Parse(c.Param("account_id"))
 	if err != nil {

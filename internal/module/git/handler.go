@@ -58,6 +58,19 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // --- Repository Handlers ---
 
 // CreateRepo creates a new repository.
+//
+//	@Summary		Create repository
+//	@Description	Create a new git repository
+//	@Tags			Git
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CreateRepoRequest	true	"Create repository request"
+//	@Success		201		{object}	RepoResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		409		{object}	map[string]string
+//	@Router			/repos [post]
 func (h *Handler) CreateRepo(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -81,6 +94,18 @@ func (h *Handler) CreateRepo(c *gin.Context) {
 }
 
 // GetRepo retrieves a repository.
+//
+//	@Summary		Get repository
+//	@Description	Get details of a specific repository
+//	@Tags			Git
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path		string	true	"Owner ID"
+//	@Param			repo	path		string	true	"Repository slug"
+//	@Success		200		{object}	RepoResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo} [get]
 func (h *Handler) GetRepo(c *gin.Context) {
 	ownerID, repo, err := h.resolveRepo(c)
 	if err != nil {
@@ -104,6 +129,20 @@ func (h *Handler) GetRepo(c *gin.Context) {
 }
 
 // ListRepos lists repositories for the authenticated user.
+//
+//	@Summary		List repositories
+//	@Description	Get all repositories for the current user
+//	@Tags			Git
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			page		query		int		false	"Page number"		default(1)
+//	@Param			page_size	query		int		false	"Page size"			default(20)
+//	@Param			search		query		string	false	"Search query"
+//	@Param			type		query		string	false	"Repository type"
+//	@Param			visibility	query		string	false	"Visibility filter"
+//	@Success		200			{object}	ListReposResponse
+//	@Failure		401			{object}	map[string]string
+//	@Router			/repos [get]
 func (h *Handler) ListRepos(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -132,6 +171,16 @@ func (h *Handler) ListRepos(c *gin.Context) {
 }
 
 // ListPublicRepos lists public repositories.
+//
+//	@Summary		List public repositories
+//	@Description	Get all public repositories
+//	@Tags			Git
+//	@Produce		json
+//	@Param			page		query		int		false	"Page number"	default(1)
+//	@Param			page_size	query		int		false	"Page size"		default(20)
+//	@Param			search		query		string	false	"Search query"
+//	@Success		200			{object}	ListReposResponse
+//	@Router			/repos/public [get]
 func (h *Handler) ListPublicRepos(c *gin.Context) {
 	filter := parseRepoFilter(c)
 	repos, total, err := h.service.ListPublicRepos(c.Request.Context(), filter)
@@ -154,6 +203,22 @@ func (h *Handler) ListPublicRepos(c *gin.Context) {
 }
 
 // UpdateRepo updates a repository.
+//
+//	@Summary		Update repository
+//	@Description	Update repository settings
+//	@Tags			Git
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path		string				true	"Owner ID"
+//	@Param			repo	path		string				true	"Repository slug"
+//	@Param			request	body		UpdateRepoRequest	true	"Update request"
+//	@Success		200		{object}	RepoResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo} [patch]
 func (h *Handler) UpdateRepo(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -182,6 +247,19 @@ func (h *Handler) UpdateRepo(c *gin.Context) {
 }
 
 // DeleteRepo deletes a repository.
+//
+//	@Summary		Delete repository
+//	@Description	Permanently delete a repository
+//	@Tags			Git
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path	string	true	"Owner ID"
+//	@Param			repo	path	string	true	"Repository slug"
+//	@Success		204		"No Content"
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo} [delete]
 func (h *Handler) DeleteRepo(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -205,6 +283,19 @@ func (h *Handler) DeleteRepo(c *gin.Context) {
 // --- Collaborator Handlers ---
 
 // ListCollaborators lists collaborators.
+//
+//	@Summary		List collaborators
+//	@Description	Get all collaborators for a repository
+//	@Tags			Git
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path		string	true	"Owner ID"
+//	@Param			repo	path		string	true	"Repository slug"
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo}/collaborators [get]
 func (h *Handler) ListCollaborators(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -238,6 +329,23 @@ func (h *Handler) ListCollaborators(c *gin.Context) {
 }
 
 // AddCollaborator adds a collaborator.
+//
+//	@Summary		Add collaborator
+//	@Description	Add a collaborator to a repository
+//	@Tags			Git
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path		string					true	"Owner ID"
+//	@Param			repo	path		string					true	"Repository slug"
+//	@Param			user_id	path		string					true	"User ID to add"
+//	@Param			request	body		AddCollaboratorRequest	true	"Collaborator request"
+//	@Success		201		{object}	map[string]string
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo}/collaborators/{user_id} [put]
 func (h *Handler) AddCollaborator(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -271,6 +379,23 @@ func (h *Handler) AddCollaborator(c *gin.Context) {
 }
 
 // UpdateCollaborator updates a collaborator's permission.
+//
+//	@Summary		Update collaborator
+//	@Description	Update a collaborator's permission level
+//	@Tags			Git
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path		string					true	"Owner ID"
+//	@Param			repo	path		string					true	"Repository slug"
+//	@Param			user_id	path		string					true	"User ID"
+//	@Param			request	body		AddCollaboratorRequest	true	"Permission update"
+//	@Success		200		{object}	map[string]string
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo}/collaborators/{user_id} [patch]
 func (h *Handler) UpdateCollaborator(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -304,6 +429,20 @@ func (h *Handler) UpdateCollaborator(c *gin.Context) {
 }
 
 // RemoveCollaborator removes a collaborator.
+//
+//	@Summary		Remove collaborator
+//	@Description	Remove a collaborator from a repository
+//	@Tags			Git
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path	string	true	"Owner ID"
+//	@Param			repo	path	string	true	"Repository slug"
+//	@Param			user_id	path	string	true	"User ID to remove"
+//	@Success		204		"No Content"
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo}/collaborators/{user_id} [delete]
 func (h *Handler) RemoveCollaborator(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -333,6 +472,21 @@ func (h *Handler) RemoveCollaborator(c *gin.Context) {
 // --- Pull Request Handlers ---
 
 // CreatePR creates a pull request.
+//
+//	@Summary		Create pull request
+//	@Description	Create a new pull request
+//	@Tags			Git
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path		string			true	"Owner ID"
+//	@Param			repo	path		string			true	"Repository slug"
+//	@Param			request	body		CreatePRRequest	true	"Pull request data"
+//	@Success		201		{object}	PRResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo}/pulls [post]
 func (h *Handler) CreatePR(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -361,6 +515,19 @@ func (h *Handler) CreatePR(c *gin.Context) {
 }
 
 // GetPR retrieves a pull request.
+//
+//	@Summary		Get pull request
+//	@Description	Get details of a specific pull request
+//	@Tags			Git
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path		string	true	"Owner ID"
+//	@Param			repo	path		string	true	"Repository slug"
+//	@Param			number	path		int		true	"PR number"
+//	@Success		200		{object}	PRResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo}/pulls/{number} [get]
 func (h *Handler) GetPR(c *gin.Context) {
 	_, repo, err := h.resolveRepo(c)
 	if err != nil {
@@ -391,6 +558,20 @@ func (h *Handler) GetPR(c *gin.Context) {
 }
 
 // ListPRs lists pull requests.
+//
+//	@Summary		List pull requests
+//	@Description	Get all pull requests for a repository
+//	@Tags			Git
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path		string	true	"Owner ID"
+//	@Param			repo	path		string	true	"Repository slug"
+//	@Param			status	query		string	false	"Filter by status"
+//	@Param			limit	query		int		false	"Limit"		default(20)
+//	@Param			offset	query		int		false	"Offset"	default(0)
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo}/pulls [get]
 func (h *Handler) ListPRs(c *gin.Context) {
 	_, repo, err := h.resolveRepo(c)
 	if err != nil {
@@ -441,6 +622,23 @@ func (h *Handler) ListPRs(c *gin.Context) {
 }
 
 // UpdatePR updates a pull request.
+//
+//	@Summary		Update pull request
+//	@Description	Update a pull request's title or description
+//	@Tags			Git
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path		string			true	"Owner ID"
+//	@Param			repo	path		string			true	"Repository slug"
+//	@Param			number	path		int				true	"PR number"
+//	@Param			request	body		UpdatePRRequest	true	"Update data"
+//	@Success		200		{object}	PRResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo}/pulls/{number} [patch]
 func (h *Handler) UpdatePR(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -475,6 +673,21 @@ func (h *Handler) UpdatePR(c *gin.Context) {
 }
 
 // MergePR merges a pull request.
+//
+//	@Summary		Merge pull request
+//	@Description	Merge a pull request into the base branch
+//	@Tags			Git
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path		string	true	"Owner ID"
+//	@Param			repo	path		string	true	"Repository slug"
+//	@Param			number	path		int		true	"PR number"
+//	@Success		200		{object}	PRResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo}/pulls/{number}/merge [post]
 func (h *Handler) MergePR(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -505,6 +718,19 @@ func (h *Handler) MergePR(c *gin.Context) {
 // --- Storage Handlers ---
 
 // GetStorageStats returns storage statistics for a repository.
+//
+//	@Summary		Get repository storage stats
+//	@Description	Get storage usage statistics for a repository
+//	@Tags			Git
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			owner	path		string	true	"Owner ID"
+//	@Param			repo	path		string	true	"Repository slug"
+//	@Success		200		{object}	StorageStats
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/repos/{owner}/{repo}/storage [get]
 func (h *Handler) GetStorageStats(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -533,6 +759,15 @@ func (h *Handler) GetStorageStats(c *gin.Context) {
 }
 
 // GetUserStorageStats returns storage statistics for the user.
+//
+//	@Summary		Get user storage stats
+//	@Description	Get total storage usage for the current user
+//	@Tags			Git
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	UserStorageStats
+//	@Failure		401	{object}	map[string]string
+//	@Router			/storage [get]
 func (h *Handler) GetUserStorageStats(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {

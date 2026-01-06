@@ -70,7 +70,15 @@ func (c *Checker) Middleware() gin.HandlerFunc {
 
 // isQuotaExceeded checks if the error indicates quota exceeded.
 func isQuotaExceeded(err error) bool {
-	return errors.Is(err, ErrTokenQuotaExceeded) || errors.Is(err, ErrRequestQuotaExceeded)
+	return errors.Is(err, ErrTokenQuotaExceeded) ||
+		errors.Is(err, ErrRequestQuotaExceeded) ||
+		errors.Is(err, ErrChatQuotaExceeded) ||
+		errors.Is(err, ErrImageQuotaExceeded) ||
+		errors.Is(err, ErrVideoQuotaExceeded) ||
+		errors.Is(err, ErrEmbeddingQuotaExceeded) ||
+		errors.Is(err, ErrGitStorageQuotaExceeded) ||
+		errors.Is(err, ErrLFSStorageQuotaExceeded) ||
+		errors.Is(err, ErrTeamMemberQuotaExceeded)
 }
 
 // determineTaskType determines the task type from the request.

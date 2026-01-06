@@ -24,10 +24,16 @@ func Build() error {
 	return sh.Run("go", "build", "-o", "bin/server", "./cmd/server")
 }
 
-// Generate runs all code generation (wire, etc.).
+// Generate runs all code generation (wire, swagger, etc.).
 func Generate() error {
-	mg.Deps(Wire)
+	mg.Deps(Wire, Swagger)
 	return nil
+}
+
+// Swagger generates Swagger/OpenAPI documentation.
+func Swagger() error {
+	fmt.Println("Generating Swagger documentation...")
+	return sh.Run("swag", "init", "-g", "cmd/server/docs.go", "-o", "cmd/server/docs", "--parseDependency", "--parseInternal")
 }
 
 // Wire runs wire to generate dependency injection code.
@@ -168,6 +174,7 @@ func Install() error {
 	tools := []string{
 		"github.com/google/wire/cmd/wire@latest",
 		"github.com/golangci/golangci-lint/cmd/golangci-lint@latest",
+		"github.com/swaggo/swag/cmd/swag@latest",
 	}
 
 	for _, tool := range tools {

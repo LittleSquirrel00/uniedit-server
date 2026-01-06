@@ -29,6 +29,19 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 // CreatePaymentIntent creates a payment intent for an order.
+//
+//	@Summary		Create payment intent
+//	@Description	Create a Stripe payment intent for an order
+//	@Tags			Payment
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CreatePaymentIntentRequest	true	"Payment intent request"
+//	@Success		200		{object}	PaymentIntentResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/payments/intent [post]
 func (h *Handler) CreatePaymentIntent(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -52,6 +65,19 @@ func (h *Handler) CreatePaymentIntent(c *gin.Context) {
 }
 
 // CreateNativePayment creates a native payment (Alipay/WeChat) for an order.
+//
+//	@Summary		Create native payment
+//	@Description	Create an Alipay or WeChat Pay payment for an order
+//	@Tags			Payment
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CreateNativePaymentRequest	true	"Native payment request"
+//	@Success		200		{object}	NativePaymentResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/payments/native [post]
 func (h *Handler) CreateNativePayment(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -75,6 +101,16 @@ func (h *Handler) CreateNativePayment(c *gin.Context) {
 }
 
 // ListPaymentMethods returns the user's saved payment methods.
+//
+//	@Summary		List payment methods
+//	@Description	Get all saved payment methods for the current user
+//	@Tags			Payment
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	map[string]interface{}
+//	@Failure		401	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Router			/payments/methods [get]
 func (h *Handler) ListPaymentMethods(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -92,6 +128,19 @@ func (h *Handler) ListPaymentMethods(c *gin.Context) {
 }
 
 // GetPayment returns a payment by ID.
+//
+//	@Summary		Get payment
+//	@Description	Get details of a specific payment
+//	@Tags			Payment
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Payment ID"
+//	@Success		200	{object}	PaymentResponse
+//	@Failure		400	{object}	map[string]string
+//	@Failure		401	{object}	map[string]string
+//	@Failure		403	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/payments/{id} [get]
 func (h *Handler) GetPayment(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {

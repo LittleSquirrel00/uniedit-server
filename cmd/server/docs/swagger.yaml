@@ -1,0 +1,4547 @@
+basePath: /api/v1
+definitions:
+  github_com_uniedit_server_internal_module_payment_provider.PaymentScene:
+    enum:
+    - web
+    - h5
+    - app
+    - native
+    - mini
+    type: string
+    x-enum-comments:
+      PaymentSceneApp: Native app payment
+      PaymentSceneH5: Mobile web payment
+      PaymentSceneMini: Mini program payment
+      PaymentSceneNative: QR code / scan payment
+      PaymentSceneWeb: Desktop web payment
+    x-enum-descriptions:
+    - Desktop web payment
+    - Mobile web payment
+    - Native app payment
+    - QR code / scan payment
+    - Mini program payment
+    x-enum-varnames:
+    - PaymentSceneWeb
+    - PaymentSceneH5
+    - PaymentSceneApp
+    - PaymentSceneNative
+    - PaymentSceneMini
+  internal_module_ai_provider_pool.AccountResponse:
+    properties:
+      consecutive_failures:
+        type: integer
+      created_at:
+        type: string
+      daily_limit:
+        type: integer
+      health_status:
+        $ref: '#/definitions/internal_module_ai_provider_pool.HealthStatus'
+      id:
+        type: string
+      is_active:
+        type: boolean
+      key_prefix:
+        type: string
+      last_failure_at:
+        type: string
+      last_health_check:
+        type: string
+      name:
+        type: string
+      priority:
+        type: integer
+      provider_id:
+        type: string
+      rate_limit_rpm:
+        type: integer
+      rate_limit_tpm:
+        type: integer
+      total_cost_usd:
+        type: number
+      total_requests:
+        type: integer
+      total_tokens:
+        type: integer
+      updated_at:
+        type: string
+      weight:
+        type: integer
+    type: object
+  internal_module_ai_provider_pool.AccountStatsResponse:
+    properties:
+      account_id:
+        type: string
+      consecutive_failures:
+        type: integer
+      daily_stats:
+        items:
+          $ref: '#/definitions/internal_module_ai_provider_pool.DailyStatsResponse'
+        type: array
+      health_status:
+        $ref: '#/definitions/internal_module_ai_provider_pool.HealthStatus'
+      last_health_check:
+        type: string
+      total_cost_usd:
+        type: number
+      total_requests:
+        type: integer
+      total_tokens:
+        type: integer
+    type: object
+  internal_module_ai_provider_pool.CreateAccountRequest:
+    properties:
+      api_key:
+        type: string
+      daily_limit:
+        type: integer
+      name:
+        type: string
+      priority:
+        type: integer
+      rate_limit_rpm:
+        type: integer
+      rate_limit_tpm:
+        type: integer
+      weight:
+        type: integer
+    required:
+    - api_key
+    - name
+    type: object
+  internal_module_ai_provider_pool.DailyStatsResponse:
+    properties:
+      cost_usd:
+        type: number
+      date:
+        type: string
+      requests_count:
+        type: integer
+      tokens_count:
+        type: integer
+    type: object
+  internal_module_ai_provider_pool.HealthStatus:
+    enum:
+    - healthy
+    - degraded
+    - unhealthy
+    type: string
+    x-enum-varnames:
+    - HealthStatusHealthy
+    - HealthStatusDegraded
+    - HealthStatusUnhealthy
+  internal_module_ai_provider_pool.ListAccountsResponse:
+    properties:
+      accounts:
+        items:
+          $ref: '#/definitions/internal_module_ai_provider_pool.AccountResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  internal_module_ai_provider_pool.UpdateAccountRequest:
+    properties:
+      daily_limit:
+        type: integer
+      is_active:
+        type: boolean
+      name:
+        type: string
+      priority:
+        type: integer
+      rate_limit_rpm:
+        type: integer
+      rate_limit_tpm:
+        type: integer
+      weight:
+        type: integer
+    type: object
+  internal_module_auth.APIKeyResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      key_prefix:
+        type: string
+      last_used_at:
+        type: string
+      name:
+        type: string
+      provider:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_module_auth.CallbackRequest:
+    properties:
+      code:
+        type: string
+      provider:
+        $ref: '#/definitions/internal_module_auth.OAuthProvider'
+      state:
+        type: string
+    required:
+    - code
+    - provider
+    - state
+    type: object
+  internal_module_auth.CreateAPIKeyRequest:
+    properties:
+      api_key:
+        type: string
+      name:
+        type: string
+      provider:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+    required:
+    - api_key
+    - name
+    - provider
+    type: object
+  internal_module_auth.CreateSystemAPIKeyRequest:
+    properties:
+      expires_in_days:
+        description: NULL = never expires
+        type: integer
+      name:
+        type: string
+      rate_limit_rpm:
+        type: integer
+      rate_limit_tpm:
+        type: integer
+      scopes:
+        items:
+          type: string
+        type: array
+    required:
+    - name
+    type: object
+  internal_module_auth.LoginRequest:
+    properties:
+      provider:
+        $ref: '#/definitions/internal_module_auth.OAuthProvider'
+      redirect_url:
+        type: string
+    required:
+    - provider
+    type: object
+  internal_module_auth.LoginResponse:
+    properties:
+      auth_url:
+        type: string
+      state:
+        type: string
+    type: object
+  internal_module_auth.OAuthProvider:
+    enum:
+    - github
+    - google
+    type: string
+    x-enum-varnames:
+    - OAuthProviderGitHub
+    - OAuthProviderGoogle
+  internal_module_auth.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  internal_module_auth.SystemAPIKeyCreateResponse:
+    properties:
+      allowed_ips:
+        items:
+          type: string
+        type: array
+      cache_hits:
+        type: integer
+      cache_misses:
+        type: integer
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      key:
+        description: Full API key, only shown once
+        type: string
+      key_prefix:
+        type: string
+      last_rotated_at:
+        type: string
+      last_used_at:
+        type: string
+      name:
+        type: string
+      rate_limit_rpm:
+        type: integer
+      rate_limit_tpm:
+        type: integer
+      rotate_after_days:
+        type: integer
+      scopes:
+        items:
+          type: string
+        type: array
+      total_cost_usd:
+        type: number
+      total_input_tokens:
+        type: integer
+      total_output_tokens:
+        type: integer
+      total_requests:
+        type: integer
+    type: object
+  internal_module_auth.SystemAPIKeyResponse:
+    properties:
+      allowed_ips:
+        items:
+          type: string
+        type: array
+      cache_hits:
+        type: integer
+      cache_misses:
+        type: integer
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      key_prefix:
+        type: string
+      last_rotated_at:
+        type: string
+      last_used_at:
+        type: string
+      name:
+        type: string
+      rate_limit_rpm:
+        type: integer
+      rate_limit_tpm:
+        type: integer
+      rotate_after_days:
+        type: integer
+      scopes:
+        items:
+          type: string
+        type: array
+      total_cost_usd:
+        type: number
+      total_input_tokens:
+        type: integer
+      total_output_tokens:
+        type: integer
+      total_requests:
+        type: integer
+    type: object
+  internal_module_auth.TokenPair:
+    properties:
+      access_token:
+        type: string
+      expires_at:
+        type: string
+      expires_in:
+        description: seconds until access token expires
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+    type: object
+  internal_module_auth.UpdateSystemAPIKeyRequest:
+    properties:
+      is_active:
+        type: boolean
+      name:
+        type: string
+      rate_limit_rpm:
+        type: integer
+      rate_limit_tpm:
+        type: integer
+      scopes:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_module_auth.UserResponse:
+    properties:
+      avatar_url:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      provider:
+        type: string
+    type: object
+  internal_module_billing.AIQuotaStatus:
+    properties:
+      chat:
+        $ref: '#/definitions/internal_module_billing.TaskQuotaItem'
+      embedding:
+        $ref: '#/definitions/internal_module_billing.TaskQuotaItem'
+      image:
+        $ref: '#/definitions/internal_module_billing.TaskQuotaItem'
+      video:
+        $ref: '#/definitions/internal_module_billing.TaskQuotaItem'
+    type: object
+  internal_module_billing.CancelSubscriptionRequest:
+    properties:
+      immediately:
+        type: boolean
+    type: object
+  internal_module_billing.DailyUsage:
+    properties:
+      date:
+        type: string
+      total_cost_usd:
+        type: number
+      total_requests:
+        type: integer
+      total_tokens:
+        type: integer
+    type: object
+  internal_module_billing.GetPlansResponse:
+    properties:
+      plans:
+        items:
+          $ref: '#/definitions/internal_module_billing.PlanResponse'
+        type: array
+    type: object
+  internal_module_billing.ModelUsage:
+    properties:
+      model_id:
+        type: string
+      total_cost_usd:
+        type: number
+      total_requests:
+        type: integer
+      total_tokens:
+        type: integer
+    type: object
+  internal_module_billing.PlanResponse:
+    properties:
+      billing_cycle:
+        type: string
+      daily_requests:
+        type: integer
+      description:
+        type: string
+      features:
+        items:
+          type: string
+        type: array
+      git_storage_mb:
+        description: Storage quotas
+        type: integer
+      id:
+        type: string
+      lfs_storage_mb:
+        type: integer
+      max_api_keys:
+        type: integer
+      max_team_members:
+        description: Team quota
+        type: integer
+      monthly_chat_tokens:
+        description: Task-specific quotas
+        type: integer
+      monthly_embedding_tokens:
+        type: integer
+      monthly_image_credits:
+        type: integer
+      monthly_tokens:
+        type: integer
+      monthly_video_minutes:
+        type: integer
+      name:
+        type: string
+      price_usd:
+        type: integer
+      type:
+        type: string
+    type: object
+  internal_module_billing.QuotaStatus:
+    properties:
+      ai:
+        allOf:
+        - $ref: '#/definitions/internal_module_billing.AIQuotaStatus'
+        description: Task-specific quotas
+      plan:
+        type: string
+      requests_limit:
+        type: integer
+      requests_today:
+        type: integer
+      reset_at:
+        type: string
+      storage:
+        allOf:
+        - $ref: '#/definitions/internal_module_billing.StorageQuotaStatus'
+        description: Storage quotas
+      team:
+        allOf:
+        - $ref: '#/definitions/internal_module_billing.TeamQuotaStatus'
+        description: Team quotas
+      tokens_limit:
+        type: integer
+      tokens_remaining:
+        type: integer
+      tokens_used:
+        type: integer
+    type: object
+  internal_module_billing.StorageQuotaItem:
+    properties:
+      limit_mb:
+        description: -1 for unlimited
+        type: integer
+      remaining_mb:
+        description: -1 for unlimited
+        type: integer
+      used_mb:
+        type: integer
+      warning:
+        type: boolean
+    type: object
+  internal_module_billing.StorageQuotaStatus:
+    properties:
+      git:
+        $ref: '#/definitions/internal_module_billing.StorageQuotaItem'
+      lfs:
+        $ref: '#/definitions/internal_module_billing.StorageQuotaItem'
+    type: object
+  internal_module_billing.SubscriptionResponse:
+    properties:
+      cancel_at_period_end:
+        type: boolean
+      canceled_at:
+        type: string
+      created_at:
+        type: string
+      credits_balance:
+        type: integer
+      current_period_end:
+        type: string
+      current_period_start:
+        type: string
+      id:
+        type: string
+      plan:
+        $ref: '#/definitions/internal_module_billing.PlanResponse'
+      plan_id:
+        type: string
+      status:
+        type: string
+    type: object
+  internal_module_billing.TaskQuotaItem:
+    properties:
+      limit:
+        description: -1 for unlimited
+        type: integer
+      remaining:
+        description: -1 for unlimited
+        type: integer
+      used:
+        type: integer
+    type: object
+  internal_module_billing.TeamQuotaStatus:
+    properties:
+      current:
+        type: integer
+      limit:
+        description: -1 for unlimited
+        type: integer
+      over_quota:
+        type: boolean
+      pending:
+        type: integer
+      remaining:
+        description: -1 for unlimited
+        type: integer
+    type: object
+  internal_module_billing.UsageStats:
+    properties:
+      by_day:
+        items:
+          $ref: '#/definitions/internal_module_billing.DailyUsage'
+        type: array
+      by_model:
+        additionalProperties:
+          $ref: '#/definitions/internal_module_billing.ModelUsage'
+        type: object
+      total_cost_usd:
+        type: number
+      total_requests:
+        type: integer
+      total_tokens:
+        type: integer
+    type: object
+  internal_module_collaboration.CreateTeamRequest:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      visibility:
+        allOf:
+        - $ref: '#/definitions/internal_module_collaboration.Visibility'
+        enum:
+        - public
+        - private
+    required:
+    - name
+    type: object
+  internal_module_collaboration.InvitationResponse:
+    properties:
+      accept_url:
+        type: string
+      accepted_at:
+        type: string
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      invitee_email:
+        type: string
+      inviter_id:
+        type: string
+      inviter_name:
+        type: string
+      role:
+        $ref: '#/definitions/internal_module_collaboration.Role'
+      status:
+        $ref: '#/definitions/internal_module_collaboration.InvitationStatus'
+      team_id:
+        type: string
+      team_name:
+        type: string
+      token:
+        description: Token is included only when creating the invitation
+        type: string
+    type: object
+  internal_module_collaboration.InvitationStatus:
+    enum:
+    - pending
+    - accepted
+    - rejected
+    - revoked
+    - expired
+    type: string
+    x-enum-varnames:
+    - InvitationStatusPending
+    - InvitationStatusAccepted
+    - InvitationStatusRejected
+    - InvitationStatusRevoked
+    - InvitationStatusExpired
+  internal_module_collaboration.InviteRequest:
+    properties:
+      email:
+        type: string
+      role:
+        allOf:
+        - $ref: '#/definitions/internal_module_collaboration.Role'
+        enum:
+        - admin
+        - member
+        - guest
+    required:
+    - email
+    - role
+    type: object
+  internal_module_collaboration.Role:
+    enum:
+    - owner
+    - admin
+    - member
+    - guest
+    type: string
+    x-enum-varnames:
+    - RoleOwner
+    - RoleAdmin
+    - RoleMember
+    - RoleGuest
+  internal_module_collaboration.TeamResponse:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      member_count:
+        type: integer
+      member_limit:
+        type: integer
+      my_role:
+        allOf:
+        - $ref: '#/definitions/internal_module_collaboration.Role'
+        description: 'Optional: current user''s role in this team'
+      name:
+        type: string
+      owner_id:
+        type: string
+      slug:
+        type: string
+      updated_at:
+        type: string
+      visibility:
+        $ref: '#/definitions/internal_module_collaboration.Visibility'
+    type: object
+  internal_module_collaboration.UpdateMemberRoleRequest:
+    properties:
+      role:
+        allOf:
+        - $ref: '#/definitions/internal_module_collaboration.Role'
+        enum:
+        - admin
+        - member
+        - guest
+    required:
+    - role
+    type: object
+  internal_module_collaboration.UpdateTeamRequest:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      visibility:
+        allOf:
+        - $ref: '#/definitions/internal_module_collaboration.Visibility'
+        enum:
+        - public
+        - private
+    type: object
+  internal_module_collaboration.Visibility:
+    enum:
+    - public
+    - private
+    type: string
+    x-enum-varnames:
+    - VisibilityPublic
+    - VisibilityPrivate
+  internal_module_git.AddCollaboratorRequest:
+    properties:
+      permission:
+        enum:
+        - read
+        - write
+        - admin
+        type: string
+    required:
+    - permission
+    type: object
+  internal_module_git.CreatePRRequest:
+    properties:
+      description:
+        maxLength: 10000
+        type: string
+      source_branch:
+        maxLength: 255
+        minLength: 1
+        type: string
+      target_branch:
+        maxLength: 255
+        minLength: 1
+        type: string
+      title:
+        maxLength: 255
+        minLength: 1
+        type: string
+    required:
+    - source_branch
+    - target_branch
+    - title
+    type: object
+  internal_module_git.CreateRepoRequest:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      lfs_enabled:
+        type: boolean
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      type:
+        enum:
+        - code
+        - workflow
+        - project
+        type: string
+      visibility:
+        enum:
+        - public
+        - private
+        type: string
+    required:
+    - name
+    type: object
+  internal_module_git.ListReposResponse:
+    properties:
+      page:
+        type: integer
+      page_size:
+        type: integer
+      repos:
+        items:
+          $ref: '#/definitions/internal_module_git.RepoResponse'
+        type: array
+      total_count:
+        type: integer
+    type: object
+  internal_module_git.PRResponse:
+    properties:
+      author_id:
+        type: string
+      closed_at:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      merged_at:
+        type: string
+      merged_by:
+        type: string
+      number:
+        type: integer
+      repo_id:
+        type: string
+      source_branch:
+        type: string
+      status:
+        type: string
+      target_branch:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  internal_module_git.RepoResponse:
+    properties:
+      clone_url:
+        type: string
+      created_at:
+        type: string
+      default_branch:
+        type: string
+      description:
+        type: string
+      forked_from:
+        type: string
+      forks_count:
+        type: integer
+      id:
+        type: string
+      lfs_enabled:
+        type: boolean
+      lfs_size_bytes:
+        type: integer
+      lfs_url:
+        type: string
+      name:
+        type: string
+      owner_id:
+        type: string
+      pushed_at:
+        type: string
+      repo_type:
+        type: string
+      size_bytes:
+        type: integer
+      slug:
+        type: string
+      stars_count:
+        type: integer
+      total_size:
+        type: integer
+      updated_at:
+        type: string
+      visibility:
+        type: string
+    type: object
+  internal_module_git.StorageStats:
+    properties:
+      lfs_object_count:
+        type: integer
+      lfs_size_bytes:
+        type: integer
+      repo_size_bytes:
+        type: integer
+      total_size_bytes:
+        type: integer
+    type: object
+  internal_module_git.UpdatePRRequest:
+    properties:
+      description:
+        maxLength: 10000
+        type: string
+      status:
+        enum:
+        - open
+        - closed
+        type: string
+      title:
+        maxLength: 255
+        minLength: 1
+        type: string
+    type: object
+  internal_module_git.UpdateRepoRequest:
+    properties:
+      default_branch:
+        maxLength: 255
+        minLength: 1
+        type: string
+      description:
+        maxLength: 500
+        type: string
+      lfs_enabled:
+        type: boolean
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      visibility:
+        enum:
+        - public
+        - private
+        type: string
+    type: object
+  internal_module_git.UserStorageStats:
+    properties:
+      quota_bytes:
+        type: integer
+      remaining_bytes:
+        type: integer
+      repo_count:
+        type: integer
+      total_used_bytes:
+        type: integer
+    type: object
+  internal_module_order.CreateSubscriptionOrderRequest:
+    properties:
+      plan_id:
+        type: string
+    required:
+    - plan_id
+    type: object
+  internal_module_order.CreateTopupOrderRequest:
+    properties:
+      amount:
+        description: Minimum $1.00 (100 cents)
+        minimum: 100
+        type: integer
+    required:
+    - amount
+    type: object
+  internal_module_order.InvoiceResponse:
+    properties:
+      amount:
+        type: integer
+      currency:
+        type: string
+      due_at:
+        type: string
+      id:
+        type: string
+      invoice_no:
+        type: string
+      issued_at:
+        type: string
+      order_id:
+        type: string
+      paid_at:
+        type: string
+      pdf_url:
+        type: string
+      status:
+        type: string
+    type: object
+  internal_module_order.OrderItemResponse:
+    properties:
+      amount:
+        type: integer
+      description:
+        type: string
+      id:
+        type: string
+      quantity:
+        type: integer
+      unit_price:
+        type: integer
+    type: object
+  internal_module_order.OrderListResponse:
+    properties:
+      orders:
+        items:
+          $ref: '#/definitions/internal_module_order.OrderResponse'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  internal_module_order.OrderResponse:
+    properties:
+      canceled_at:
+        type: string
+      created_at:
+        type: string
+      credits_amount:
+        type: integer
+      currency:
+        type: string
+      discount:
+        type: integer
+      expires_at:
+        type: string
+      id:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/internal_module_order.OrderItemResponse'
+        type: array
+      order_no:
+        type: string
+      paid_at:
+        type: string
+      plan_id:
+        type: string
+      refunded_at:
+        type: string
+      status:
+        $ref: '#/definitions/internal_module_order.OrderStatus'
+      subtotal:
+        type: integer
+      tax:
+        type: integer
+      total:
+        type: integer
+      type:
+        $ref: '#/definitions/internal_module_order.OrderType'
+    type: object
+  internal_module_order.OrderStatus:
+    enum:
+    - pending
+    - paid
+    - canceled
+    - refunded
+    - failed
+    type: string
+    x-enum-varnames:
+    - OrderStatusPending
+    - OrderStatusPaid
+    - OrderStatusCanceled
+    - OrderStatusRefunded
+    - OrderStatusFailed
+  internal_module_order.OrderType:
+    enum:
+    - subscription
+    - topup
+    - upgrade
+    type: string
+    x-enum-varnames:
+    - OrderTypeSubscription
+    - OrderTypeTopup
+    - OrderTypeUpgrade
+  internal_module_payment.CreateNativePaymentRequest:
+    properties:
+      method:
+        allOf:
+        - $ref: '#/definitions/internal_module_payment.PaymentMethod'
+        enum:
+        - alipay
+        - wechat
+      openid:
+        description: Required for WeChat mini/jsapi
+        type: string
+      order_id:
+        type: string
+      return_url:
+        type: string
+      scene:
+        allOf:
+        - $ref: '#/definitions/github_com_uniedit_server_internal_module_payment_provider.PaymentScene'
+        enum:
+        - web
+        - h5
+        - app
+        - native
+        - mini
+    required:
+    - method
+    - order_id
+    - scene
+    type: object
+  internal_module_payment.CreatePaymentIntentRequest:
+    properties:
+      order_id:
+        type: string
+    required:
+    - order_id
+    type: object
+  internal_module_payment.NativePaymentResponse:
+    properties:
+      amount:
+        type: integer
+      app_pay_data:
+        description: App SDK payment data
+        type: string
+      currency:
+        type: string
+      expire_time:
+        description: Unix timestamp
+        type: integer
+      method:
+        $ref: '#/definitions/internal_module_payment.PaymentMethod'
+      mini_pay_data:
+        additionalProperties:
+          type: string
+        description: Mini program payment params
+        type: object
+      order_id:
+        type: string
+      pay_url:
+        description: Redirect URL for web/h5
+        type: string
+      payment_id:
+        type: string
+      qr_code:
+        description: QR code content for native
+        type: string
+    type: object
+  internal_module_payment.PaymentIntentResponse:
+    properties:
+      amount:
+        type: integer
+      client_secret:
+        type: string
+      currency:
+        type: string
+      payment_intent_id:
+        type: string
+    type: object
+  internal_module_payment.PaymentMethod:
+    enum:
+    - card
+    - alipay
+    - wechat
+    type: string
+    x-enum-varnames:
+    - PaymentMethodCard
+    - PaymentMethodAlipay
+    - PaymentMethodWechat
+  internal_module_payment.PaymentResponse:
+    properties:
+      amount:
+        type: integer
+      created_at:
+        type: string
+      currency:
+        type: string
+      failed_at:
+        type: string
+      failure_code:
+        type: string
+      failure_message:
+        type: string
+      id:
+        type: string
+      method:
+        $ref: '#/definitions/internal_module_payment.PaymentMethod'
+      order_id:
+        type: string
+      provider:
+        type: string
+      refunded_amount:
+        type: integer
+      status:
+        $ref: '#/definitions/internal_module_payment.PaymentStatus'
+      succeeded_at:
+        type: string
+    type: object
+  internal_module_payment.PaymentStatus:
+    enum:
+    - pending
+    - processing
+    - succeeded
+    - failed
+    - canceled
+    - refunded
+    type: string
+    x-enum-varnames:
+    - PaymentStatusPending
+    - PaymentStatusProcessing
+    - PaymentStatusSucceeded
+    - PaymentStatusFailed
+    - PaymentStatusCanceled
+    - PaymentStatusRefunded
+  internal_module_user.ChangePasswordRequest:
+    properties:
+      current_password:
+        type: string
+      new_password:
+        minLength: 8
+        type: string
+    required:
+    - current_password
+    - new_password
+    type: object
+  internal_module_user.CompletePasswordResetRequest:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+      token:
+        type: string
+    required:
+    - new_password
+    - token
+    type: object
+  internal_module_user.DeleteAccountRequest:
+    properties:
+      password:
+        description: Required for email users
+        type: string
+    type: object
+  internal_module_user.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  internal_module_user.MessageResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  internal_module_user.PasswordResetRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  internal_module_user.RegisterRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        minLength: 8
+        type: string
+    required:
+    - email
+    - name
+    - password
+    type: object
+  internal_module_user.ResendVerificationRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  internal_module_user.UpdateProfileRequest:
+    properties:
+      avatar_url:
+        type: string
+      name:
+        type: string
+    type: object
+  internal_module_user.UserResponse:
+    properties:
+      avatar_url:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      id:
+        type: string
+      is_admin:
+        type: boolean
+      name:
+        type: string
+      provider:
+        description: oauth provider or "email"
+        type: string
+      status:
+        $ref: '#/definitions/internal_module_user.UserStatus'
+      suspend_reason:
+        type: string
+      suspended_at:
+        type: string
+    type: object
+  internal_module_user.UserStatus:
+    enum:
+    - active
+    - pending
+    - suspended
+    - deleted
+    type: string
+    x-enum-comments:
+      UserStatusDeleted: Soft deleted
+      UserStatusPending: Awaiting email verification
+      UserStatusSuspended: Admin suspended
+    x-enum-descriptions:
+    - ""
+    - Awaiting email verification
+    - Admin suspended
+    - Soft deleted
+    x-enum-varnames:
+    - UserStatusActive
+    - UserStatusPending
+    - UserStatusSuspended
+    - UserStatusDeleted
+  internal_module_user.VerifyEmailRequest:
+    properties:
+      token:
+        type: string
+    required:
+    - token
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@uniedit.io
+    name: UniEdit Support
+    url: https://uniedit.io/support
+  description: UniEdit 视频编辑器后端 API
+  license:
+    name: Proprietary
+    url: https://uniedit.io/license
+  termsOfService: https://uniedit.io/terms
+  title: UniEdit Server API
+  version: "1.0"
+paths:
+  /admin/providers/{provider_id}/accounts:
+    get:
+      description: Get all accounts for an AI provider
+      parameters:
+      - description: Provider ID
+        in: path
+        name: provider_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_ai_provider_pool.ListAccountsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List provider accounts
+      tags:
+      - AI
+    post:
+      consumes:
+      - application/json
+      description: Add a new account to an AI provider's pool
+      parameters:
+      - description: Provider ID
+        in: path
+        name: provider_id
+        required: true
+        type: string
+      - description: Account data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_ai_provider_pool.CreateAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_module_ai_provider_pool.AccountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Add provider account
+      tags:
+      - AI
+  /admin/providers/{provider_id}/accounts/{account_id}:
+    delete:
+      description: Remove an account from a provider's pool
+      parameters:
+      - description: Provider ID
+        in: path
+        name: provider_id
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete provider account
+      tags:
+      - AI
+    get:
+      description: Get details of a specific provider account
+      parameters:
+      - description: Provider ID
+        in: path
+        name: provider_id
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_ai_provider_pool.AccountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get provider account
+      tags:
+      - AI
+    patch:
+      consumes:
+      - application/json
+      description: Update a provider account's settings
+      parameters:
+      - description: Provider ID
+        in: path
+        name: provider_id
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        type: string
+      - description: Update data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_ai_provider_pool.UpdateAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_ai_provider_pool.AccountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update provider account
+      tags:
+      - AI
+  /admin/providers/{provider_id}/accounts/{account_id}/check-health:
+    post:
+      description: Trigger a health check for a provider account
+      parameters:
+      - description: Provider ID
+        in: path
+        name: provider_id
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Check account health
+      tags:
+      - AI
+  /admin/providers/{provider_id}/accounts/{account_id}/stats:
+    get:
+      description: Get usage statistics for a provider account
+      parameters:
+      - description: Provider ID
+        in: path
+        name: provider_id
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_ai_provider_pool.AccountStatsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get account statistics
+      tags:
+      - AI
+  /api-keys:
+    get:
+      description: Get all OpenAI-style API keys (sk-xxx) for the current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_module_auth.SystemAPIKeyResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List system API keys
+      tags:
+      - Auth
+    post:
+      consumes:
+      - application/json
+      description: Create a new OpenAI-style API key (sk-xxx) for API access
+      parameters:
+      - description: Create API key request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_auth.CreateSystemAPIKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_module_auth.SystemAPIKeyCreateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create system API key
+      tags:
+      - Auth
+  /api-keys/{id}:
+    delete:
+      description: Delete a system API key permanently
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete system API key
+      tags:
+      - Auth
+    get:
+      description: Get details of a specific system API key
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_auth.SystemAPIKeyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get system API key
+      tags:
+      - Auth
+    patch:
+      consumes:
+      - application/json
+      description: Update settings of a system API key
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_auth.UpdateSystemAPIKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_auth.SystemAPIKeyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update system API key
+      tags:
+      - Auth
+  /api-keys/{id}/rotate:
+    post:
+      description: Generate a new key value for an existing system API key
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_auth.SystemAPIKeyCreateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Rotate system API key
+      tags:
+      - Auth
+  /auth/callback:
+    post:
+      consumes:
+      - application/json
+      description: Complete the OAuth authentication flow with the authorization code
+      parameters:
+      - description: Callback request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_auth.CallbackRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Complete OAuth login
+      tags:
+      - Auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Start the OAuth authentication flow with the specified provider
+      parameters:
+      - description: Login request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_auth.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_auth.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Initiate OAuth login
+      tags:
+      - Auth
+  /auth/login/password:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate with email and password
+      parameters:
+      - description: Login request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_user.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login with password
+      tags:
+      - User
+  /auth/logout:
+    post:
+      description: Revoke all tokens for the current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Logout user
+      tags:
+      - Auth
+  /auth/password/reset:
+    post:
+      consumes:
+      - application/json
+      description: Complete password reset with token and new password
+      parameters:
+      - description: Reset request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_user.CompletePasswordResetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_user.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Reset password
+      tags:
+      - User
+  /auth/password/reset-request:
+    post:
+      consumes:
+      - application/json
+      description: Request a password reset email
+      parameters:
+      - description: Password reset request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_user.PasswordResetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_user.MessageResponse'
+      summary: Request password reset
+      tags:
+      - User
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Exchange a refresh token for a new access token
+      parameters:
+      - description: Refresh request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_auth.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_auth.TokenPair'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Refresh access token
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account with email and password
+      parameters:
+      - description: Registration request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_user.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register new user
+      tags:
+      - User
+  /auth/resend-verification:
+    post:
+      consumes:
+      - application/json
+      description: Resend the email verification link
+      parameters:
+      - description: Resend request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_user.ResendVerificationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_user.MessageResponse'
+      summary: Resend verification email
+      tags:
+      - User
+  /auth/verify-email:
+    post:
+      consumes:
+      - application/json
+      description: Verify user email with the verification token
+      parameters:
+      - description: Verification request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_user.VerifyEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_user.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verify email
+      tags:
+      - User
+  /billing/balance:
+    get:
+      description: Get the current user's credits balance
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              format: int64
+              type: integer
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get credits balance
+      tags:
+      - Billing
+  /billing/plans:
+    get:
+      description: Get all available subscription plans
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_billing.GetPlansResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List subscription plans
+      tags:
+      - Billing
+  /billing/quota:
+    get:
+      description: Get the current user's quota limits and usage
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_billing.QuotaStatus'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get quota status
+      tags:
+      - Billing
+  /billing/subscription:
+    get:
+      description: Get the current user's subscription and quota status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get current subscription
+      tags:
+      - Billing
+  /billing/subscription/cancel:
+    post:
+      consumes:
+      - application/json
+      description: Cancel the current user's subscription
+      parameters:
+      - description: Cancel request
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/internal_module_billing.CancelSubscriptionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_billing.SubscriptionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cancel subscription
+      tags:
+      - Billing
+  /billing/usage:
+    get:
+      description: Get the current user's API usage statistics
+      parameters:
+      - description: Time period (day, week, month)
+        in: query
+        name: period
+        type: string
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_billing.UsageStats'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get usage statistics
+      tags:
+      - Billing
+  /invitations:
+    get:
+      description: Get all pending invitations for the current user
+      parameters:
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List my invitations
+      tags:
+      - Collaboration
+  /invitations/{id}:
+    delete:
+      description: Revoke a pending invitation
+      parameters:
+      - description: Invitation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Revoke invitation
+      tags:
+      - Collaboration
+  /invitations/{token}/accept:
+    post:
+      description: Accept a team invitation
+      parameters:
+      - description: Invitation token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "410":
+          description: Gone
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Accept invitation
+      tags:
+      - Collaboration
+  /invitations/{token}/reject:
+    post:
+      description: Reject a team invitation
+      parameters:
+      - description: Invitation token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reject invitation
+      tags:
+      - Collaboration
+  /invoices:
+    get:
+      description: Get all invoices for the current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List invoices
+      tags:
+      - Order
+  /invoices/{id}:
+    get:
+      description: Get details of a specific invoice
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_order.InvoiceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get invoice
+      tags:
+      - Order
+  /keys:
+    get:
+      description: Get all stored third-party provider API keys for the current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_module_auth.APIKeyResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List provider API keys
+      tags:
+      - Auth
+    post:
+      consumes:
+      - application/json
+      description: Store a new third-party provider API key
+      parameters:
+      - description: Create API key request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_auth.CreateAPIKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_module_auth.APIKeyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create provider API key
+      tags:
+      - Auth
+  /keys/{id}:
+    delete:
+      description: Delete a stored third-party provider API key
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete provider API key
+      tags:
+      - Auth
+  /keys/{id}/rotate:
+    post:
+      consumes:
+      - application/json
+      description: Update the stored API key value for a provider
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New API key
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            api_key:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_auth.APIKeyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Rotate provider API key
+      tags:
+      - Auth
+  /orders:
+    get:
+      description: Get all orders for the current user
+      parameters:
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Filter by order type
+        in: query
+        name: type
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_order.OrderListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List orders
+      tags:
+      - Order
+  /orders/{id}:
+    get:
+      description: Get details of a specific order
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_order.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get order
+      tags:
+      - Order
+  /orders/{id}/cancel:
+    post:
+      description: Cancel a pending order
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cancel order
+      tags:
+      - Order
+  /orders/subscription:
+    post:
+      consumes:
+      - application/json
+      description: Create a new order for a subscription plan
+      parameters:
+      - description: Create order request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_order.CreateSubscriptionOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create subscription order
+      tags:
+      - Order
+  /orders/topup:
+    post:
+      consumes:
+      - application/json
+      description: Create a new order to top up credits
+      parameters:
+      - description: Create order request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_order.CreateTopupOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create top-up order
+      tags:
+      - Order
+  /payments/{id}:
+    get:
+      description: Get details of a specific payment
+      parameters:
+      - description: Payment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_payment.PaymentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get payment
+      tags:
+      - Payment
+  /payments/intent:
+    post:
+      consumes:
+      - application/json
+      description: Create a Stripe payment intent for an order
+      parameters:
+      - description: Payment intent request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_payment.CreatePaymentIntentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_payment.PaymentIntentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create payment intent
+      tags:
+      - Payment
+  /payments/methods:
+    get:
+      description: Get all saved payment methods for the current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List payment methods
+      tags:
+      - Payment
+  /payments/native:
+    post:
+      consumes:
+      - application/json
+      description: Create an Alipay or WeChat Pay payment for an order
+      parameters:
+      - description: Native payment request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_payment.CreateNativePaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_payment.NativePaymentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create native payment
+      tags:
+      - Payment
+  /repos:
+    get:
+      description: Get all repositories for the current user
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        name: page_size
+        type: integer
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      - description: Repository type
+        in: query
+        name: type
+        type: string
+      - description: Visibility filter
+        in: query
+        name: visibility
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_git.ListReposResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List repositories
+      tags:
+      - Git
+    post:
+      consumes:
+      - application/json
+      description: Create a new git repository
+      parameters:
+      - description: Create repository request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_git.CreateRepoRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_module_git.RepoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create repository
+      tags:
+      - Git
+  /repos/{owner}/{repo}:
+    delete:
+      description: Permanently delete a repository
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete repository
+      tags:
+      - Git
+    get:
+      description: Get details of a specific repository
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_git.RepoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get repository
+      tags:
+      - Git
+    patch:
+      consumes:
+      - application/json
+      description: Update repository settings
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: Update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_git.UpdateRepoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_git.RepoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update repository
+      tags:
+      - Git
+  /repos/{owner}/{repo}/collaborators:
+    get:
+      description: Get all collaborators for a repository
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List collaborators
+      tags:
+      - Git
+  /repos/{owner}/{repo}/collaborators/{user_id}:
+    delete:
+      description: Remove a collaborator from a repository
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: User ID to remove
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Remove collaborator
+      tags:
+      - Git
+    patch:
+      consumes:
+      - application/json
+      description: Update a collaborator's permission level
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      - description: Permission update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_git.AddCollaboratorRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update collaborator
+      tags:
+      - Git
+    put:
+      consumes:
+      - application/json
+      description: Add a collaborator to a repository
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: User ID to add
+        in: path
+        name: user_id
+        required: true
+        type: string
+      - description: Collaborator request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_git.AddCollaboratorRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Add collaborator
+      tags:
+      - Git
+  /repos/{owner}/{repo}/pulls:
+    get:
+      description: Get all pull requests for a repository
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List pull requests
+      tags:
+      - Git
+    post:
+      consumes:
+      - application/json
+      description: Create a new pull request
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: Pull request data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_git.CreatePRRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_module_git.PRResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create pull request
+      tags:
+      - Git
+  /repos/{owner}/{repo}/pulls/{number}:
+    get:
+      description: Get details of a specific pull request
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: PR number
+        in: path
+        name: number
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_git.PRResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get pull request
+      tags:
+      - Git
+    patch:
+      consumes:
+      - application/json
+      description: Update a pull request's title or description
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: PR number
+        in: path
+        name: number
+        required: true
+        type: integer
+      - description: Update data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_git.UpdatePRRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_git.PRResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update pull request
+      tags:
+      - Git
+  /repos/{owner}/{repo}/pulls/{number}/merge:
+    post:
+      description: Merge a pull request into the base branch
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      - description: PR number
+        in: path
+        name: number
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_git.PRResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Merge pull request
+      tags:
+      - Git
+  /repos/{owner}/{repo}/storage:
+    get:
+      description: Get storage usage statistics for a repository
+      parameters:
+      - description: Owner ID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Repository slug
+        in: path
+        name: repo
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_git.StorageStats'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get repository storage stats
+      tags:
+      - Git
+  /repos/public:
+    get:
+      description: Get all public repositories
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        name: page_size
+        type: integer
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_git.ListReposResponse'
+      summary: List public repositories
+      tags:
+      - Git
+  /storage:
+    get:
+      description: Get total storage usage for the current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_git.UserStorageStats'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user storage stats
+      tags:
+      - Git
+  /teams:
+    get:
+      description: Get all teams the current user belongs to
+      parameters:
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List my teams
+      tags:
+      - Collaboration
+    post:
+      consumes:
+      - application/json
+      description: Create a new team
+      parameters:
+      - description: Create team request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_collaboration.CreateTeamRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_module_collaboration.TeamResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create team
+      tags:
+      - Collaboration
+  /teams/{slug}:
+    delete:
+      description: Permanently delete a team
+      parameters:
+      - description: Team slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete team
+      tags:
+      - Collaboration
+    get:
+      description: Get team details by slug
+      parameters:
+      - description: Team slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Owner ID
+        in: query
+        name: owner_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_collaboration.TeamResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get team
+      tags:
+      - Collaboration
+    patch:
+      consumes:
+      - application/json
+      description: Update team settings
+      parameters:
+      - description: Team slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_collaboration.UpdateTeamRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_collaboration.TeamResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update team
+      tags:
+      - Collaboration
+  /teams/{slug}/invitations:
+    get:
+      description: Get all invitations for a team
+      parameters:
+      - description: Team slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List team invitations
+      tags:
+      - Collaboration
+    post:
+      consumes:
+      - application/json
+      description: Send a team invitation to a user
+      parameters:
+      - description: Team slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Invitation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_collaboration.InviteRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_module_collaboration.InvitationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Send invitation
+      tags:
+      - Collaboration
+  /teams/{slug}/leave:
+    post:
+      description: Leave a team (current user)
+      parameters:
+      - description: Team slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Leave team
+      tags:
+      - Collaboration
+  /teams/{slug}/members:
+    get:
+      description: Get all members of a team
+      parameters:
+      - description: Team slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List team members
+      tags:
+      - Collaboration
+  /teams/{slug}/members/{user_id}:
+    delete:
+      description: Remove a member from a team
+      parameters:
+      - description: Team slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Remove member
+      tags:
+      - Collaboration
+    patch:
+      consumes:
+      - application/json
+      description: Update a team member's role
+      parameters:
+      - description: Team slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      - description: Role update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_collaboration.UpdateMemberRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update member role
+      tags:
+      - Collaboration
+  /users/me:
+    delete:
+      consumes:
+      - application/json
+      description: Permanently delete the current user's account
+      parameters:
+      - description: Delete account request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_user.DeleteAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_user.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete account
+      tags:
+      - User
+    get:
+      description: Get the profile of the currently authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_user.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get current user profile
+      tags:
+      - User
+    put:
+      consumes:
+      - application/json
+      description: Update the current user's profile information
+      parameters:
+      - description: Update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_user.UpdateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_user.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update user profile
+      tags:
+      - User
+  /users/me/password:
+    put:
+      consumes:
+      - application/json
+      description: Change the current user's password
+      parameters:
+      - description: Change password request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_user.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_user.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Change password
+      tags:
+      - User
+securityDefinitions:
+  BearerAuth:
+    description: 'Bearer token authentication. Format: "Bearer {token}"'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

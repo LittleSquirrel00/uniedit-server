@@ -46,7 +46,10 @@
       "Bash(openspec archive add-collaboration-module --yes)",
       "Bash(mkdir:*)",
       "Skill(openspec:apply)",
-      "Skill(openspec:apply:*)"
+      "Skill(openspec:apply:*)",
+      "Bash(ls:*)",
+      "Bash(done)",
+      "Bash(swag init:*)"
     ]
   }
 }

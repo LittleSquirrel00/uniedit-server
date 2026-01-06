@@ -43,6 +43,17 @@ func (h *Handler) RegisterProtectedRoutes(r *gin.RouterGroup) {
 }
 
 // Register handles user registration.
+//
+//	@Summary		Register new user
+//	@Description	Create a new user account with email and password
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		RegisterRequest	true	"Registration request"
+//	@Success		201		{object}	map[string]interface{}
+//	@Failure		400		{object}	map[string]string
+//	@Failure		409		{object}	map[string]string
+//	@Router			/auth/register [post]
 func (h *Handler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -63,6 +74,16 @@ func (h *Handler) Register(c *gin.Context) {
 }
 
 // VerifyEmail handles email verification.
+//
+//	@Summary		Verify email
+//	@Description	Verify user email with the verification token
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		VerifyEmailRequest	true	"Verification request"
+//	@Success		200		{object}	MessageResponse
+//	@Failure		400		{object}	map[string]string
+//	@Router			/auth/verify-email [post]
 func (h *Handler) VerifyEmail(c *gin.Context) {
 	var req VerifyEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -79,6 +100,15 @@ func (h *Handler) VerifyEmail(c *gin.Context) {
 }
 
 // ResendVerification handles resending verification email.
+//
+//	@Summary		Resend verification email
+//	@Description	Resend the email verification link
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		ResendVerificationRequest	true	"Resend request"
+//	@Success		200		{object}	MessageResponse
+//	@Router			/auth/resend-verification [post]
 func (h *Handler) ResendVerification(c *gin.Context) {
 	var req ResendVerificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -93,6 +123,18 @@ func (h *Handler) ResendVerification(c *gin.Context) {
 }
 
 // Login handles email/password login.
+//
+//	@Summary		Login with password
+//	@Description	Authenticate with email and password
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		LoginRequest	true	"Login request"
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		403		{object}	map[string]string
+//	@Router			/auth/login/password [post]
 func (h *Handler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -116,6 +158,15 @@ func (h *Handler) Login(c *gin.Context) {
 }
 
 // RequestPasswordReset handles password reset request.
+//
+//	@Summary		Request password reset
+//	@Description	Request a password reset email
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		PasswordResetRequest	true	"Password reset request"
+//	@Success		200		{object}	MessageResponse
+//	@Router			/auth/password/reset-request [post]
 func (h *Handler) RequestPasswordReset(c *gin.Context) {
 	var req PasswordResetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -130,6 +181,16 @@ func (h *Handler) RequestPasswordReset(c *gin.Context) {
 }
 
 // ResetPassword handles password reset completion.
+//
+//	@Summary		Reset password
+//	@Description	Complete password reset with token and new password
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		CompletePasswordResetRequest	true	"Reset request"
+//	@Success		200		{object}	MessageResponse
+//	@Failure		400		{object}	map[string]string
+//	@Router			/auth/password/reset [post]
 func (h *Handler) ResetPassword(c *gin.Context) {
 	var req CompletePasswordResetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -146,6 +207,16 @@ func (h *Handler) ResetPassword(c *gin.Context) {
 }
 
 // GetCurrentUser returns the current authenticated user.
+//
+//	@Summary		Get current user profile
+//	@Description	Get the profile of the currently authenticated user
+//	@Tags			User
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	UserResponse
+//	@Failure		401	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/users/me [get]
 func (h *Handler) GetCurrentUser(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -163,6 +234,18 @@ func (h *Handler) GetCurrentUser(c *gin.Context) {
 }
 
 // UpdateProfile handles profile updates.
+//
+//	@Summary		Update user profile
+//	@Description	Update the current user's profile information
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		UpdateProfileRequest	true	"Update request"
+//	@Success		200		{object}	UserResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Router			/users/me [put]
 func (h *Handler) UpdateProfile(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -186,6 +269,18 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 }
 
 // ChangePassword handles password change.
+//
+//	@Summary		Change password
+//	@Description	Change the current user's password
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		ChangePasswordRequest	true	"Change password request"
+//	@Success		200		{object}	MessageResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Router			/users/me/password [put]
 func (h *Handler) ChangePassword(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -208,6 +303,18 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 }
 
 // DeleteAccount handles account deletion.
+//
+//	@Summary		Delete account
+//	@Description	Permanently delete the current user's account
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		DeleteAccountRequest	true	"Delete account request"
+//	@Success		200		{object}	MessageResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Router			/users/me [delete]
 func (h *Handler) DeleteAccount(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {

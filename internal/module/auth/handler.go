@@ -61,7 +61,16 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // --- Auth Endpoints ---
 
 // InitiateLogin starts the OAuth login flow.
-// POST /auth/login
+//
+//	@Summary		Initiate OAuth login
+//	@Description	Start the OAuth authentication flow with the specified provider
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		LoginRequest	true	"Login request"
+//	@Success		200		{object}	LoginResponse
+//	@Failure		400		{object}	map[string]string
+//	@Router			/auth/login [post]
 func (h *Handler) InitiateLogin(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -79,7 +88,16 @@ func (h *Handler) InitiateLogin(c *gin.Context) {
 }
 
 // Callback handles the OAuth callback.
-// POST /auth/callback
+//
+//	@Summary		Complete OAuth login
+//	@Description	Complete the OAuth authentication flow with the authorization code
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		CallbackRequest	true	"Callback request"
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		400		{object}	map[string]string
+//	@Router			/auth/callback [post]
 func (h *Handler) Callback(c *gin.Context) {
 	var req CallbackRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -103,7 +121,17 @@ func (h *Handler) Callback(c *gin.Context) {
 }
 
 // RefreshToken refreshes the access token.
-// POST /auth/refresh
+//
+//	@Summary		Refresh access token
+//	@Description	Exchange a refresh token for a new access token
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		RefreshRequest	true	"Refresh request"
+//	@Success		200		{object}	TokenPair
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Router			/auth/refresh [post]
 func (h *Handler) RefreshToken(c *gin.Context) {
 	var req RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -124,7 +152,15 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 }
 
 // Logout revokes all tokens for the user.
-// POST /auth/logout
+//
+//	@Summary		Logout user
+//	@Description	Revoke all tokens for the current user
+//	@Tags			Auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	map[string]string
+//	@Failure		401	{object}	map[string]string
+//	@Router			/auth/logout [post]
 func (h *Handler) Logout(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -143,7 +179,16 @@ func (h *Handler) Logout(c *gin.Context) {
 // --- User Endpoints ---
 
 // GetCurrentUser returns the current user's profile.
-// GET /users/me
+//
+//	@Summary		Get current user
+//	@Description	Get the profile of the currently authenticated user
+//	@Tags			Auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	UserResponse
+//	@Failure		401	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/users/me [get]
 func (h *Handler) GetCurrentUser(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
@@ -159,7 +204,15 @@ func (h *Handler) GetCurrentUser(c *gin.Context) {
 // --- API Key Endpoints ---
 
 // ListAPIKeys returns all API keys for the current user.
-// GET /keys
+//
+//	@Summary		List provider API keys
+//	@Description	Get all stored third-party provider API keys for the current user
+//	@Tags			Auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{array}		APIKeyResponse
+//	@Failure		401	{object}	map[string]string
+//	@Router			/keys [get]
 func (h *Handler) ListAPIKeys(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
@@ -178,7 +231,19 @@ func (h *Handler) ListAPIKeys(c *gin.Context) {
 }
 
 // CreateAPIKey creates a new API key.
-// POST /keys
+//
+//	@Summary		Create provider API key
+//	@Description	Store a new third-party provider API key
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CreateAPIKeyRequest	true	"Create API key request"
+//	@Success		201		{object}	APIKeyResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		409		{object}	map[string]string
+//	@Router			/keys [post]
 func (h *Handler) CreateAPIKey(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
@@ -198,7 +263,18 @@ func (h *Handler) CreateAPIKey(c *gin.Context) {
 }
 
 // DeleteAPIKey deletes an API key.
-// DELETE /keys/:id
+//
+//	@Summary		Delete provider API key
+//	@Description	Delete a stored third-party provider API key
+//	@Tags			Auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path	string	true	"API Key ID"
+//	@Success		204
+//	@Failure		400	{object}	map[string]string
+//	@Failure		401	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/keys/{id} [delete]
 func (h *Handler) DeleteAPIKey(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
@@ -217,7 +293,20 @@ func (h *Handler) DeleteAPIKey(c *gin.Context) {
 }
 
 // RotateAPIKey rotates an API key.
-// POST /keys/:id/rotate
+//
+//	@Summary		Rotate provider API key
+//	@Description	Update the stored API key value for a provider
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		string	true	"API Key ID"
+//	@Param			request	body		object{api_key=string}	true	"New API key"
+//	@Success		200		{object}	APIKeyResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/keys/{id}/rotate [post]
 func (h *Handler) RotateAPIKey(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
@@ -331,7 +420,15 @@ func (h *Handler) handleError(c *gin.Context, err error) {
 // --- System API Key Endpoints ---
 
 // ListSystemAPIKeys returns all system API keys for the current user.
-// GET /api-keys
+//
+//	@Summary		List system API keys
+//	@Description	Get all OpenAI-style API keys (sk-xxx) for the current user
+//	@Tags			Auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{array}		SystemAPIKeyResponse
+//	@Failure		401	{object}	map[string]string
+//	@Router			/api-keys [get]
 func (h *Handler) ListSystemAPIKeys(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
@@ -350,7 +447,19 @@ func (h *Handler) ListSystemAPIKeys(c *gin.Context) {
 }
 
 // CreateSystemAPIKey creates a new system API key.
-// POST /api-keys
+//
+//	@Summary		Create system API key
+//	@Description	Create a new OpenAI-style API key (sk-xxx) for API access
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CreateSystemAPIKeyRequest	true	"Create API key request"
+//	@Success		201		{object}	SystemAPIKeyCreateResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		409		{object}	map[string]string
+//	@Router			/api-keys [post]
 func (h *Handler) CreateSystemAPIKey(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
@@ -370,7 +479,18 @@ func (h *Handler) CreateSystemAPIKey(c *gin.Context) {
 }
 
 // GetSystemAPIKey returns a system API key by ID.
-// GET /api-keys/:id
+//
+//	@Summary		Get system API key
+//	@Description	Get details of a specific system API key
+//	@Tags			Auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"API Key ID"
+//	@Success		200	{object}	SystemAPIKeyResponse
+//	@Failure		400	{object}	map[string]string
+//	@Failure		401	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/api-keys/{id} [get]
 func (h *Handler) GetSystemAPIKey(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
@@ -390,7 +510,20 @@ func (h *Handler) GetSystemAPIKey(c *gin.Context) {
 }
 
 // UpdateSystemAPIKey updates a system API key.
-// PATCH /api-keys/:id
+//
+//	@Summary		Update system API key
+//	@Description	Update settings of a system API key
+//	@Tags			Auth
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		string						true	"API Key ID"
+//	@Param			request	body		UpdateSystemAPIKeyRequest	true	"Update request"
+//	@Success		200		{object}	SystemAPIKeyResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/api-keys/{id} [patch]
 func (h *Handler) UpdateSystemAPIKey(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
@@ -416,7 +549,18 @@ func (h *Handler) UpdateSystemAPIKey(c *gin.Context) {
 }
 
 // DeleteSystemAPIKey deletes a system API key.
-// DELETE /api-keys/:id
+//
+//	@Summary		Delete system API key
+//	@Description	Delete a system API key permanently
+//	@Tags			Auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path	string	true	"API Key ID"
+//	@Success		204
+//	@Failure		400	{object}	map[string]string
+//	@Failure		401	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/api-keys/{id} [delete]
 func (h *Handler) DeleteSystemAPIKey(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
@@ -435,7 +579,18 @@ func (h *Handler) DeleteSystemAPIKey(c *gin.Context) {
 }
 
 // RotateSystemAPIKey generates a new key for an existing system API key.
-// POST /api-keys/:id/rotate
+//
+//	@Summary		Rotate system API key
+//	@Description	Generate a new key value for an existing system API key
+//	@Tags			Auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"API Key ID"
+//	@Success		200	{object}	SystemAPIKeyCreateResponse
+//	@Failure		400	{object}	map[string]string
+//	@Failure		401	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/api-keys/{id}/rotate [post]
 func (h *Handler) RotateSystemAPIKey(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 

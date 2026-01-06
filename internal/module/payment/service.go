@@ -6,45 +6,47 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/uniedit/server/internal/module/billing"
-	"github.com/uniedit/server/internal/module/order"
 	"github.com/uniedit/server/internal/module/payment/provider"
+	"github.com/uniedit/server/internal/shared/events"
 	"go.uber.org/zap"
 )
 
 // Service implements payment operations.
 type Service struct {
-	repo           Repository
-	orderService   *order.Service
-	billingService billing.ServiceInterface
-	registry       *ProviderRegistry
-	notifyBaseURL  string // Base URL for payment notifications
-	logger         *zap.Logger
+	repo          Repository
+	orderReader   OrderReader
+	billingReader BillingReader
+	eventBus      EventPublisher
+	registry      *ProviderRegistry
+	notifyBaseURL string // Base URL for payment notifications
+	logger        *zap.Logger
 }
 
 // NewService creates a new payment service.
 func NewService(
 	repo Repository,
-	orderService *order.Service,
-	billingService billing.ServiceInterface,
+	orderReader OrderReader,
+	billingReader BillingReader,
+	eventBus EventPublisher,
 	registry *ProviderRegistry,
 	notifyBaseURL string,
 	logger *zap.Logger,
 ) *Service {
 	return &Service{
-		repo:           repo,
-		orderService:   orderService,
-		billingService: billingService,
-		registry:       registry,
-		notifyBaseURL:  notifyBaseURL,
-		logger:         logger,
+		repo:          repo,
+		orderReader:   orderReader,
+		billingReader: billingReader,
+		eventBus:      eventBus,
+		registry:      registry,
+		notifyBaseURL: notifyBaseURL,
+		logger:        logger,
 	}
 }
 
 // CreatePaymentIntent creates a Stripe PaymentIntent for an order.
 func (s *Service) CreatePaymentIntent(ctx context.Context, orderID uuid.UUID, userID uuid.UUID) (*PaymentIntentResponse, error) {
 	// Get order
-	ord, err := s.orderService.GetOrder(ctx, orderID)
+	ord, err := s.orderReader.GetOrder(ctx, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +68,7 @@ func (s *Service) CreatePaymentIntent(ctx context.Context, orderID uuid.UUID, us
 	}
 
 	// Get or create Stripe customer
-	sub, err := s.billingService.GetSubscription(ctx, userID)
+	sub, err := s.billingReader.GetSubscription(ctx, userID)
 	var customerID string
 	if err == nil && sub != nil {
 		customerID = ""
@@ -84,7 +86,7 @@ func (s *Service) CreatePaymentIntent(ctx context.Context, orderID uuid.UUID, us
 	}
 
 	// Store PaymentIntent ID on order
-	if err := s.orderService.SetStripePaymentIntentID(ctx, orderID, pi.ID); err != nil {
+	if err := s.orderReader.SetStripePaymentIntentID(ctx, orderID, pi.ID); err != nil {
 		s.logger.Error("failed to set payment intent ID on order", zap.Error(err))
 	}
 
@@ -116,7 +118,7 @@ func (s *Service) CreatePaymentIntent(ctx context.Context, orderID uuid.UUID, us
 // CreateNativePayment creates a native payment (Alipay/WeChat) for an order.
 func (s *Service) CreateNativePayment(ctx context.Context, req *CreateNativePaymentRequest, userID uuid.UUID) (*NativePaymentResponse, error) {
 	// Get order
-	ord, err := s.orderService.GetOrder(ctx, req.OrderID)
+	ord, err := s.orderReader.GetOrder(ctx, req.OrderID)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +207,7 @@ func (s *Service) CreateNativePayment(ctx context.Context, req *CreateNativePaym
 // HandlePaymentSucceeded handles a successful payment.
 func (s *Service) HandlePaymentSucceeded(ctx context.Context, paymentIntentID, chargeID string) error {
 	// Get order
-	ord, err := s.orderService.GetOrderByPaymentIntentID(ctx, paymentIntentID)
+	ord, err := s.orderReader.GetOrderByPaymentIntentID(ctx, paymentIntentID)
 	if err != nil {
 		return fmt.Errorf("get order: %w", err)
 	}
@@ -242,22 +244,34 @@ func (s *Service) HandlePaymentSucceeded(ctx context.Context, paymentIntentID, c
 		}
 	}
 
-	// Mark order as paid
-	if err := s.orderService.MarkAsPaid(ctx, ord.ID); err != nil {
-		return fmt.Errorf("mark order paid: %w", err)
-	}
-
-	// Fulfill order based on type
-	switch ord.Type {
-	case order.OrderTypeTopup:
-		if err := s.billingService.AddCredits(ctx, ord.UserID, ord.CreditsAmount, "topup"); err != nil {
-			s.logger.Error("failed to add credits", zap.Error(err))
-		}
-	case order.OrderTypeSubscription:
-		// Subscription is handled by Stripe webhook for subscription.created
-		s.logger.Info("subscription order paid, waiting for subscription webhook",
-			zap.String("order_id", ord.ID.String()),
+	// Publish PaymentSucceeded event
+	// Event handlers will:
+	// - Update order status to "paid"
+	// - Add credits for topup orders
+	// - Handle subscription activation
+	if s.eventBus != nil {
+		event := events.NewPaymentSucceededEvent(
+			payment.ID,
+			ord.ID,
+			ord.UserID,
+			payment.Amount,
+			payment.Currency,
+			payment.Provider,
+			ord.Type,
+			ord.CreditsAmount,
+			ord.PlanID,
 		)
+		s.eventBus.Publish(event)
+	} else {
+		// Fallback: direct handling if no event bus (for backward compatibility)
+		if err := s.orderReader.UpdateOrderStatus(ctx, ord.ID, "paid"); err != nil {
+			return fmt.Errorf("mark order paid: %w", err)
+		}
+		if ord.Type == OrderTypeTopup {
+			if err := s.billingReader.AddCredits(ctx, ord.UserID, ord.CreditsAmount, "topup"); err != nil {
+				s.logger.Error("failed to add credits", zap.Error(err))
+			}
+		}
 	}
 
 	return nil
@@ -278,6 +292,19 @@ func (s *Service) HandlePaymentFailed(ctx context.Context, paymentIntentID, fail
 
 	if err := s.repo.UpdatePayment(ctx, payment); err != nil {
 		return fmt.Errorf("update payment: %w", err)
+	}
+
+	// Publish PaymentFailed event
+	if s.eventBus != nil {
+		event := events.NewPaymentFailedEvent(
+			payment.ID,
+			payment.OrderID,
+			payment.UserID,
+			failureCode,
+			failureMessage,
+			payment.Provider,
+		)
+		s.eventBus.Publish(event)
 	}
 
 	return nil
@@ -342,7 +369,7 @@ func (s *Service) CreateRefund(ctx context.Context, paymentID uuid.UUID, amount 
 
 	// If full refund, mark order as refunded
 	if payment.RefundedAmount >= payment.Amount {
-		if err := s.orderService.MarkAsRefunded(ctx, payment.OrderID); err != nil {
+		if err := s.orderReader.UpdateOrderStatus(ctx, payment.OrderID, "refunded"); err != nil {
 			s.logger.Error("failed to mark order as refunded", zap.Error(err))
 		}
 	}
@@ -357,7 +384,7 @@ func (s *Service) GetPayment(ctx context.Context, paymentID uuid.UUID) (*Payment
 
 // ListPaymentMethods returns payment methods for a user.
 func (s *Service) ListPaymentMethods(ctx context.Context, userID uuid.UUID) ([]*PaymentMethodInfo, error) {
-	sub, err := s.billingService.GetSubscription(ctx, userID)
+	sub, err := s.billingReader.GetSubscription(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -483,22 +510,36 @@ func (s *Service) handleNativePaymentSuccess(ctx context.Context, payment *Payme
 		return fmt.Errorf("update payment: %w", err)
 	}
 
-	// Mark order as paid
-	if err := s.orderService.MarkAsPaid(ctx, payment.OrderID); err != nil {
-		return fmt.Errorf("mark order paid: %w", err)
-	}
-
-	// Fulfill order
-	ord, err := s.orderService.GetOrder(ctx, payment.OrderID)
+	// Get order for event
+	ord, err := s.orderReader.GetOrder(ctx, payment.OrderID)
 	if err != nil {
-		s.logger.Error("failed to get order for fulfillment", zap.Error(err))
+		s.logger.Error("failed to get order for event", zap.Error(err))
 		return nil // Don't fail the webhook for this
 	}
 
-	switch ord.Type {
-	case order.OrderTypeTopup:
-		if err := s.billingService.AddCredits(ctx, ord.UserID, ord.CreditsAmount, "topup"); err != nil {
-			s.logger.Error("failed to add credits", zap.Error(err))
+	// Publish PaymentSucceeded event
+	if s.eventBus != nil {
+		event := events.NewPaymentSucceededEvent(
+			payment.ID,
+			ord.ID,
+			ord.UserID,
+			payment.Amount,
+			payment.Currency,
+			payment.Provider,
+			ord.Type,
+			ord.CreditsAmount,
+			ord.PlanID,
+		)
+		s.eventBus.Publish(event)
+	} else {
+		// Fallback: direct handling if no event bus
+		if err := s.orderReader.UpdateOrderStatus(ctx, payment.OrderID, "paid"); err != nil {
+			return fmt.Errorf("mark order paid: %w", err)
+		}
+		if ord.Type == OrderTypeTopup {
+			if err := s.billingReader.AddCredits(ctx, ord.UserID, ord.CreditsAmount, "topup"); err != nil {
+				s.logger.Error("failed to add credits", zap.Error(err))
+			}
 		}
 	}
 

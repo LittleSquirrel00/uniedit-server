@@ -32,6 +32,14 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 // ListPlans returns all available plans.
+//
+//	@Summary		List subscription plans
+//	@Description	Get all available subscription plans
+//	@Tags			Billing
+//	@Produce		json
+//	@Success		200	{object}	GetPlansResponse
+//	@Failure		500	{object}	map[string]string
+//	@Router			/billing/plans [get]
 func (h *Handler) ListPlans(c *gin.Context) {
 	plans, err := h.service.ListPlans(c.Request.Context())
 	if err != nil {
@@ -48,6 +56,16 @@ func (h *Handler) ListPlans(c *gin.Context) {
 }
 
 // GetSubscription returns the user's subscription.
+//
+//	@Summary		Get current subscription
+//	@Description	Get the current user's subscription and quota status
+//	@Tags			Billing
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	map[string]interface{}
+//	@Failure		401	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Router			/billing/subscription [get]
 func (h *Handler) GetSubscription(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -78,6 +96,19 @@ func (h *Handler) GetSubscription(c *gin.Context) {
 }
 
 // CancelSubscription cancels the user's subscription.
+//
+//	@Summary		Cancel subscription
+//	@Description	Cancel the current user's subscription
+//	@Tags			Billing
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CancelSubscriptionRequest	false	"Cancel request"
+//	@Success		200		{object}	SubscriptionResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		401		{object}	map[string]string
+//	@Failure		404		{object}	map[string]string
+//	@Router			/billing/subscription/cancel [post]
 func (h *Handler) CancelSubscription(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -101,6 +132,15 @@ func (h *Handler) CancelSubscription(c *gin.Context) {
 }
 
 // GetQuotaStatus returns the user's quota status.
+//
+//	@Summary		Get quota status
+//	@Description	Get the current user's quota limits and usage
+//	@Tags			Billing
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	QuotaStatus
+//	@Failure		401	{object}	map[string]string
+//	@Router			/billing/quota [get]
 func (h *Handler) GetQuotaStatus(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -118,6 +158,19 @@ func (h *Handler) GetQuotaStatus(c *gin.Context) {
 }
 
 // GetUsageStats returns the user's usage statistics.
+//
+//	@Summary		Get usage statistics
+//	@Description	Get the current user's API usage statistics
+//	@Tags			Billing
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			period		query		string	false	"Time period (day, week, month)"
+//	@Param			start_date	query		string	false	"Start date (YYYY-MM-DD)"
+//	@Param			end_date	query		string	false	"End date (YYYY-MM-DD)"
+//	@Success		200			{object}	UsageStats
+//	@Failure		400			{object}	map[string]string
+//	@Failure		401			{object}	map[string]string
+//	@Router			/billing/usage [get]
 func (h *Handler) GetUsageStats(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
@@ -141,6 +194,15 @@ func (h *Handler) GetUsageStats(c *gin.Context) {
 }
 
 // GetBalance returns the user's credits balance.
+//
+//	@Summary		Get credits balance
+//	@Description	Get the current user's credits balance
+//	@Tags			Billing
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	map[string]int64
+//	@Failure		401	{object}	map[string]string
+//	@Router			/billing/balance [get]
 func (h *Handler) GetBalance(c *gin.Context) {
 	userID := getUserID(c)
 	if userID == uuid.Nil {
