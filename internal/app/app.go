@@ -720,6 +720,7 @@ func (a *App) registerRoutes() {
 	// Register git module routes (if initialized)
 	if a.gitHandler != nil {
 		a.gitHandler.RegisterRoutes(publicRouter)
+		a.gitHandler.RegisterProtectedRoutes(protectedRouter)
 	}
 	if a.gitHTTPHandler != nil {
 		a.gitHTTPHandler.RegisterGitRoutes(v1)

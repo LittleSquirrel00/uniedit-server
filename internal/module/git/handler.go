@@ -23,35 +23,46 @@ func NewHandler(service ServiceInterface, baseURL string) *Handler {
 	}
 }
 
-// RegisterRoutes registers the git routes.
+// RegisterRoutes registers public git routes (no auth required).
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	repos := r.Group("/repos")
 	{
-		repos.POST("", h.CreateRepo)
-		repos.GET("", h.ListRepos)
+		// Public endpoints - no auth required
 		repos.GET("/public", h.ListPublicRepos)
 		repos.GET("/:owner/:repo", h.GetRepo)
+
+		// Pull Requests - read access (uses getUserIDOptional)
+		repos.GET("/:owner/:repo/pulls", h.ListPRs)
+		repos.GET("/:owner/:repo/pulls/:number", h.GetPR)
+	}
+}
+
+// RegisterProtectedRoutes registers git routes that require authentication.
+func (h *Handler) RegisterProtectedRoutes(r *gin.RouterGroup) {
+	repos := r.Group("/repos")
+	{
+		// Repository CRUD - requires auth
+		repos.POST("", h.CreateRepo)
+		repos.GET("", h.ListRepos)
 		repos.PATCH("/:owner/:repo", h.UpdateRepo)
 		repos.DELETE("/:owner/:repo", h.DeleteRepo)
 
-		// Collaborators
+		// Collaborators - requires auth
 		repos.GET("/:owner/:repo/collaborators", h.ListCollaborators)
 		repos.PUT("/:owner/:repo/collaborators/:user_id", h.AddCollaborator)
 		repos.PATCH("/:owner/:repo/collaborators/:user_id", h.UpdateCollaborator)
 		repos.DELETE("/:owner/:repo/collaborators/:user_id", h.RemoveCollaborator)
 
-		// Pull Requests
+		// Pull Requests - write operations require auth
 		repos.POST("/:owner/:repo/pulls", h.CreatePR)
-		repos.GET("/:owner/:repo/pulls", h.ListPRs)
-		repos.GET("/:owner/:repo/pulls/:number", h.GetPR)
 		repos.PATCH("/:owner/:repo/pulls/:number", h.UpdatePR)
 		repos.POST("/:owner/:repo/pulls/:number/merge", h.MergePR)
 
-		// Storage stats
+		// Storage stats - requires auth
 		repos.GET("/:owner/:repo/storage", h.GetStorageStats)
 	}
 
-	// User storage stats
+	// User storage stats - requires auth
 	r.GET("/storage", h.GetUserStorageStats)
 }
 
