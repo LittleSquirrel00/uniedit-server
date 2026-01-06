@@ -62,7 +62,18 @@ func (h *AdminHandler) RegisterRoutes(r *gin.RouterGroup) {
 // Provider handlers
 
 // ListProviders lists all providers.
-// GET /api/v1/admin/ai/providers
+//
+//	@Summary		List AI providers
+//	@Description	List all configured AI providers (admin only)
+//	@Tags			AI Admin - Providers
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	map[string]interface{}	"List of providers"
+//	@Failure		401	{object}	map[string]string		"Unauthorized"
+//	@Failure		403	{object}	map[string]string		"Forbidden - Admin access required"
+//	@Failure		500	{object}	map[string]string		"Internal server error"
+//	@Router			/admin/ai/providers [get]
 func (h *AdminHandler) ListProviders(c *gin.Context) {
 	providers, err := h.providerRepo.ListProviders(c.Request.Context(), false)
 	if err != nil {
@@ -89,7 +100,20 @@ type CreateProviderRequest struct {
 }
 
 // CreateProvider creates a new provider.
-// POST /api/v1/admin/ai/providers
+//
+//	@Summary		Create AI provider
+//	@Description	Create a new AI provider configuration (admin only)
+//	@Tags			AI Admin - Providers
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CreateProviderRequest	true	"Provider configuration"
+//	@Success		201		{object}	provider.Provider
+//	@Failure		400		{object}	map[string]string	"Invalid request"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		403		{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/providers [post]
 func (h *AdminHandler) CreateProvider(c *gin.Context) {
 	var req CreateProviderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -121,7 +145,21 @@ func (h *AdminHandler) CreateProvider(c *gin.Context) {
 }
 
 // GetProvider gets a provider by ID.
-// GET /api/v1/admin/ai/providers/:id
+//
+//	@Summary		Get AI provider
+//	@Description	Get details of a specific AI provider by ID (admin only)
+//	@Tags			AI Admin - Providers
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Provider ID (UUID)"
+//	@Success		200	{object}	provider.Provider
+//	@Failure		400	{object}	map[string]string	"Invalid provider ID"
+//	@Failure		401	{object}	map[string]string	"Unauthorized"
+//	@Failure		403	{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		404	{object}	map[string]string	"Provider not found"
+//	@Failure		500	{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/providers/{id} [get]
 func (h *AdminHandler) GetProvider(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -150,7 +188,22 @@ type UpdateProviderRequest struct {
 }
 
 // UpdateProvider updates a provider.
-// PUT /api/v1/admin/ai/providers/:id
+//
+//	@Summary		Update AI provider
+//	@Description	Update an existing AI provider configuration (admin only)
+//	@Tags			AI Admin - Providers
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		string					true	"Provider ID (UUID)"
+//	@Param			request	body		UpdateProviderRequest	true	"Updated provider configuration"
+//	@Success		200		{object}	provider.Provider
+//	@Failure		400		{object}	map[string]string	"Invalid request"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		403		{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		404		{object}	map[string]string	"Provider not found"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/providers/{id} [put]
 func (h *AdminHandler) UpdateProvider(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -205,7 +258,21 @@ func (h *AdminHandler) UpdateProvider(c *gin.Context) {
 }
 
 // DeleteProvider deletes a provider.
-// DELETE /api/v1/admin/ai/providers/:id
+//
+//	@Summary		Delete AI provider
+//	@Description	Delete an AI provider configuration (admin only)
+//	@Tags			AI Admin - Providers
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Provider ID (UUID)"
+//	@Success		200	{object}	map[string]string	"Provider deleted successfully"
+//	@Failure		400	{object}	map[string]string	"Invalid provider ID"
+//	@Failure		401	{object}	map[string]string	"Unauthorized"
+//	@Failure		403	{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		404	{object}	map[string]string	"Provider not found"
+//	@Failure		500	{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/providers/{id} [delete]
 func (h *AdminHandler) DeleteProvider(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -227,7 +294,18 @@ func (h *AdminHandler) DeleteProvider(c *gin.Context) {
 // Model handlers
 
 // ListModels lists all models.
-// GET /api/v1/admin/ai/models
+//
+//	@Summary		List AI models
+//	@Description	List all configured AI models (admin only)
+//	@Tags			AI Admin - Models
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	map[string]interface{}	"List of models"
+//	@Failure		401	{object}	map[string]string		"Unauthorized"
+//	@Failure		403	{object}	map[string]string		"Forbidden - Admin access required"
+//	@Failure		500	{object}	map[string]string		"Internal server error"
+//	@Router			/admin/ai/models [get]
 func (h *AdminHandler) ListModels(c *gin.Context) {
 	models, err := h.providerRepo.ListModels(c.Request.Context(), nil, false)
 	if err != nil {
@@ -256,7 +334,20 @@ type CreateModelRequest struct {
 }
 
 // CreateModel creates a new model.
-// POST /api/v1/admin/ai/models
+//
+//	@Summary		Create AI model
+//	@Description	Create a new AI model configuration (admin only)
+//	@Tags			AI Admin - Models
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CreateModelRequest	true	"Model configuration"
+//	@Success		201		{object}	provider.Model
+//	@Failure		400		{object}	map[string]string	"Invalid request"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		403		{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/models [post]
 func (h *AdminHandler) CreateModel(c *gin.Context) {
 	var req CreateModelRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -295,7 +386,21 @@ func (h *AdminHandler) CreateModel(c *gin.Context) {
 }
 
 // GetModel gets a model by ID.
-// GET /api/v1/admin/ai/models/:id
+//
+//	@Summary		Get AI model
+//	@Description	Get details of a specific AI model by ID (admin only)
+//	@Tags			AI Admin - Models
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Model ID"
+//	@Success		200	{object}	provider.Model
+//	@Failure		400	{object}	map[string]string	"Model ID required"
+//	@Failure		401	{object}	map[string]string	"Unauthorized"
+//	@Failure		403	{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		404	{object}	map[string]string	"Model not found"
+//	@Failure		500	{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/models/{id} [get]
 func (h *AdminHandler) GetModel(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -325,7 +430,22 @@ type UpdateModelRequest struct {
 }
 
 // UpdateModel updates a model.
-// PUT /api/v1/admin/ai/models/:id
+//
+//	@Summary		Update AI model
+//	@Description	Update an existing AI model configuration (admin only)
+//	@Tags			AI Admin - Models
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		string				true	"Model ID"
+//	@Param			request	body		UpdateModelRequest	true	"Updated model configuration"
+//	@Success		200		{object}	provider.Model
+//	@Failure		400		{object}	map[string]string	"Invalid request"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		403		{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		404		{object}	map[string]string	"Model not found"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/models/{id} [put]
 func (h *AdminHandler) UpdateModel(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -387,7 +507,21 @@ func (h *AdminHandler) UpdateModel(c *gin.Context) {
 }
 
 // DeleteModel deletes a model.
-// DELETE /api/v1/admin/ai/models/:id
+//
+//	@Summary		Delete AI model
+//	@Description	Delete an AI model configuration (admin only)
+//	@Tags			AI Admin - Models
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Model ID"
+//	@Success		200	{object}	map[string]string	"Model deleted successfully"
+//	@Failure		400	{object}	map[string]string	"Model ID required"
+//	@Failure		401	{object}	map[string]string	"Unauthorized"
+//	@Failure		403	{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		404	{object}	map[string]string	"Model not found"
+//	@Failure		500	{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/models/{id} [delete]
 func (h *AdminHandler) DeleteModel(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -409,7 +543,18 @@ func (h *AdminHandler) DeleteModel(c *gin.Context) {
 // Group handlers
 
 // ListGroups lists all groups.
-// GET /api/v1/admin/ai/groups
+//
+//	@Summary		List AI groups
+//	@Description	List all configured AI model groups (admin only)
+//	@Tags			AI Admin - Groups
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	map[string]interface{}	"List of groups"
+//	@Failure		401	{object}	map[string]string		"Unauthorized"
+//	@Failure		403	{object}	map[string]string		"Forbidden - Admin access required"
+//	@Failure		500	{object}	map[string]string		"Internal server error"
+//	@Router			/admin/ai/groups [get]
 func (h *AdminHandler) ListGroups(c *gin.Context) {
 	groups, err := h.groupRepo.List(c.Request.Context(), true)
 	if err != nil {
@@ -436,7 +581,20 @@ type CreateGroupRequest struct {
 }
 
 // CreateGroup creates a new group.
-// POST /api/v1/admin/ai/groups
+//
+//	@Summary		Create AI group
+//	@Description	Create a new AI model group for routing (admin only)
+//	@Tags			AI Admin - Groups
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		CreateGroupRequest	true	"Group configuration"
+//	@Success		201		{object}	group.Group
+//	@Failure		400		{object}	map[string]string	"Invalid request"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		403		{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/groups [post]
 func (h *AdminHandler) CreateGroup(c *gin.Context) {
 	var req CreateGroupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -472,7 +630,21 @@ func (h *AdminHandler) CreateGroup(c *gin.Context) {
 }
 
 // GetGroup gets a group by ID.
-// GET /api/v1/admin/ai/groups/:id
+//
+//	@Summary		Get AI group
+//	@Description	Get details of a specific AI model group by ID (admin only)
+//	@Tags			AI Admin - Groups
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Group ID"
+//	@Success		200	{object}	group.Group
+//	@Failure		400	{object}	map[string]string	"Group ID required"
+//	@Failure		401	{object}	map[string]string	"Unauthorized"
+//	@Failure		403	{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		404	{object}	map[string]string	"Group not found"
+//	@Failure		500	{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/groups/{id} [get]
 func (h *AdminHandler) GetGroup(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -500,7 +672,22 @@ type UpdateGroupRequest struct {
 }
 
 // UpdateGroup updates a group.
-// PUT /api/v1/admin/ai/groups/:id
+//
+//	@Summary		Update AI group
+//	@Description	Update an existing AI model group configuration (admin only)
+//	@Tags			AI Admin - Groups
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		string				true	"Group ID"
+//	@Param			request	body		UpdateGroupRequest	true	"Updated group configuration"
+//	@Success		200		{object}	group.Group
+//	@Failure		400		{object}	map[string]string	"Invalid request"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		403		{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		404		{object}	map[string]string	"Group not found"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/groups/{id} [put]
 func (h *AdminHandler) UpdateGroup(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -552,7 +739,21 @@ func (h *AdminHandler) UpdateGroup(c *gin.Context) {
 }
 
 // DeleteGroup deletes a group.
-// DELETE /api/v1/admin/ai/groups/:id
+//
+//	@Summary		Delete AI group
+//	@Description	Delete an AI model group configuration (admin only)
+//	@Tags			AI Admin - Groups
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Group ID"
+//	@Success		200	{object}	map[string]string	"Group deleted successfully"
+//	@Failure		400	{object}	map[string]string	"Group ID required"
+//	@Failure		401	{object}	map[string]string	"Unauthorized"
+//	@Failure		403	{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		404	{object}	map[string]string	"Group not found"
+//	@Failure		500	{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/groups/{id} [delete]
 func (h *AdminHandler) DeleteGroup(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -572,7 +773,18 @@ func (h *AdminHandler) DeleteGroup(c *gin.Context) {
 }
 
 // RefreshRegistry refreshes the provider registry and group manager.
-// POST /api/v1/admin/ai/refresh
+//
+//	@Summary		Refresh AI registry
+//	@Description	Refresh the provider registry and group manager to reload configurations (admin only)
+//	@Tags			AI Admin - System
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	map[string]string	"Registry refreshed successfully"
+//	@Failure		401	{object}	map[string]string	"Unauthorized"
+//	@Failure		403	{object}	map[string]string	"Forbidden - Admin access required"
+//	@Failure		500	{object}	map[string]string	"Internal server error"
+//	@Router			/admin/ai/refresh [post]
 func (h *AdminHandler) RefreshRegistry(c *gin.Context) {
 	if err := h.registry.Refresh(c.Request.Context()); err != nil {
 		handleError(c, err)

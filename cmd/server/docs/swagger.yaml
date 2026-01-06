@@ -1,5 +1,456 @@
 basePath: /api/v1
 definitions:
+  github_com_uniedit_server_internal_module_ai_adapter.Function:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      parameters:
+        additionalProperties: {}
+        type: object
+    type: object
+  github_com_uniedit_server_internal_module_ai_adapter.FunctionCall:
+    properties:
+      arguments:
+        type: string
+      name:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_module_ai_adapter.Message:
+    properties:
+      content:
+        description: string or []ContentPart
+      name:
+        type: string
+      role:
+        type: string
+      tool_call_id:
+        type: string
+      tool_calls:
+        items:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_adapter.ToolCall'
+        type: array
+    type: object
+  github_com_uniedit_server_internal_module_ai_adapter.Tool:
+    properties:
+      function:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_adapter.Function'
+      type:
+        description: function
+        type: string
+    type: object
+  github_com_uniedit_server_internal_module_ai_adapter.ToolCall:
+    properties:
+      function:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_adapter.FunctionCall'
+      id:
+        type: string
+      type:
+        description: function
+        type: string
+    type: object
+  github_com_uniedit_server_internal_module_ai_adapter.Usage:
+    properties:
+      completion_tokens:
+        type: integer
+      prompt_tokens:
+        type: integer
+      total_tokens:
+        type: integer
+    type: object
+  github_com_uniedit_server_internal_module_ai_group.FallbackConfig:
+    properties:
+      enabled:
+        type: boolean
+      max_attempts:
+        type: integer
+      trigger_on:
+        items:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.FallbackTrigger'
+        type: array
+    type: object
+  github_com_uniedit_server_internal_module_ai_group.FallbackTrigger:
+    enum:
+    - rate_limit
+    - timeout
+    - server_error
+    type: string
+    x-enum-varnames:
+    - TriggerRateLimit
+    - TriggerTimeout
+    - TriggerServerError
+  github_com_uniedit_server_internal_module_ai_group.Group:
+    properties:
+      created_at:
+        type: string
+      enabled:
+        type: boolean
+      fallback:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.FallbackConfig'
+      id:
+        type: string
+      models:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      required_capabilities:
+        items:
+          type: string
+        type: array
+      strategy:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.StrategyConfig'
+      task_type:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.TaskType'
+      updated_at:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_module_ai_group.SelectionStrategy:
+    enum:
+    - priority
+    - round-robin
+    - weighted
+    - cost-optimal
+    - quality-optimal
+    - latency-optimal
+    - capability-match
+    type: string
+    x-enum-varnames:
+    - StrategyPriority
+    - StrategyRoundRobin
+    - StrategyWeighted
+    - StrategyCostOptimal
+    - StrategyQualityOptimal
+    - StrategyLatencyOptimal
+    - StrategyCapabilityMatch
+  github_com_uniedit_server_internal_module_ai_group.StrategyConfig:
+    properties:
+      max_cost_per_1k:
+        type: number
+      type:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.SelectionStrategy'
+      weights:
+        additionalProperties:
+          type: integer
+        type: object
+    type: object
+  github_com_uniedit_server_internal_module_ai_group.TaskType:
+    enum:
+    - chat
+    - embedding
+    - image
+    - video
+    - audio
+    type: string
+    x-enum-varnames:
+    - TaskTypeChat
+    - TaskTypeEmbedding
+    - TaskTypeImage
+    - TaskTypeVideo
+    - TaskTypeAudio
+  github_com_uniedit_server_internal_module_ai_llm.ChatRequest:
+    properties:
+      max_tokens:
+        type: integer
+      messages:
+        items:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_adapter.Message'
+        type: array
+      model:
+        type: string
+      routing:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_llm.RoutingConfig'
+      stop:
+        items:
+          type: string
+        type: array
+      stream:
+        type: boolean
+      temperature:
+        type: number
+      tool_choice: {}
+      tools:
+        items:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_adapter.Tool'
+        type: array
+      top_p:
+        type: number
+    type: object
+  github_com_uniedit_server_internal_module_ai_llm.ChatResponse:
+    properties:
+      _routing:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_llm.RoutingInfo'
+      finish_reason:
+        type: string
+      id:
+        type: string
+      message:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_adapter.Message'
+      model:
+        type: string
+      usage:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_adapter.Usage'
+    type: object
+  github_com_uniedit_server_internal_module_ai_llm.RoutingConfig:
+    properties:
+      fallback:
+        type: boolean
+      group:
+        type: string
+      strategy:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_module_ai_llm.RoutingInfo:
+    properties:
+      cost_usd:
+        type: number
+      latency_ms:
+        type: integer
+      model_used:
+        type: string
+      provider_used:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_module_ai_media.GeneratedImage:
+    properties:
+      b64_json:
+        type: string
+      revised_prompt:
+        type: string
+      url:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_module_ai_media.GeneratedVideo:
+    properties:
+      duration:
+        type: integer
+      file_size:
+        type: integer
+      format:
+        type: string
+      fps:
+        type: integer
+      height:
+        type: integer
+      url:
+        type: string
+      width:
+        type: integer
+    type: object
+  github_com_uniedit_server_internal_module_ai_media.ImageGenerationRequest:
+    properties:
+      model:
+        type: string
+      "n":
+        type: integer
+      negative_prompt:
+        type: string
+      prompt:
+        type: string
+      quality:
+        type: string
+      response_format:
+        type: string
+      size:
+        type: string
+      style:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_module_ai_media.ImageGenerationResponse:
+    properties:
+      created_at:
+        type: integer
+      images:
+        items:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_media.GeneratedImage'
+        type: array
+      model:
+        type: string
+      task_id:
+        type: string
+      usage:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_media.ImageUsage'
+    type: object
+  github_com_uniedit_server_internal_module_ai_media.ImageUsage:
+    properties:
+      cost_usd:
+        type: number
+      total_images:
+        type: integer
+    type: object
+  github_com_uniedit_server_internal_module_ai_media.VideoGenerationRequest:
+    properties:
+      aspect_ratio:
+        type: string
+      async:
+        type: boolean
+      duration:
+        type: integer
+      fps:
+        type: integer
+      input_image:
+        type: string
+      input_video:
+        type: string
+      model:
+        type: string
+      prompt:
+        type: string
+      resolution:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_module_ai_media.VideoGenerationResponse:
+    properties:
+      created_at:
+        type: integer
+      error:
+        type: string
+      progress:
+        type: integer
+      status:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_media.VideoState'
+      task_id:
+        type: string
+      video:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_media.GeneratedVideo'
+    type: object
+  github_com_uniedit_server_internal_module_ai_media.VideoState:
+    enum:
+    - pending
+    - processing
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - VideoStatePending
+    - VideoStateProcessing
+    - VideoStateCompleted
+    - VideoStateFailed
+  github_com_uniedit_server_internal_module_ai_provider.Capability:
+    enum:
+    - chat
+    - stream
+    - vision
+    - tools
+    - json_mode
+    - embedding
+    - image_generation
+    - video_generation
+    - audio_generation
+    type: string
+    x-enum-varnames:
+    - CapabilityChat
+    - CapabilityStream
+    - CapabilityVision
+    - CapabilityTools
+    - CapabilityJSON
+    - CapabilityEmbedding
+    - CapabilityImage
+    - CapabilityVideo
+    - CapabilityAudio
+  github_com_uniedit_server_internal_module_ai_provider.Model:
+    properties:
+      capabilities:
+        items:
+          type: string
+        type: array
+      context_window:
+        type: integer
+      created_at:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      input_cost_per_1k:
+        type: number
+      max_output_tokens:
+        type: integer
+      name:
+        type: string
+      options:
+        additionalProperties: {}
+        type: object
+      output_cost_per_1k:
+        type: number
+      provider:
+        allOf:
+        - $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.Provider'
+        description: Relations
+      provider_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_module_ai_provider.Provider:
+    properties:
+      base_url:
+        type: string
+      created_at:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      models:
+        description: Relations
+        items:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.Model'
+        type: array
+      name:
+        type: string
+      options:
+        additionalProperties: {}
+        type: object
+      priority:
+        type: integer
+      rate_limit:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.RateLimitConfig'
+      type:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.ProviderType'
+      updated_at:
+        type: string
+      weight:
+        type: integer
+    type: object
+  github_com_uniedit_server_internal_module_ai_provider.ProviderType:
+    enum:
+    - openai
+    - anthropic
+    - google
+    - azure
+    - ollama
+    - generic
+    type: string
+    x-enum-varnames:
+    - ProviderTypeOpenAI
+    - ProviderTypeAnthropic
+    - ProviderTypeGoogle
+    - ProviderTypeAzure
+    - ProviderTypeOllama
+    - ProviderTypeGeneric
+  github_com_uniedit_server_internal_module_ai_provider.RateLimitConfig:
+    properties:
+      daily_limit:
+        description: Daily request limit
+        type: integer
+      rpm:
+        description: Requests per minute
+        type: integer
+      tpm:
+        description: Tokens per minute
+        type: integer
+    type: object
+  github_com_uniedit_server_internal_module_ai_task.Error:
+    properties:
+      code:
+        type: string
+      details: {}
+      message:
+        type: string
+    type: object
   github_com_uniedit_server_internal_module_payment_provider.PaymentScene:
     enum:
     - web
@@ -26,6 +477,208 @@ definitions:
     - PaymentSceneApp
     - PaymentSceneNative
     - PaymentSceneMini
+  internal_module_ai_handler.CreateGroupRequest:
+    properties:
+      enabled:
+        type: boolean
+      fallback:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.FallbackConfig'
+      id:
+        type: string
+      models:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      required_capabilities:
+        items:
+          type: string
+        type: array
+      strategy:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.StrategyConfig'
+      task_type:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.TaskType'
+    required:
+    - id
+    - models
+    - name
+    - task_type
+    type: object
+  internal_module_ai_handler.CreateModelRequest:
+    properties:
+      capabilities:
+        items:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.Capability'
+        type: array
+      context_window:
+        type: integer
+      enabled:
+        type: boolean
+      id:
+        type: string
+      input_cost_per_1k:
+        type: number
+      max_output_tokens:
+        type: integer
+      name:
+        type: string
+      options:
+        additionalProperties: true
+        type: object
+      output_cost_per_1k:
+        type: number
+      provider_id:
+        type: string
+    required:
+    - capabilities
+    - id
+    - name
+    - provider_id
+    type: object
+  internal_module_ai_handler.CreateProviderRequest:
+    properties:
+      api_key:
+        type: string
+      base_url:
+        type: string
+      enabled:
+        type: boolean
+      name:
+        type: string
+      options:
+        additionalProperties: true
+        type: object
+      priority:
+        type: integer
+      type:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.ProviderType'
+      weight:
+        type: integer
+    required:
+    - api_key
+    - base_url
+    - name
+    - type
+    type: object
+  internal_module_ai_handler.EmbeddingObject:
+    properties:
+      embedding:
+        items:
+          type: number
+        type: array
+      index:
+        type: integer
+      object:
+        type: string
+    type: object
+  internal_module_ai_handler.EmbeddingRequest:
+    properties:
+      input:
+        items:
+          type: string
+        type: array
+      model:
+        type: string
+    type: object
+  internal_module_ai_handler.EmbeddingResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_module_ai_handler.EmbeddingObject'
+        type: array
+      model:
+        type: string
+      object:
+        type: string
+      usage:
+        $ref: '#/definitions/internal_module_ai_handler.EmbeddingUsage'
+    type: object
+  internal_module_ai_handler.EmbeddingUsage:
+    properties:
+      prompt_tokens:
+        type: integer
+      total_tokens:
+        type: integer
+    type: object
+  internal_module_ai_handler.TaskResponse:
+    properties:
+      completed_at:
+        type: integer
+      created_at:
+        type: integer
+      error:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_task.Error'
+      id:
+        type: string
+      progress:
+        type: integer
+      status:
+        type: string
+      type:
+        type: string
+      updated_at:
+        type: integer
+    type: object
+  internal_module_ai_handler.UpdateGroupRequest:
+    properties:
+      enabled:
+        type: boolean
+      fallback:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.FallbackConfig'
+      models:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      required_capabilities:
+        items:
+          type: string
+        type: array
+      strategy:
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.StrategyConfig'
+    type: object
+  internal_module_ai_handler.UpdateModelRequest:
+    properties:
+      capabilities:
+        items:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.Capability'
+        type: array
+      context_window:
+        type: integer
+      enabled:
+        type: boolean
+      input_cost_per_1k:
+        type: number
+      max_output_tokens:
+        type: integer
+      name:
+        type: string
+      options:
+        additionalProperties: true
+        type: object
+      output_cost_per_1k:
+        type: number
+    type: object
+  internal_module_ai_handler.UpdateProviderRequest:
+    properties:
+      api_key:
+        type: string
+      base_url:
+        type: string
+      enabled:
+        type: boolean
+      name:
+        type: string
+      options:
+        additionalProperties: true
+        type: object
+      priority:
+        type: integer
+      weight:
+        type: integer
+    type: object
   internal_module_ai_provider_pool.AccountResponse:
     properties:
       consecutive_failures:
@@ -1355,6 +2008,788 @@ info:
   title: UniEdit Server API
   version: "1.0"
 paths:
+  /admin/ai/groups:
+    get:
+      consumes:
+      - application/json
+      description: List all configured AI model groups (admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of groups
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List AI groups
+      tags:
+      - AI Admin - Groups
+    post:
+      consumes:
+      - application/json
+      description: Create a new AI model group for routing (admin only)
+      parameters:
+      - description: Group configuration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_ai_handler.CreateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.Group'
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create AI group
+      tags:
+      - AI Admin - Groups
+  /admin/ai/groups/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an AI model group configuration (admin only)
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Group deleted successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Group ID required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Group not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete AI group
+      tags:
+      - AI Admin - Groups
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific AI model group by ID (admin only)
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.Group'
+        "400":
+          description: Group ID required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Group not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get AI group
+      tags:
+      - AI Admin - Groups
+    put:
+      consumes:
+      - application/json
+      description: Update an existing AI model group configuration (admin only)
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated group configuration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_ai_handler.UpdateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_group.Group'
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Group not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update AI group
+      tags:
+      - AI Admin - Groups
+  /admin/ai/models:
+    get:
+      consumes:
+      - application/json
+      description: List all configured AI models (admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of models
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List AI models
+      tags:
+      - AI Admin - Models
+    post:
+      consumes:
+      - application/json
+      description: Create a new AI model configuration (admin only)
+      parameters:
+      - description: Model configuration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_ai_handler.CreateModelRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.Model'
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create AI model
+      tags:
+      - AI Admin - Models
+  /admin/ai/models/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an AI model configuration (admin only)
+      parameters:
+      - description: Model ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Model deleted successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Model ID required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Model not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete AI model
+      tags:
+      - AI Admin - Models
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific AI model by ID (admin only)
+      parameters:
+      - description: Model ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.Model'
+        "400":
+          description: Model ID required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Model not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get AI model
+      tags:
+      - AI Admin - Models
+    put:
+      consumes:
+      - application/json
+      description: Update an existing AI model configuration (admin only)
+      parameters:
+      - description: Model ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated model configuration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_ai_handler.UpdateModelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.Model'
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Model not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update AI model
+      tags:
+      - AI Admin - Models
+  /admin/ai/providers:
+    get:
+      consumes:
+      - application/json
+      description: List all configured AI providers (admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of providers
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List AI providers
+      tags:
+      - AI Admin - Providers
+    post:
+      consumes:
+      - application/json
+      description: Create a new AI provider configuration (admin only)
+      parameters:
+      - description: Provider configuration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_ai_handler.CreateProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.Provider'
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create AI provider
+      tags:
+      - AI Admin - Providers
+  /admin/ai/providers/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an AI provider configuration (admin only)
+      parameters:
+      - description: Provider ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Provider deleted successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid provider ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Provider not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete AI provider
+      tags:
+      - AI Admin - Providers
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific AI provider by ID (admin only)
+      parameters:
+      - description: Provider ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.Provider'
+        "400":
+          description: Invalid provider ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Provider not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get AI provider
+      tags:
+      - AI Admin - Providers
+    put:
+      consumes:
+      - application/json
+      description: Update an existing AI provider configuration (admin only)
+      parameters:
+      - description: Provider ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated provider configuration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_ai_handler.UpdateProviderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_provider.Provider'
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Provider not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update AI provider
+      tags:
+      - AI Admin - Providers
+  /admin/ai/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Refresh the provider registry and group manager to reload configurations
+        (admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Registry refreshed successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Refresh AI registry
+      tags:
+      - AI Admin - System
   /admin/providers/{provider_id}/accounts:
     get:
       description: Get all accounts for an AI provider
@@ -1659,6 +3094,427 @@ paths:
       summary: Get account statistics
       tags:
       - AI
+  /ai/chat:
+    post:
+      consumes:
+      - application/json
+      description: Send a chat completion request to the AI model (non-streaming)
+      parameters:
+      - description: Chat request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_llm.ChatRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_llm.ChatResponse'
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: Rate limit exceeded
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Send chat message
+      tags:
+      - AI Chat
+  /ai/chat/stream:
+    post:
+      consumes:
+      - application/json
+      description: Send a chat completion request with Server-Sent Events (SSE) streaming
+        response
+      parameters:
+      - description: Chat request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_llm.ChatRequest'
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: SSE stream of chat chunks
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: Rate limit exceeded
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Send chat message (streaming)
+      tags:
+      - AI Chat
+  /ai/embeddings:
+    post:
+      consumes:
+      - application/json
+      description: Create vector embeddings for the given input text
+      parameters:
+      - description: Embedding request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_module_ai_handler.EmbeddingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_ai_handler.EmbeddingResponse'
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: Rate limit exceeded
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create embeddings
+      tags:
+      - AI Chat
+  /ai/images/generations:
+    post:
+      consumes:
+      - application/json
+      description: Generate an image from a text prompt using AI models
+      parameters:
+      - description: Image generation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_media.ImageGenerationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_media.ImageGenerationResponse'
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: Rate limit exceeded or quota exceeded
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Generate image
+      tags:
+      - AI Media
+  /ai/tasks:
+    get:
+      consumes:
+      - application/json
+      description: List all AI tasks for the current user with optional filtering
+      parameters:
+      - description: Filter by status (pending, processing, completed, failed, cancelled)
+        in: query
+        name: status
+        type: string
+      - description: Filter by task type (video_generation, image_generation)
+        in: query
+        name: type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of tasks
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List AI tasks
+      tags:
+      - AI Tasks
+  /ai/tasks/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Cancel a pending or processing AI task
+      parameters:
+      - description: Task ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Task cancelled successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid task ID or task cannot be cancelled
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Task not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cancel AI task
+      tags:
+      - AI Tasks
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific AI task by ID
+      parameters:
+      - description: Task ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_module_ai_handler.TaskResponse'
+        "400":
+          description: Invalid task ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Task not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get AI task
+      tags:
+      - AI Tasks
+  /ai/videos/{task_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get the status and result of a video generation task
+      parameters:
+      - description: Task ID
+        in: path
+        name: task_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_media.VideoGenerationResponse'
+        "400":
+          description: Invalid task ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Task not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get video generation status
+      tags:
+      - AI Media
+  /ai/videos/generations:
+    post:
+      consumes:
+      - application/json
+      description: Generate a video from text prompt, image, or video input. Returns
+        a task for async processing.
+      parameters:
+      - description: Video generation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_media.VideoGenerationRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Task created for async processing
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_module_ai_media.VideoGenerationResponse'
+        "400":
+          description: Invalid request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: Rate limit exceeded or quota exceeded
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Generate video
+      tags:
+      - AI Media
   /api-keys:
     get:
       description: Get all OpenAI-style API keys (sk-xxx) for the current user

@@ -24,15 +24,16 @@ func NewHandler(manager *Manager, logger *zap.Logger) *Handler {
 
 // RegisterRoutes registers the handler routes.
 func (h *Handler) RegisterRoutes(admin *gin.RouterGroup) {
-	providers := admin.Group("/providers/:provider_id/accounts")
+	// Use /account-pool to avoid conflict with /providers/:id
+	pool := admin.Group("/account-pool")
 	{
-		providers.POST("", h.AddAccount)
-		providers.GET("", h.ListAccounts)
-		providers.GET("/:account_id", h.GetAccount)
-		providers.PATCH("/:account_id", h.UpdateAccount)
-		providers.DELETE("/:account_id", h.DeleteAccount)
-		providers.GET("/:account_id/stats", h.GetAccountStats)
-		providers.POST("/:account_id/check-health", h.CheckHealth)
+		pool.POST("/providers/:provider_id/accounts", h.AddAccount)
+		pool.GET("/providers/:provider_id/accounts", h.ListAccounts)
+		pool.GET("/accounts/:account_id", h.GetAccount)
+		pool.PATCH("/accounts/:account_id", h.UpdateAccount)
+		pool.DELETE("/accounts/:account_id", h.DeleteAccount)
+		pool.GET("/accounts/:account_id/stats", h.GetAccountStats)
+		pool.POST("/accounts/:account_id/check-health", h.CheckHealth)
 	}
 }
 

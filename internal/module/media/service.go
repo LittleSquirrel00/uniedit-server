@@ -7,62 +7,38 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/uniedit/server/internal/module/ai/provider"
-	"github.com/uniedit/server/internal/module/ai/task"
 )
 
 // Service provides media generation operations.
 type Service struct {
-	registry        *provider.Registry
-	healthMonitor   *provider.HealthMonitor
-	adapterRegistry *Registry
-	taskManager     *task.Manager
+	providerRegistry ProviderRegistry
+	healthChecker    HealthChecker
+	adapterRegistry  *AdapterRegistry
+	taskManager      TaskManager
+}
+
+// ServiceConfig holds service configuration.
+type ServiceConfig struct {
+	ProviderRegistry ProviderRegistry
+	HealthChecker    HealthChecker
+	AdapterRegistry  *AdapterRegistry
+	TaskManager      TaskManager
 }
 
 // NewService creates a new media service.
-func NewService(
-	registry *provider.Registry,
-	healthMonitor *provider.HealthMonitor,
-	taskManager *task.Manager,
-) *Service {
-	svc := &Service{
-		registry:        registry,
-		healthMonitor:   healthMonitor,
-		adapterRegistry: GetRegistry(),
-		taskManager:     taskManager,
+func NewService(cfg *ServiceConfig) *Service {
+	return &Service{
+		providerRegistry: cfg.ProviderRegistry,
+		healthChecker:    cfg.HealthChecker,
+		adapterRegistry:  cfg.AdapterRegistry,
+		taskManager:      cfg.TaskManager,
 	}
-
-	// Register task executors
-	if taskManager != nil {
-		taskManager.RegisterExecutor(task.TypeImageGeneration, svc.executeImageTask)
-		taskManager.RegisterExecutor(task.TypeVideoGeneration, svc.executeVideoTask)
-	}
-
-	return svc
-}
-
-// ImageGenerationRequest represents an image generation API request.
-type ImageGenerationRequest struct {
-	Prompt         string `json:"prompt"`
-	NegativePrompt string `json:"negative_prompt,omitempty"`
-	N              int    `json:"n,omitempty"`
-	Size           string `json:"size,omitempty"`
-	Quality        string `json:"quality,omitempty"`
-	Style          string `json:"style,omitempty"`
-	Model          string `json:"model,omitempty"`
-	ResponseFormat string `json:"response_format,omitempty"`
-}
-
-// ImageGenerationResponse represents an image generation API response.
-type ImageGenerationResponse struct {
-	*ImageResponse
-	TaskID string `json:"task_id,omitempty"`
 }
 
 // GenerateImage generates images synchronously.
 func (s *Service) GenerateImage(ctx context.Context, userID uuid.UUID, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
 	// Find image generation model
-	model, prov, err := s.findModel(req.Model, provider.CapabilityImage)
+	model, prov, err := s.findModel(req.Model, CapabilityImage)
 	if err != nil {
 		return nil, err
 	}
@@ -96,29 +72,6 @@ func (s *Service) GenerateImage(ctx context.Context, userID uuid.UUID, req *Imag
 	}, nil
 }
 
-// VideoGenerationRequest represents a video generation API request.
-type VideoGenerationRequest struct {
-	Prompt      string `json:"prompt,omitempty"`
-	InputImage  string `json:"input_image,omitempty"`
-	InputVideo  string `json:"input_video,omitempty"`
-	Duration    int    `json:"duration,omitempty"`
-	AspectRatio string `json:"aspect_ratio,omitempty"`
-	Resolution  string `json:"resolution,omitempty"`
-	FPS         int    `json:"fps,omitempty"`
-	Model       string `json:"model,omitempty"`
-	Async       bool   `json:"async,omitempty"`
-}
-
-// VideoGenerationResponse represents a video generation API response.
-type VideoGenerationResponse struct {
-	TaskID    string          `json:"task_id"`
-	Status    VideoState      `json:"status"`
-	Progress  int             `json:"progress"`
-	Video     *GeneratedVideo `json:"video,omitempty"`
-	Error     string          `json:"error,omitempty"`
-	CreatedAt int64           `json:"created_at"`
-}
-
 // GenerateVideo generates videos (always async via task manager).
 func (s *Service) GenerateVideo(ctx context.Context, userID uuid.UUID, req *VideoGenerationRequest) (*VideoGenerationResponse, error) {
 	// Validate request
@@ -139,8 +92,8 @@ func (s *Service) GenerateVideo(ctx context.Context, userID uuid.UUID, req *Vide
 	}
 
 	// Submit task
-	t, err := s.taskManager.Submit(ctx, userID, &task.Input{
-		Type:    task.TypeVideoGeneration,
+	t, err := s.taskManager.Submit(ctx, userID, &TaskSubmitRequest{
+		Type:    "video_generation",
 		Payload: inputPayload,
 	})
 	if err != nil {
@@ -151,7 +104,7 @@ func (s *Service) GenerateVideo(ctx context.Context, userID uuid.UUID, req *Vide
 		TaskID:    t.ID.String(),
 		Status:    VideoStatePending,
 		Progress:  0,
-		CreatedAt: t.CreatedAt.Unix(),
+		CreatedAt: t.CreatedAt,
 	}, nil
 }
 
@@ -168,7 +121,7 @@ func (s *Service) GetVideoStatus(ctx context.Context, userID uuid.UUID, taskID s
 	}
 
 	// Check ownership
-	if t.UserID != userID {
+	if t.OwnerID != userID {
 		return nil, fmt.Errorf("task not found")
 	}
 
@@ -176,11 +129,11 @@ func (s *Service) GetVideoStatus(ctx context.Context, userID uuid.UUID, taskID s
 		TaskID:    t.ID.String(),
 		Status:    taskStatusToVideoState(t.Status),
 		Progress:  t.Progress,
-		CreatedAt: t.CreatedAt.Unix(),
+		CreatedAt: t.CreatedAt,
 	}
 
 	// Parse output if completed
-	if t.Status == task.StatusCompleted && t.Output != nil {
+	if t.Status == TaskStatusCompleted && t.Output != nil {
 		// Convert map to GeneratedVideo
 		outputBytes, _ := json.Marshal(t.Output)
 		var video GeneratedVideo
@@ -197,25 +150,26 @@ func (s *Service) GetVideoStatus(ctx context.Context, userID uuid.UUID, taskID s
 	return resp, nil
 }
 
-// executeImageTask executes an image generation task.
-func (s *Service) executeImageTask(ctx context.Context, t *task.Task, onProgress func(int)) error {
+// ExecuteImageTask executes an image generation task.
+// This is called by the task manager when processing image tasks.
+func (s *Service) ExecuteImageTask(ctx context.Context, input map[string]any, onProgress func(int)) (map[string]any, error) {
 	// Parse request from map
-	inputBytes, err := json.Marshal(t.Input)
+	inputBytes, err := json.Marshal(input)
 	if err != nil {
-		return fmt.Errorf("marshal input: %w", err)
+		return nil, fmt.Errorf("marshal input: %w", err)
 	}
 
 	var req ImageGenerationRequest
 	if err := json.Unmarshal(inputBytes, &req); err != nil {
-		return fmt.Errorf("unmarshal request: %w", err)
+		return nil, fmt.Errorf("unmarshal request: %w", err)
 	}
 
 	onProgress(10)
 
 	// Find model
-	model, prov, err := s.findModel(req.Model, provider.CapabilityImage)
+	model, prov, err := s.findModel(req.Model, CapabilityImage)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	onProgress(20)
@@ -223,7 +177,7 @@ func (s *Service) executeImageTask(ctx context.Context, t *task.Task, onProgress
 	// Get adapter
 	adapter, err := s.adapterRegistry.GetForProvider(prov)
 	if err != nil {
-		return fmt.Errorf("get adapter: %w", err)
+		return nil, fmt.Errorf("get adapter: %w", err)
 	}
 
 	onProgress(30)
@@ -242,7 +196,7 @@ func (s *Service) executeImageTask(ctx context.Context, t *task.Task, onProgress
 
 	resp, err := adapter.GenerateImage(ctx, adapterReq, model, prov)
 	if err != nil {
-		return fmt.Errorf("generate image: %w", err)
+		return nil, fmt.Errorf("generate image: %w", err)
 	}
 
 	onProgress(90)
@@ -251,30 +205,30 @@ func (s *Service) executeImageTask(ctx context.Context, t *task.Task, onProgress
 	outputBytes, _ := json.Marshal(resp)
 	var outputMap map[string]any
 	json.Unmarshal(outputBytes, &outputMap)
-	t.Output = outputMap
 
-	return nil
+	return outputMap, nil
 }
 
-// executeVideoTask executes a video generation task.
-func (s *Service) executeVideoTask(ctx context.Context, t *task.Task, onProgress func(int)) error {
+// ExecuteVideoTask executes a video generation task.
+// This is called by the task manager when processing video tasks.
+func (s *Service) ExecuteVideoTask(ctx context.Context, input map[string]any, onProgress func(int)) (map[string]any, error) {
 	// Parse request from map
-	inputBytes, err := json.Marshal(t.Input)
+	inputBytes, err := json.Marshal(input)
 	if err != nil {
-		return fmt.Errorf("marshal input: %w", err)
+		return nil, fmt.Errorf("marshal input: %w", err)
 	}
 
 	var req VideoGenerationRequest
 	if err := json.Unmarshal(inputBytes, &req); err != nil {
-		return fmt.Errorf("unmarshal request: %w", err)
+		return nil, fmt.Errorf("unmarshal request: %w", err)
 	}
 
 	onProgress(10)
 
 	// Find model
-	model, prov, err := s.findModel(req.Model, provider.CapabilityVideo)
+	model, prov, err := s.findModel(req.Model, CapabilityVideo)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	onProgress(20)
@@ -282,7 +236,7 @@ func (s *Service) executeVideoTask(ctx context.Context, t *task.Task, onProgress
 	// Get adapter
 	adapter, err := s.adapterRegistry.GetForProvider(prov)
 	if err != nil {
-		return fmt.Errorf("get adapter: %w", err)
+		return nil, fmt.Errorf("get adapter: %w", err)
 	}
 
 	// Build adapter request
@@ -300,7 +254,7 @@ func (s *Service) executeVideoTask(ctx context.Context, t *task.Task, onProgress
 	// Submit to provider
 	resp, err := adapter.GenerateVideo(ctx, adapterReq, model, prov)
 	if err != nil {
-		return fmt.Errorf("generate video: %w", err)
+		return nil, fmt.Errorf("generate video: %w", err)
 	}
 
 	onProgress(30)
@@ -310,13 +264,13 @@ func (s *Service) executeVideoTask(ctx context.Context, t *task.Task, onProgress
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil, ctx.Err()
 		default:
 		}
 
 		status, err := adapter.GetVideoStatus(ctx, providerTaskID, prov)
 		if err != nil {
-			return fmt.Errorf("get video status: %w", err)
+			return nil, fmt.Errorf("get video status: %w", err)
 		}
 
 		// Update progress
@@ -332,10 +286,9 @@ func (s *Service) executeVideoTask(ctx context.Context, t *task.Task, onProgress
 			outputBytes, _ := json.Marshal(status.Video)
 			var outputMap map[string]any
 			json.Unmarshal(outputBytes, &outputMap)
-			t.Output = outputMap
-			return nil
+			return outputMap, nil
 		case VideoStateFailed:
-			return fmt.Errorf("video generation failed: %s", status.Error)
+			return nil, fmt.Errorf("video generation failed: %s", status.Error)
 		}
 
 		// Wait before polling again
@@ -344,10 +297,10 @@ func (s *Service) executeVideoTask(ctx context.Context, t *task.Task, onProgress
 }
 
 // findModel finds a model with the given capability.
-func (s *Service) findModel(modelID string, capability provider.Capability) (*provider.Model, *provider.Provider, error) {
+func (s *Service) findModel(modelID string, capability Capability) (*Model, *Provider, error) {
 	// If model specified, use it directly
 	if modelID != "" && modelID != "auto" {
-		model, prov, ok := s.registry.GetModelWithProvider(modelID)
+		model, prov, ok := s.providerRegistry.GetModelWithProvider(modelID)
 		if !ok {
 			return nil, nil, fmt.Errorf("model not found: %s", modelID)
 		}
@@ -358,7 +311,7 @@ func (s *Service) findModel(modelID string, capability provider.Capability) (*pr
 		}
 
 		// Check health
-		if !s.healthMonitor.IsHealthy(prov.ID) {
+		if !s.healthChecker.IsHealthy(prov.ID) {
 			return nil, nil, fmt.Errorf("provider %s is unhealthy", prov.Name)
 		}
 
@@ -366,19 +319,19 @@ func (s *Service) findModel(modelID string, capability provider.Capability) (*pr
 	}
 
 	// Auto-select model
-	models := s.registry.GetModelsByCapability(capability)
+	models := s.providerRegistry.GetModelsByCapability(capability)
 	if len(models) == 0 {
 		return nil, nil, fmt.Errorf("no model available for capability: %s", capability)
 	}
 
 	// Filter by health
 	for _, model := range models {
-		prov, ok := s.registry.GetProvider(model.ProviderID)
+		prov, ok := s.providerRegistry.GetProvider(model.ProviderID)
 		if !ok {
 			continue
 		}
 
-		if s.healthMonitor.IsHealthy(prov.ID) {
+		if s.healthChecker.IsHealthy(prov.ID) {
 			return model, prov, nil
 		}
 	}
@@ -387,15 +340,15 @@ func (s *Service) findModel(modelID string, capability provider.Capability) (*pr
 }
 
 // taskStatusToVideoState converts task status to video state.
-func taskStatusToVideoState(status task.Status) VideoState {
+func taskStatusToVideoState(status TaskStatus) VideoState {
 	switch status {
-	case task.StatusPending:
+	case TaskStatusPending:
 		return VideoStatePending
-	case task.StatusRunning:
+	case TaskStatusRunning:
 		return VideoStateProcessing
-	case task.StatusCompleted:
+	case TaskStatusCompleted:
 		return VideoStateCompleted
-	case task.StatusFailed, task.StatusCancelled:
+	case TaskStatusFailed, TaskStatusCancelled:
 		return VideoStateFailed
 	default:
 		return VideoStatePending

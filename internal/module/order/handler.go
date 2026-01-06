@@ -18,8 +18,13 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-// RegisterRoutes registers the order routes.
+// RegisterRoutes registers public order routes (currently none, placeholder for future).
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
+	// No public routes for orders
+}
+
+// RegisterProtectedRoutes registers order routes that require authentication.
+func (h *Handler) RegisterProtectedRoutes(r *gin.RouterGroup) {
 	orders := r.Group("/orders")
 	{
 		orders.POST("/subscription", h.CreateSubscriptionOrder)

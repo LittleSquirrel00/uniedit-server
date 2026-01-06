@@ -1,3 +1,5 @@
+// Package task provides a generic task management infrastructure for async operations.
+// It supports task submission, execution, progress tracking, and external task polling.
 package task
 
 import (
@@ -6,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Status represents the status of an AI task.
+// Status represents the status of a task.
 type Status string
 
 const (
@@ -17,17 +19,6 @@ const (
 	StatusCancelled Status = "cancelled"
 )
 
-// Type represents the type of AI task.
-type Type string
-
-const (
-	TypeChat            Type = "chat"
-	TypeImageGeneration Type = "image_generation"
-	TypeVideoGeneration Type = "video_generation"
-	TypeAudioGeneration Type = "audio_generation"
-	TypeEmbedding       Type = "embedding"
-)
-
 // Error represents a task error.
 type Error struct {
 	Code    string `json:"code"`
@@ -35,19 +26,18 @@ type Error struct {
 	Details any    `json:"details,omitempty"`
 }
 
-// Task represents an AI task.
+// Task represents a generic async task.
 type Task struct {
 	ID             uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	UserID         uuid.UUID      `json:"user_id" gorm:"type:uuid;not null"`
-	Type           Type           `json:"type" gorm:"not null"`
-	Status         Status         `json:"status" gorm:"not null"`
+	OwnerID        uuid.UUID      `json:"owner_id" gorm:"type:uuid;not null;index"`
+	Type           string         `json:"type" gorm:"not null;index"`
+	Status         Status         `json:"status" gorm:"not null;index"`
 	Progress       int            `json:"progress" gorm:"default:0"`
 	Input          map[string]any `json:"input" gorm:"type:jsonb;serializer:json;not null"`
 	Output         map[string]any `json:"output,omitempty" gorm:"type:jsonb;serializer:json"`
 	Error          *Error         `json:"error,omitempty" gorm:"type:jsonb;serializer:json"`
-	ExternalTaskID string         `json:"external_task_id,omitempty" gorm:"column:external_task_id"`
-	ProviderID     *uuid.UUID     `json:"provider_id,omitempty" gorm:"type:uuid"`
-	ModelID        string         `json:"model_id,omitempty"`
+	ExternalTaskID string         `json:"external_task_id,omitempty" gorm:"column:external_task_id;index"`
+	Metadata       map[string]any `json:"metadata,omitempty" gorm:"type:jsonb;serializer:json"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 	CompletedAt    *time.Time     `json:"completed_at,omitempty"`
@@ -55,7 +45,7 @@ type Task struct {
 
 // TableName returns the table name for Task.
 func (Task) TableName() string {
-	return "ai_tasks"
+	return "tasks"
 }
 
 // IsTerminal checks if the task is in a terminal state.
@@ -75,8 +65,8 @@ func (t *Task) IsRunning() bool {
 
 // Filter represents task filter options.
 type Filter struct {
-	UserID   *uuid.UUID
-	Type     *Type
+	OwnerID  *uuid.UUID
+	Type     *string
 	Status   *Status
 	Limit    int
 	Offset   int
@@ -84,17 +74,17 @@ type Filter struct {
 	OrderDir string
 }
 
-// Input represents task input configuration.
-type Input struct {
-	Type     Type           `json:"type"`
+// SubmitRequest represents a task submission request.
+type SubmitRequest struct {
+	Type     string         `json:"type"`
 	Payload  map[string]any `json:"payload"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 	Priority int            `json:"priority,omitempty"`
 	Timeout  time.Duration  `json:"timeout,omitempty"`
-	Retry    *RetryConfig   `json:"retry,omitempty"`
 }
 
-// RetryConfig represents retry configuration.
-type RetryConfig struct {
-	MaxAttempts int           `json:"max_attempts"`
-	Delay       time.Duration `json:"delay"`
+// ExternalSubmitRequest represents a task submission for external async operations.
+type ExternalSubmitRequest struct {
+	SubmitRequest
+	ExternalTaskID string `json:"external_task_id"`
 }

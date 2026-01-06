@@ -11,11 +11,12 @@ import (
 	"github.com/uniedit/server/internal/module/ai/group"
 	"github.com/uniedit/server/internal/module/ai/handler"
 	"github.com/uniedit/server/internal/module/ai/llm"
-	"github.com/uniedit/server/internal/module/ai/media"
 	"github.com/uniedit/server/internal/module/ai/provider"
 	"github.com/uniedit/server/internal/module/ai/provider/pool"
 	"github.com/uniedit/server/internal/module/ai/routing"
-	"github.com/uniedit/server/internal/module/ai/task"
+	"github.com/uniedit/server/internal/module/media"
+	sharedtask "github.com/uniedit/server/internal/shared/task"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -24,7 +25,7 @@ type Module struct {
 	// Repositories
 	providerRepo provider.Repository
 	groupRepo    group.Repository
-	taskRepo     task.Repository
+	taskRepo     sharedtask.Repository
 
 	// Core components
 	registry        *provider.Registry
@@ -32,7 +33,7 @@ type Module struct {
 	adapterRegistry *adapter.Registry
 	routingManager  *routing.Manager
 	groupManager    *group.Manager
-	taskManager     *task.Manager
+	taskManager     *sharedtask.Manager
 	embeddingCache  *cache.EmbeddingCache
 
 	// Services
@@ -41,6 +42,9 @@ type Module struct {
 
 	// Handlers
 	handlers *handler.Handlers
+
+	// Logger
+	logger *zap.Logger
 }
 
 // Config contains module configuration.
@@ -55,10 +59,13 @@ type Config struct {
 	HealthCheckConfig *provider.HealthMonitorConfig
 
 	// Task manager configuration
-	TaskManagerConfig *task.ManagerConfig
+	TaskManagerConfig *sharedtask.Config
 
 	// Embedding cache configuration
 	EmbeddingCacheConfig *cache.EmbeddingCacheConfig
+
+	// Logger (optional)
+	Logger *zap.Logger
 }
 
 // NewModule creates a new AI module.
@@ -67,12 +74,19 @@ func NewModule(config *Config) (*Module, error) {
 		return nil, fmt.Errorf("database connection required")
 	}
 
-	m := &Module{}
+	logger := config.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
+	m := &Module{
+		logger: logger,
+	}
 
 	// Initialize repositories
 	m.providerRepo = provider.NewRepository(config.DB)
 	m.groupRepo = group.NewRepository(config.DB)
-	m.taskRepo = task.NewRepository(config.DB)
+	m.taskRepo = sharedtask.NewRepository(config.DB)
 
 	// Initialize adapter registry
 	m.adapterRegistry = adapter.GetRegistry()
@@ -90,7 +104,7 @@ func NewModule(config *Config) (*Module, error) {
 	m.routingManager = routing.NewManager(m.registry, m.healthMonitor, m.groupManager, nil)
 
 	// Initialize task manager
-	m.taskManager = task.NewManager(m.taskRepo, config.TaskManagerConfig)
+	m.taskManager = sharedtask.NewManager(m.taskRepo, logger, config.TaskManagerConfig)
 
 	// Initialize embedding cache (optional)
 	if config.Redis != nil {
@@ -99,7 +113,14 @@ func NewModule(config *Config) (*Module, error) {
 
 	// Initialize services
 	m.llmService = llm.NewService(m.registry, m.healthMonitor, m.routingManager)
-	m.mediaService = media.NewService(m.registry, m.healthMonitor, m.taskManager)
+
+	// Initialize media service with adapters
+	m.mediaService = media.NewService(&media.ServiceConfig{
+		ProviderRegistry: newMediaProviderAdapter(m.registry),
+		HealthChecker:    newMediaHealthAdapter(m.healthMonitor),
+		AdapterRegistry:  media.NewAdapterRegistry(),
+		TaskManager:      newMediaTaskAdapter(m.taskManager),
+	})
 
 	// Initialize handlers
 	m.handlers = handler.NewHandlers(
@@ -162,7 +183,7 @@ func (m *Module) MediaService() *media.Service {
 }
 
 // TaskManager returns the task manager.
-func (m *Module) TaskManager() *task.Manager {
+func (m *Module) TaskManager() *sharedtask.Manager {
 	return m.taskManager
 }
 

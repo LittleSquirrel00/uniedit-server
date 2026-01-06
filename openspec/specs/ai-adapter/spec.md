@@ -5,46 +5,51 @@ TBD - created by archiving change add-ai-module. Update Purpose after archive.
 ## Requirements
 ### Requirement: Adapter Interface
 
-The system SHALL provide a unified Adapter interface for all LLM providers.
+The system SHALL provide segregated interfaces for LLM adapter capabilities following Interface Segregation Principle.
 
-#### Scenario: Chat completion
+#### Scenario: Text completion adapter
 
-- **WHEN** system calls Adapter.Chat with request, model, and provider
-- **THEN** return ChatResponse with message, usage, and finish_reason
-- **AND** handle provider-specific request/response transformation
+- **WHEN** system needs chat completion functionality
+- **THEN** use `TextAdapter` interface with Chat and ChatStream methods
+- **AND** implementations provide provider-specific request/response transformation
 
-#### Scenario: Streaming chat
+#### Scenario: Embedding adapter
 
-- **WHEN** system calls Adapter.ChatStream with request
-- **THEN** return a channel of ChatChunk
-- **AND** parse SSE stream according to provider format
-
-#### Scenario: Embedding generation
-
-- **WHEN** system calls Adapter.Embed with text input
-- **THEN** return vector embeddings as [][]float64
+- **WHEN** system needs embedding generation functionality
+- **THEN** use `EmbeddingAdapter` interface with Embed method
 - **AND** handle batch requests efficiently
 
-#### Scenario: Health check
+#### Scenario: Health check adapter
 
-- **WHEN** system calls Adapter.HealthCheck
-- **THEN** perform lightweight API call to verify connectivity
-- **AND** return error if provider is unreachable
+- **WHEN** system needs to check provider health
+- **THEN** use `HealthChecker` interface with HealthCheck method
+- **AND** perform lightweight API call to verify connectivity
+
+#### Scenario: Capability query
+
+- **WHEN** system needs to query adapter capabilities
+- **THEN** use `CapabilityProvider` interface with Type and SupportsCapability methods
+
+#### Scenario: Composite adapter
+
+- **WHEN** system needs full adapter functionality
+- **THEN** use composite `Adapter` interface embedding all sub-interfaces
+- **AND** maintain backwards compatibility with existing code
 
 ### Requirement: OpenAI Adapter
 
-The system SHALL provide an OpenAI adapter using the official SDK.
+The system SHALL provide an OpenAI adapter implementing all segregated interfaces.
 
 #### Scenario: OpenAI chat request
 
 - **WHEN** adapter receives chat request for OpenAI provider
-- **THEN** transform to OpenAI API format
+- **THEN** transform to OpenAI API format via TextAdapter interface
 - **AND** handle vision content (image_url) if present
 
 #### Scenario: OpenAI streaming
 
 - **WHEN** adapter receives streaming request
-- **THEN** parse OpenAI SSE format (data: {...})
+- **THEN** parse OpenAI SSE format (data: {...}) via TextAdapter.ChatStream
 - **AND** yield ChatChunk for each delta
 
 #### Scenario: OpenAI tool calls
@@ -55,18 +60,18 @@ The system SHALL provide an OpenAI adapter using the official SDK.
 
 ### Requirement: Anthropic Adapter
 
-The system SHALL provide an Anthropic adapter for Claude models.
+The system SHALL provide an Anthropic adapter implementing all segregated interfaces.
 
 #### Scenario: Anthropic chat request
 
 - **WHEN** adapter receives chat request for Anthropic provider
-- **THEN** transform messages to Anthropic format
+- **THEN** transform messages to Anthropic format via TextAdapter
 - **AND** handle system message separately (Anthropic uses system parameter)
 
 #### Scenario: Anthropic streaming
 
 - **WHEN** adapter receives streaming request
-- **THEN** parse Anthropic SSE format (event types: message_start, content_block_delta, etc.)
+- **THEN** parse Anthropic SSE format via TextAdapter.ChatStream
 - **AND** yield ChatChunk for each content delta
 
 #### Scenario: Anthropic vision
@@ -76,12 +81,12 @@ The system SHALL provide an Anthropic adapter for Claude models.
 
 ### Requirement: Generic Adapter
 
-The system SHALL provide a generic adapter for OpenAI-compatible APIs.
+The system SHALL provide a generic adapter for OpenAI-compatible APIs implementing all segregated interfaces.
 
 #### Scenario: Generic provider request
 
 - **WHEN** adapter receives request for generic provider type
-- **THEN** use OpenAI API format
+- **THEN** use OpenAI API format via TextAdapter
 - **AND** send to provider's base_url
 
 #### Scenario: DeepSeek compatibility
@@ -91,15 +96,16 @@ The system SHALL provide a generic adapter for OpenAI-compatible APIs.
 
 ### Requirement: Adapter Registry
 
-The system SHALL provide an AdapterRegistry to manage adapter instances.
+The system SHALL provide an AdapterRegistry managing adapters that implement segregated interfaces.
 
 #### Scenario: Get adapter by type
 
 - **WHEN** system requests adapter for provider type
-- **THEN** return singleton adapter instance for that type
+- **THEN** return singleton adapter instance implementing requested interface
 
 #### Scenario: Register custom adapter
 
 - **WHEN** system registers a new adapter type
-- **THEN** the adapter is available for providers of that type
+- **THEN** adapter is available for providers of that type
+- **AND** adapter must implement at least one segregated interface
 

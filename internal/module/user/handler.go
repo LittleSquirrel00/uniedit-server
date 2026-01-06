@@ -2,6 +2,7 @@ package user
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -63,6 +64,8 @@ func (h *Handler) Register(c *gin.Context) {
 
 	user, err := h.service.Register(c.Request.Context(), &req)
 	if err != nil {
+		// Log the actual error for debugging
+		fmt.Printf("[DEBUG] Register error: %v\n", err)
 		handleError(c, err)
 		return
 	}

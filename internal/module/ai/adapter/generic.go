@@ -42,3 +42,12 @@ func (a *GenericAdapter) Embed(ctx context.Context, input []string, model *provi
 func (a *GenericAdapter) HealthCheck(ctx context.Context, prov *provider.Provider) error {
 	return a.OpenAIAdapter.HealthCheck(ctx, prov)
 }
+
+// Compile-time interface assertions
+var (
+	_ Adapter          = (*GenericAdapter)(nil)
+	_ TypedAdapter     = (*GenericAdapter)(nil)
+	_ TextAdapter      = (*GenericAdapter)(nil)
+	_ EmbeddingAdapter = (*GenericAdapter)(nil)
+	_ HealthChecker    = (*GenericAdapter)(nil)
+)

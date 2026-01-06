@@ -18,11 +18,18 @@ func NewHandler(service ServiceInterface) *Handler {
 	return &Handler{service: service}
 }
 
-// RegisterRoutes registers the billing routes.
+// RegisterRoutes registers public billing routes (no auth required).
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	billing := r.Group("/billing")
 	{
 		billing.GET("/plans", h.ListPlans)
+	}
+}
+
+// RegisterProtectedRoutes registers billing routes that require authentication.
+func (h *Handler) RegisterProtectedRoutes(r *gin.RouterGroup) {
+	billing := r.Group("/billing")
+	{
 		billing.GET("/subscription", h.GetSubscription)
 		billing.POST("/subscription/cancel", h.CancelSubscription)
 		billing.GET("/quota", h.GetQuotaStatus)

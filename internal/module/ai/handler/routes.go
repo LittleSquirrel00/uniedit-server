@@ -4,9 +4,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/uniedit/server/internal/module/ai/group"
 	"github.com/uniedit/server/internal/module/ai/llm"
-	"github.com/uniedit/server/internal/module/ai/media"
 	"github.com/uniedit/server/internal/module/ai/provider"
-	"github.com/uniedit/server/internal/module/ai/task"
+	"github.com/uniedit/server/internal/module/media"
+	sharedtask "github.com/uniedit/server/internal/shared/task"
 )
 
 // Handlers holds all AI handlers.
@@ -21,7 +21,7 @@ type Handlers struct {
 func NewHandlers(
 	llmService *llm.Service,
 	mediaService *media.Service,
-	taskManager *task.Manager,
+	taskManager *sharedtask.Manager,
 	providerRepo provider.Repository,
 	groupRepo group.Repository,
 	registry *provider.Registry,

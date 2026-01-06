@@ -5,16 +5,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/uniedit/server/internal/module/ai/task"
+	sharedtask "github.com/uniedit/server/internal/shared/task"
 )
 
 // TaskHandler handles task API requests.
 type TaskHandler struct {
-	taskManager *task.Manager
+	taskManager *sharedtask.Manager
 }
 
 // NewTaskHandler creates a new task handler.
-func NewTaskHandler(taskManager *task.Manager) *TaskHandler {
+func NewTaskHandler(taskManager *sharedtask.Manager) *TaskHandler {
 	return &TaskHandler{
 		taskManager: taskManager,
 	}
@@ -29,18 +29,30 @@ func (h *TaskHandler) RegisterRoutes(r *gin.RouterGroup) {
 
 // TaskResponse represents a task API response.
 type TaskResponse struct {
-	ID          string      `json:"id"`
-	Type        string      `json:"type"`
-	Status      string      `json:"status"`
-	Progress    int         `json:"progress"`
-	Error       *task.Error `json:"error,omitempty"`
-	CreatedAt   int64       `json:"created_at"`
-	UpdatedAt   int64       `json:"updated_at"`
-	CompletedAt *int64      `json:"completed_at,omitempty"`
+	ID          string            `json:"id"`
+	Type        string            `json:"type"`
+	Status      string            `json:"status"`
+	Progress    int               `json:"progress"`
+	Error       *sharedtask.Error `json:"error,omitempty"`
+	CreatedAt   int64             `json:"created_at"`
+	UpdatedAt   int64             `json:"updated_at"`
+	CompletedAt *int64            `json:"completed_at,omitempty"`
 }
 
 // List handles task list requests.
-// GET /api/v1/ai/tasks
+//
+//	@Summary		List AI tasks
+//	@Description	List all AI tasks for the current user with optional filtering
+//	@Tags			AI Tasks
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			status	query		string	false	"Filter by status (pending, processing, completed, failed, cancelled)"
+//	@Param			type	query		string	false	"Filter by task type (video_generation, image_generation)"
+//	@Success		200		{object}	map[string]interface{}	"List of tasks"
+//	@Failure		401		{object}	map[string]string		"Unauthorized"
+//	@Failure		500		{object}	map[string]string		"Internal server error"
+//	@Router			/ai/tasks [get]
 func (h *TaskHandler) List(c *gin.Context) {
 	// Get user ID from context
 	userID, err := getUserID(c)
@@ -50,14 +62,13 @@ func (h *TaskHandler) List(c *gin.Context) {
 	}
 
 	// Parse query parameters
-	filter := &task.Filter{}
+	filter := &sharedtask.Filter{}
 	if status := c.Query("status"); status != "" {
-		s := task.Status(status)
+		s := sharedtask.Status(status)
 		filter.Status = &s
 	}
 	if taskType := c.Query("type"); taskType != "" {
-		t := task.Type(taskType)
-		filter.Type = &t
+		filter.Type = &taskType
 	}
 
 	// List tasks
@@ -80,7 +91,20 @@ func (h *TaskHandler) List(c *gin.Context) {
 }
 
 // Get handles task get requests.
-// GET /api/v1/ai/tasks/:id
+//
+//	@Summary		Get AI task
+//	@Description	Get details of a specific AI task by ID
+//	@Tags			AI Tasks
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Task ID (UUID)"
+//	@Success		200	{object}	TaskResponse
+//	@Failure		400	{object}	map[string]string	"Invalid task ID"
+//	@Failure		401	{object}	map[string]string	"Unauthorized"
+//	@Failure		404	{object}	map[string]string	"Task not found"
+//	@Failure		500	{object}	map[string]string	"Internal server error"
+//	@Router			/ai/tasks/{id} [get]
 func (h *TaskHandler) Get(c *gin.Context) {
 	// Parse task ID
 	idStr := c.Param("id")
@@ -105,7 +129,7 @@ func (h *TaskHandler) Get(c *gin.Context) {
 	}
 
 	// Check ownership
-	if t.UserID != userID {
+	if t.OwnerID != userID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 		return
 	}
@@ -114,7 +138,20 @@ func (h *TaskHandler) Get(c *gin.Context) {
 }
 
 // Cancel handles task cancel requests.
-// DELETE /api/v1/ai/tasks/:id
+//
+//	@Summary		Cancel AI task
+//	@Description	Cancel a pending or processing AI task
+//	@Tags			AI Tasks
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string	true	"Task ID (UUID)"
+//	@Success		200	{object}	map[string]string	"Task cancelled successfully"
+//	@Failure		400	{object}	map[string]string	"Invalid task ID or task cannot be cancelled"
+//	@Failure		401	{object}	map[string]string	"Unauthorized"
+//	@Failure		404	{object}	map[string]string	"Task not found"
+//	@Failure		500	{object}	map[string]string	"Internal server error"
+//	@Router			/ai/tasks/{id} [delete]
 func (h *TaskHandler) Cancel(c *gin.Context) {
 	// Parse task ID
 	idStr := c.Param("id")
@@ -139,7 +176,7 @@ func (h *TaskHandler) Cancel(c *gin.Context) {
 	}
 
 	// Check ownership
-	if t.UserID != userID {
+	if t.OwnerID != userID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 		return
 	}
@@ -154,10 +191,10 @@ func (h *TaskHandler) Cancel(c *gin.Context) {
 }
 
 // taskToResponse converts a task to a response.
-func taskToResponse(t *task.Task) *TaskResponse {
+func taskToResponse(t *sharedtask.Task) *TaskResponse {
 	resp := &TaskResponse{
 		ID:        t.ID.String(),
-		Type:      string(t.Type),
+		Type:      t.Type,
 		Status:    string(t.Status),
 		Progress:  t.Progress,
 		Error:     t.Error,

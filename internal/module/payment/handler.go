@@ -17,8 +17,13 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-// RegisterRoutes registers the payment routes.
+// RegisterRoutes registers public payment routes (currently none).
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
+	// No public routes for payments
+}
+
+// RegisterProtectedRoutes registers payment routes that require authentication.
+func (h *Handler) RegisterProtectedRoutes(r *gin.RouterGroup) {
 	payments := r.Group("/payments")
 	{
 		payments.POST("/intent", h.CreatePaymentIntent)

@@ -12,13 +12,15 @@ import (
 
 // ChatHandler handles chat API requests.
 type ChatHandler struct {
-	llmService *llm.Service
+	chatService      llm.ChatService
+	embeddingService llm.EmbeddingService
 }
 
 // NewChatHandler creates a new chat handler.
-func NewChatHandler(llmService *llm.Service) *ChatHandler {
+func NewChatHandler(llmService llm.LLMService) *ChatHandler {
 	return &ChatHandler{
-		llmService: llmService,
+		chatService:      llmService,
+		embeddingService: llmService,
 	}
 }
 
@@ -30,7 +32,20 @@ func (h *ChatHandler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 // Chat handles non-streaming chat requests.
-// POST /api/v1/ai/chat
+//
+//	@Summary		Send chat message
+//	@Description	Send a chat completion request to the AI model (non-streaming)
+//	@Tags			AI Chat
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		llm.ChatRequest	true	"Chat request"
+//	@Success		200		{object}	llm.ChatResponse
+//	@Failure		400		{object}	map[string]string	"Invalid request"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		429		{object}	map[string]string	"Rate limit exceeded"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/ai/chat [post]
 func (h *ChatHandler) Chat(c *gin.Context) {
 	var req llm.ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -52,7 +67,7 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 	}
 
 	// Execute
-	resp, err := h.llmService.Chat(c.Request.Context(), userID, &req)
+	resp, err := h.chatService.Chat(c.Request.Context(), userID, &req)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -62,7 +77,20 @@ func (h *ChatHandler) Chat(c *gin.Context) {
 }
 
 // ChatStream handles streaming chat requests.
-// POST /api/v1/ai/chat/stream
+//
+//	@Summary		Send chat message (streaming)
+//	@Description	Send a chat completion request with Server-Sent Events (SSE) streaming response
+//	@Tags			AI Chat
+//	@Accept			json
+//	@Produce		text/event-stream
+//	@Security		BearerAuth
+//	@Param			request	body	llm.ChatRequest	true	"Chat request"
+//	@Success		200		"SSE stream of chat chunks"
+//	@Failure		400		{object}	map[string]string	"Invalid request"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		429		{object}	map[string]string	"Rate limit exceeded"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/ai/chat/stream [post]
 func (h *ChatHandler) ChatStream(c *gin.Context) {
 	var req llm.ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -87,7 +115,7 @@ func (h *ChatHandler) ChatStream(c *gin.Context) {
 	req.Stream = true
 
 	// Start streaming
-	chunks, routingInfo, err := h.llmService.ChatStream(c.Request.Context(), userID, &req)
+	chunks, routingInfo, err := h.chatService.ChatStream(c.Request.Context(), userID, &req)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -157,7 +185,20 @@ type EmbeddingResponse struct {
 }
 
 // Embeddings handles embedding requests.
-// POST /api/v1/ai/embeddings
+//
+//	@Summary		Create embeddings
+//	@Description	Create vector embeddings for the given input text
+//	@Tags			AI Chat
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		EmbeddingRequest	true	"Embedding request"
+//	@Success		200		{object}	EmbeddingResponse
+//	@Failure		400		{object}	map[string]string	"Invalid request"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		429		{object}	map[string]string	"Rate limit exceeded"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/ai/embeddings [post]
 func (h *ChatHandler) Embeddings(c *gin.Context) {
 	var req EmbeddingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -179,7 +220,7 @@ func (h *ChatHandler) Embeddings(c *gin.Context) {
 	}
 
 	// Execute
-	resp, err := h.llmService.Embed(c.Request.Context(), userID, &llm.EmbedRequest{
+	resp, err := h.embeddingService.Embed(c.Request.Context(), userID, &llm.EmbedRequest{
 		Model: req.Model,
 		Input: req.Input,
 	})

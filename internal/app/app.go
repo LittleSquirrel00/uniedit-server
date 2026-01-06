@@ -14,7 +14,7 @@ import (
 	"github.com/uniedit/server/internal/module/ai/cache"
 	"github.com/uniedit/server/internal/module/ai/provider"
 	"github.com/uniedit/server/internal/module/ai/provider/pool"
-	"github.com/uniedit/server/internal/module/ai/task"
+	sharedtask "github.com/uniedit/server/internal/shared/task"
 	"github.com/uniedit/server/internal/module/auth"
 	"github.com/uniedit/server/internal/module/billing"
 	billingquota "github.com/uniedit/server/internal/module/billing/quota"
@@ -181,7 +181,7 @@ func (a *App) initModules() error {
 			Timeout:             a.config.AI.CircuitTimeout,
 			MaxHalfOpenRequests: 1,
 		},
-		TaskManagerConfig: &task.ManagerConfig{
+		TaskManagerConfig: &sharedtask.Config{
 			MaxConcurrent: a.config.AI.MaxConcurrentTasks,
 		},
 		EmbeddingCacheConfig: &cache.EmbeddingCacheConfig{
@@ -680,8 +680,14 @@ func (a *App) registerRoutes() {
 	// API v1 group
 	v1 := a.router.Group("/api/v1")
 
-	// Public routes (with rate limiting, auth middleware to be added)
+	// Public routes (no auth required)
 	publicRouter := v1.Group("")
+
+	// Protected routes (requires auth)
+	protectedRouter := v1.Group("")
+	if a.authHandler != nil {
+		protectedRouter.Use(a.authHandler.AuthMiddleware())
+	}
 
 	// Admin routes (requires admin auth)
 	adminRouter := v1.Group("/admin")
@@ -697,13 +703,19 @@ func (a *App) registerRoutes() {
 		a.authHandler.RegisterRoutes(publicRouter)
 	}
 
-	// Register new module routes
+	// Register public module routes
 	a.userHandler.RegisterRoutes(publicRouter)
 	a.userAdmin.RegisterRoutes(adminRouter)
 	a.billingHandler.RegisterRoutes(publicRouter)
 	a.orderHandler.RegisterRoutes(publicRouter)
 	a.paymentHandler.RegisterRoutes(publicRouter)
 	a.webhookHandler.RegisterRoutes(webhookRouter)
+
+	// Register protected module routes
+	a.userHandler.RegisterProtectedRoutes(protectedRouter)
+	a.billingHandler.RegisterProtectedRoutes(protectedRouter)
+	a.orderHandler.RegisterProtectedRoutes(protectedRouter)
+	a.paymentHandler.RegisterProtectedRoutes(protectedRouter)
 
 	// Register git module routes (if initialized)
 	if a.gitHandler != nil {
@@ -719,6 +731,7 @@ func (a *App) registerRoutes() {
 	// Register collaboration module routes
 	if a.collabHandler != nil {
 		a.collabHandler.RegisterRoutes(publicRouter)
+		a.collabHandler.RegisterProtectedRoutes(protectedRouter)
 	}
 
 	// Register account pool admin routes

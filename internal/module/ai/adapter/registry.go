@@ -91,3 +91,30 @@ func (r *Registry) HealthCheck(ctx context.Context, prov *provider.Provider) err
 	}
 	return adapter.HealthCheck(ctx, prov)
 }
+
+// GetTextAdapter returns a TextAdapter for a provider type.
+func (r *Registry) GetTextAdapter(providerType provider.ProviderType) (TextAdapter, error) {
+	adapter, err := r.Get(providerType)
+	if err != nil {
+		return nil, err
+	}
+	return adapter, nil
+}
+
+// GetEmbeddingAdapter returns an EmbeddingAdapter for a provider type.
+func (r *Registry) GetEmbeddingAdapter(providerType provider.ProviderType) (EmbeddingAdapter, error) {
+	adapter, err := r.Get(providerType)
+	if err != nil {
+		return nil, err
+	}
+	return adapter, nil
+}
+
+// GetHealthChecker returns a HealthChecker for a provider type.
+func (r *Registry) GetHealthChecker(providerType provider.ProviderType) (HealthChecker, error) {
+	adapter, err := r.Get(providerType)
+	if err != nil {
+		return nil, err
+	}
+	return adapter, nil
+}

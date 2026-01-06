@@ -13,10 +13,11 @@ import (
 	"github.com/uniedit/server/internal/module/ai/group"
 	"github.com/uniedit/server/internal/module/ai/handler"
 	"github.com/uniedit/server/internal/module/ai/llm"
-	"github.com/uniedit/server/internal/module/ai/media"
 	"github.com/uniedit/server/internal/module/ai/provider"
 	"github.com/uniedit/server/internal/module/ai/routing"
-	"github.com/uniedit/server/internal/module/ai/task"
+	"github.com/uniedit/server/internal/module/media"
+	sharedtask "github.com/uniedit/server/internal/shared/task"
+	"go.uber.org/zap"
 )
 
 // Injectors from wire.go:
@@ -27,7 +28,7 @@ func InitializeModule(config *Config) (*Module, error) {
 	db := config.DB
 	repository := provider.NewRepository(db)
 	groupRepository := group.NewRepository(db)
-	taskRepository := task.NewRepository(db)
+	taskRepository := sharedtask.NewRepository(db)
 	registry := ProvideProviderRegistry(repository)
 	adapterRegistry := adapter.GetRegistry()
 	healthMonitor := ProvideHealthMonitor(registry, adapterRegistry, config)
@@ -42,7 +43,7 @@ func InitializeModule(config *Config) (*Module, error) {
 	taskHandler := handler.NewTaskHandler(taskManager)
 	adminHandler := handler.NewAdminHandler(repository, groupRepository, registry, manager)
 	handlers := ProvideHandlers(chatHandler, mediaHandler, taskHandler, adminHandler)
-	module := ProvideModule(repository, groupRepository, taskRepository, registry, healthMonitor, adapterRegistry, routingManager, manager, taskManager, embeddingCache, service, mediaService, handlers)
+	module := ProvideModule(repository, groupRepository, taskRepository, registry, healthMonitor, adapterRegistry, routingManager, manager, taskManager, embeddingCache, service, mediaService, handlers, config)
 	return module, nil
 }
 
@@ -50,7 +51,7 @@ func InitializeModule(config *Config) (*Module, error) {
 
 // RepositorySet contains all repository providers.
 // Note: NewRepository functions return interfaces directly, no binding needed.
-var RepositorySet = wire.NewSet(provider.NewRepository, group.NewRepository, task.NewRepository)
+var RepositorySet = wire.NewSet(provider.NewRepository, group.NewRepository, sharedtask.NewRepository)
 
 // CoreSet contains core component providers.
 var CoreSet = wire.NewSet(adapter.GetRegistry, ProvideProviderRegistry,
@@ -88,17 +89,26 @@ func ProvideRoutingManager(
 }
 
 // ProvideTaskManager creates a task manager.
-func ProvideTaskManager(repo task.Repository, config *Config) *task.Manager {
-	return task.NewManager(repo, config.TaskManagerConfig)
+func ProvideTaskManager(repo sharedtask.Repository, config *Config) *sharedtask.Manager {
+	logger := config.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	return sharedtask.NewManager(repo, logger, config.TaskManagerConfig)
 }
 
 // ProvideMediaService creates a media service.
 func ProvideMediaService(
 	registry *provider.Registry,
 	healthMonitor *provider.HealthMonitor,
-	taskManager *task.Manager,
+	taskManager *sharedtask.Manager,
 ) *media.Service {
-	return media.NewService(registry, healthMonitor, taskManager)
+	return media.NewService(&media.ServiceConfig{
+		ProviderRegistry: newMediaProviderAdapter(registry),
+		HealthChecker:    newMediaHealthAdapter(healthMonitor),
+		AdapterRegistry:  media.NewAdapterRegistry(),
+		TaskManager:      newMediaTaskAdapter(taskManager),
+	})
 }
 
 // ProvideHandlers creates the handlers struct.
@@ -128,18 +138,23 @@ func ProvideEmbeddingCache(config *Config) *cache.EmbeddingCache {
 func ProvideModule(
 	providerRepo provider.Repository,
 	groupRepo group.Repository,
-	taskRepo task.Repository,
+	taskRepo sharedtask.Repository,
 	registry *provider.Registry,
 	healthMonitor *provider.HealthMonitor,
 	adapterRegistry *adapter.Registry,
 	routingManager *routing.Manager,
 	groupManager *group.Manager,
-	taskManager *task.Manager,
+	taskManager *sharedtask.Manager,
 	embeddingCache *cache.EmbeddingCache,
 	llmService *llm.Service,
 	mediaService *media.Service,
 	handlers *handler.Handlers,
+	config *Config,
 ) *Module {
+	logger := config.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	return &Module{
 		providerRepo:    providerRepo,
 		groupRepo:       groupRepo,
@@ -154,6 +169,7 @@ func ProvideModule(
 		llmService:      llmService,
 		mediaService:    mediaService,
 		handlers:        handlers,
+		logger:          logger,
 	}
 }
 

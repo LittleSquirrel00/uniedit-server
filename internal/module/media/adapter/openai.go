@@ -1,4 +1,4 @@
-package media
+package adapter
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/uniedit/server/internal/module/ai/provider"
+	"github.com/uniedit/server/internal/module/media"
 )
 
 // OpenAIImageAdapter implements the Adapter interface for OpenAI DALL-E.
@@ -27,14 +27,14 @@ func NewOpenAIImageAdapter() *OpenAIImageAdapter {
 }
 
 // Type returns the provider type.
-func (a *OpenAIImageAdapter) Type() provider.ProviderType {
-	return provider.ProviderTypeOpenAI
+func (a *OpenAIImageAdapter) Type() media.ProviderType {
+	return media.ProviderTypeOpenAI
 }
 
 // SupportsCapability checks if the adapter supports a capability.
-func (a *OpenAIImageAdapter) SupportsCapability(cap provider.Capability) bool {
+func (a *OpenAIImageAdapter) SupportsCapability(cap media.Capability) bool {
 	switch cap {
-	case provider.CapabilityImage:
+	case media.CapabilityImage:
 		return true
 	default:
 		return false
@@ -68,7 +68,7 @@ type openAIImageResponse struct {
 }
 
 // GenerateImage generates images using OpenAI DALL-E.
-func (a *OpenAIImageAdapter) GenerateImage(ctx context.Context, req *ImageRequest, model *provider.Model, prov *provider.Provider) (*ImageResponse, error) {
+func (a *OpenAIImageAdapter) GenerateImage(ctx context.Context, req *media.ImageRequest, model *media.Model, prov *media.Provider) (*media.ImageResponse, error) {
 	// Build request
 	openAIReq := &openAIImageRequest{
 		Model:          model.ID,
@@ -134,37 +134,37 @@ func (a *OpenAIImageAdapter) GenerateImage(ctx context.Context, req *ImageReques
 	}
 
 	// Convert to ImageResponse
-	images := make([]*GeneratedImage, len(openAIResp.Data))
+	images := make([]*media.GeneratedImage, len(openAIResp.Data))
 	for i, data := range openAIResp.Data {
-		images[i] = &GeneratedImage{
+		images[i] = &media.GeneratedImage{
 			URL:           data.URL,
 			B64JSON:       data.B64JSON,
 			RevisedPrompt: data.RevisedPrompt,
 		}
 	}
 
-	return &ImageResponse{
+	return &media.ImageResponse{
 		Images:    images,
 		Model:     model.ID,
 		CreatedAt: openAIResp.Created,
-		Usage: &ImageUsage{
+		Usage: &media.ImageUsage{
 			TotalImages: len(images),
 		},
 	}, nil
 }
 
 // GenerateVideo is not supported by OpenAI image adapter.
-func (a *OpenAIImageAdapter) GenerateVideo(ctx context.Context, req *VideoRequest, model *provider.Model, prov *provider.Provider) (*VideoResponse, error) {
+func (a *OpenAIImageAdapter) GenerateVideo(ctx context.Context, req *media.VideoRequest, model *media.Model, prov *media.Provider) (*media.VideoResponse, error) {
 	return nil, fmt.Errorf("video generation not supported by OpenAI image adapter")
 }
 
 // GetVideoStatus is not supported by OpenAI image adapter.
-func (a *OpenAIImageAdapter) GetVideoStatus(ctx context.Context, taskID string, prov *provider.Provider) (*VideoStatus, error) {
+func (a *OpenAIImageAdapter) GetVideoStatus(ctx context.Context, taskID string, prov *media.Provider) (*media.VideoStatus, error) {
 	return nil, fmt.Errorf("video status not supported by OpenAI image adapter")
 }
 
 // HealthCheck performs a health check.
-func (a *OpenAIImageAdapter) HealthCheck(ctx context.Context, prov *provider.Provider) error {
+func (a *OpenAIImageAdapter) HealthCheck(ctx context.Context, prov *media.Provider) error {
 	url := prov.BaseURL + "/v1/models"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -185,3 +185,6 @@ func (a *OpenAIImageAdapter) HealthCheck(ctx context.Context, prov *provider.Pro
 
 	return nil
 }
+
+// Ensure OpenAIImageAdapter implements media.Adapter.
+var _ media.Adapter = (*OpenAIImageAdapter)(nil)

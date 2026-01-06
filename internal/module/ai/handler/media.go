@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/uniedit/server/internal/module/ai/media"
+	"github.com/uniedit/server/internal/module/media"
 )
 
 // MediaHandler handles media generation API requests.
@@ -27,7 +27,20 @@ func (h *MediaHandler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 // GenerateImage handles image generation requests.
-// POST /api/v1/ai/images/generations
+//
+//	@Summary		Generate image
+//	@Description	Generate an image from a text prompt using AI models
+//	@Tags			AI Media
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		media.ImageGenerationRequest	true	"Image generation request"
+//	@Success		200		{object}	media.ImageGenerationResponse
+//	@Failure		400		{object}	map[string]string	"Invalid request"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		429		{object}	map[string]string	"Rate limit exceeded or quota exceeded"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/ai/images/generations [post]
 func (h *MediaHandler) GenerateImage(c *gin.Context) {
 	var req media.ImageGenerationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -59,7 +72,20 @@ func (h *MediaHandler) GenerateImage(c *gin.Context) {
 }
 
 // GenerateVideo handles video generation requests.
-// POST /api/v1/ai/videos/generations
+//
+//	@Summary		Generate video
+//	@Description	Generate a video from text prompt, image, or video input. Returns a task for async processing.
+//	@Tags			AI Media
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		media.VideoGenerationRequest	true	"Video generation request"
+//	@Success		202		{object}	media.VideoGenerationResponse	"Task created for async processing"
+//	@Failure		400		{object}	map[string]string	"Invalid request"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		429		{object}	map[string]string	"Rate limit exceeded or quota exceeded"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/ai/videos/generations [post]
 func (h *MediaHandler) GenerateVideo(c *gin.Context) {
 	var req media.VideoGenerationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -91,7 +117,20 @@ func (h *MediaHandler) GenerateVideo(c *gin.Context) {
 }
 
 // GetVideoStatus handles video status requests.
-// GET /api/v1/ai/videos/:task_id
+//
+//	@Summary		Get video generation status
+//	@Description	Get the status and result of a video generation task
+//	@Tags			AI Media
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			task_id	path		string	true	"Task ID"
+//	@Success		200		{object}	media.VideoGenerationResponse
+//	@Failure		400		{object}	map[string]string	"Invalid task ID"
+//	@Failure		401		{object}	map[string]string	"Unauthorized"
+//	@Failure		404		{object}	map[string]string	"Task not found"
+//	@Failure		500		{object}	map[string]string	"Internal server error"
+//	@Router			/ai/videos/{task_id} [get]
 func (h *MediaHandler) GetVideoStatus(c *gin.Context) {
 	taskID := c.Param("task_id")
 	if taskID == "" {

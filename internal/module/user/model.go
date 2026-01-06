@@ -31,26 +31,26 @@ type User struct {
 	ID            uuid.UUID  `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	Email         string     `json:"email" gorm:"uniqueIndex;not null"`
 	Name          string     `json:"name" gorm:"not null"`
-	AvatarURL     string     `json:"avatar_url,omitempty"`
+	AvatarURL     string     `json:"avatar_url,omitempty" gorm:"column:avatar_url"`
 
 	// Authentication
-	OAuthProvider *string    `json:"oauth_provider,omitempty"` // github, google, nil for email users
-	OAuthID       *string    `json:"-"`                        // OAuth provider ID
-	PasswordHash  *string    `json:"-"`                        // bcrypt hash for email users
+	OAuthProvider *string    `json:"oauth_provider,omitempty" gorm:"column:oauth_provider"` // github, google, nil for email users
+	OAuthID       *string    `json:"-" gorm:"column:oauth_id"`                              // OAuth provider ID
+	PasswordHash  *string    `json:"-" gorm:"column:password_hash"`                         // bcrypt hash for email users
 
 	// Status
 	Status        UserStatus `json:"status" gorm:"default:active"`
-	EmailVerified bool       `json:"email_verified" gorm:"default:false"`
-	IsAdmin       bool       `json:"is_admin" gorm:"default:false"`
+	EmailVerified bool       `json:"email_verified" gorm:"column:email_verified;default:false"`
+	IsAdmin       bool       `json:"is_admin" gorm:"column:is_admin;default:false"`
 
 	// Suspension
-	SuspendedAt   *time.Time `json:"suspended_at,omitempty"`
-	SuspendReason *string    `json:"suspend_reason,omitempty"`
+	SuspendedAt   *time.Time `json:"suspended_at,omitempty" gorm:"column:suspended_at"`
+	SuspendReason *string    `json:"suspend_reason,omitempty" gorm:"column:suspend_reason"`
 
 	// Timestamps
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	DeletedAt     *time.Time `json:"-" gorm:"index"` // Soft delete
+	CreatedAt     time.Time  `json:"created_at" gorm:"column:created_at"`
+	UpdatedAt     time.Time  `json:"updated_at" gorm:"column:updated_at"`
+	DeletedAt     *time.Time `json:"-" gorm:"column:deleted_at;index"` // Soft delete
 }
 
 // TableName returns the database table name.

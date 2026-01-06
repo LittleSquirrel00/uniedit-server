@@ -283,3 +283,12 @@ func (a *AnthropicAdapter) doRequest(ctx context.Context, prov *provider.Provide
 
 	return resp.Body, nil
 }
+
+// Compile-time interface assertions
+var (
+	_ Adapter          = (*AnthropicAdapter)(nil)
+	_ TypedAdapter     = (*AnthropicAdapter)(nil)
+	_ TextAdapter      = (*AnthropicAdapter)(nil)
+	_ EmbeddingAdapter = (*AnthropicAdapter)(nil)
+	_ HealthChecker    = (*AnthropicAdapter)(nil)
+)

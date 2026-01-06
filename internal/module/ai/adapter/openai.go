@@ -249,3 +249,12 @@ func (a *OpenAIAdapter) doRequest(ctx context.Context, prov *provider.Provider, 
 
 	return resp.Body, nil
 }
+
+// Compile-time interface assertions
+var (
+	_ Adapter          = (*OpenAIAdapter)(nil)
+	_ TypedAdapter     = (*OpenAIAdapter)(nil)
+	_ TextAdapter      = (*OpenAIAdapter)(nil)
+	_ EmbeddingAdapter = (*OpenAIAdapter)(nil)
+	_ HealthChecker    = (*OpenAIAdapter)(nil)
+)

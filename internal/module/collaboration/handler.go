@@ -22,8 +22,13 @@ func NewHandler(service *Service, baseURL string) *Handler {
 	}
 }
 
-// RegisterRoutes registers public collaboration routes.
+// RegisterRoutes registers public collaboration routes (none currently).
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
+	// No public routes for collaboration
+}
+
+// RegisterProtectedRoutes registers collaboration routes that require authentication.
+func (h *Handler) RegisterProtectedRoutes(r *gin.RouterGroup) {
 	teams := r.Group("/teams")
 	{
 		teams.POST("", h.CreateTeam)

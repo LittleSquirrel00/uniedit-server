@@ -29,12 +29,6 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		auth.POST("/logout", h.Logout)
 	}
 
-	users := r.Group("/users")
-	users.Use(h.AuthMiddleware())
-	{
-		users.GET("/me", h.GetCurrentUser)
-	}
-
 	// Provider API keys (stored third-party keys)
 	keys := r.Group("/keys")
 	keys.Use(h.AuthMiddleware())

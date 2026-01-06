@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	// ErrTaskNotFound is returned when a task is not found.
 	ErrTaskNotFound = errors.New("task not found")
 )
 
@@ -24,7 +25,7 @@ type Repository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListPendingOrRunning(ctx context.Context) ([]*Task, error)
 	ListByExternalTaskID(ctx context.Context) ([]*Task, error)
-	CountByUserAndStatus(ctx context.Context, userID uuid.UUID, status Status) (int64, error)
+	CountByOwnerAndStatus(ctx context.Context, ownerID uuid.UUID, status Status) (int64, error)
 }
 
 type repository struct {
@@ -73,8 +74,8 @@ func (r *repository) List(ctx context.Context, filter *Filter) ([]*Task, error) 
 	query := r.db.WithContext(ctx)
 
 	if filter != nil {
-		if filter.UserID != nil {
-			query = query.Where("user_id = ?", *filter.UserID)
+		if filter.OwnerID != nil {
+			query = query.Where("owner_id = ?", *filter.OwnerID)
 		}
 		if filter.Type != nil {
 			query = query.Where("type = ?", *filter.Type)
@@ -164,12 +165,12 @@ func (r *repository) ListPendingOrRunning(ctx context.Context) ([]*Task, error) 
 	return tasks, nil
 }
 
-// CountByUserAndStatus counts tasks for a user with a specific status.
-func (r *repository) CountByUserAndStatus(ctx context.Context, userID uuid.UUID, status Status) (int64, error) {
+// CountByOwnerAndStatus counts tasks for an owner with a specific status.
+func (r *repository) CountByOwnerAndStatus(ctx context.Context, ownerID uuid.UUID, status Status) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&Task{}).
-		Where("user_id = ? AND status = ?", userID, status).
+		Where("owner_id = ? AND status = ?", ownerID, status).
 		Count(&count).Error
 	if err != nil {
 		return 0, fmt.Errorf("count tasks: %w", err)
