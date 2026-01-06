@@ -245,6 +245,13 @@ type SystemAPIKey struct {
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 
+	// IP Whitelist (empty = allow all)
+	AllowedIPs pq.StringArray `json:"allowed_ips" gorm:"type:text[];default:'{}'"`
+
+	// Auto-rotation
+	RotateAfterDays *int       `json:"rotate_after_days,omitempty"`
+	LastRotatedAt   *time.Time `json:"last_rotated_at,omitempty"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -312,6 +319,9 @@ type SystemAPIKeyResponse struct {
 	IsActive          bool       `json:"is_active"`
 	LastUsedAt        *time.Time `json:"last_used_at,omitempty"`
 	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
+	AllowedIPs        []string   `json:"allowed_ips"`
+	RotateAfterDays   *int       `json:"rotate_after_days,omitempty"`
+	LastRotatedAt     *time.Time `json:"last_rotated_at,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
 }
 
@@ -335,6 +345,9 @@ func (k *SystemAPIKey) ToResponse() *SystemAPIKeyResponse {
 		IsActive:          k.IsActive,
 		LastUsedAt:        k.LastUsedAt,
 		ExpiresAt:         k.ExpiresAt,
+		AllowedIPs:        []string(k.AllowedIPs),
+		RotateAfterDays:   k.RotateAfterDays,
+		LastRotatedAt:     k.LastRotatedAt,
 		CreatedAt:         k.CreatedAt,
 	}
 }
@@ -343,4 +356,64 @@ func (k *SystemAPIKey) ToResponse() *SystemAPIKeyResponse {
 type SystemAPIKeyCreateResponse struct {
 	*SystemAPIKeyResponse
 	Key string `json:"key"` // Full API key, only shown once
+}
+
+// APIKeyAuditAction represents the type of audit action.
+type APIKeyAuditAction string
+
+const (
+	AuditActionCreated  APIKeyAuditAction = "created"
+	AuditActionUsed     APIKeyAuditAction = "used"
+	AuditActionRotated  APIKeyAuditAction = "rotated"
+	AuditActionDisabled APIKeyAuditAction = "disabled"
+	AuditActionDeleted  APIKeyAuditAction = "deleted"
+	AuditActionUpdated  APIKeyAuditAction = "updated"
+)
+
+// APIKeyAuditLog tracks API key operations.
+type APIKeyAuditLog struct {
+	ID        uuid.UUID         `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	APIKeyID  uuid.UUID         `json:"api_key_id" gorm:"type:uuid;not null;index"`
+	Action    APIKeyAuditAction `json:"action" gorm:"not null"`
+	Details   map[string]any    `json:"details,omitempty" gorm:"type:jsonb;serializer:json"`
+	IPAddress string            `json:"ip_address,omitempty" gorm:"type:inet"`
+	UserAgent string            `json:"user_agent,omitempty"`
+	CreatedAt time.Time         `json:"created_at"`
+}
+
+// TableName returns the database table name.
+func (APIKeyAuditLog) TableName() string {
+	return "api_key_audit_logs"
+}
+
+// UpdateIPWhitelistRequest represents a request to update IP whitelist.
+type UpdateIPWhitelistRequest struct {
+	AllowedIPs []string `json:"allowed_ips" binding:"required"`
+}
+
+// ScheduleRotationRequest represents a request to schedule auto-rotation.
+type ScheduleRotationRequest struct {
+	RotateAfterDays *int `json:"rotate_after_days"` // NULL to disable
+}
+
+// AuditLogResponse represents an audit log entry in API responses.
+type AuditLogResponse struct {
+	ID        uuid.UUID         `json:"id"`
+	Action    APIKeyAuditAction `json:"action"`
+	Details   map[string]any    `json:"details,omitempty"`
+	IPAddress string            `json:"ip_address,omitempty"`
+	UserAgent string            `json:"user_agent,omitempty"`
+	CreatedAt time.Time         `json:"created_at"`
+}
+
+// ToResponse converts APIKeyAuditLog to AuditLogResponse.
+func (l *APIKeyAuditLog) ToResponse() *AuditLogResponse {
+	return &AuditLogResponse{
+		ID:        l.ID,
+		Action:    l.Action,
+		Details:   l.Details,
+		IPAddress: l.IPAddress,
+		UserAgent: l.UserAgent,
+		CreatedAt: l.CreatedAt,
+	}
 }
