@@ -6,6 +6,9 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Logger wraps slog.Logger with additional convenience methods.
@@ -171,4 +174,40 @@ func Duration(key string, d any) slog.Attr {
 // Group returns a group attribute.
 func Group(key string, args ...any) slog.Attr {
 	return slog.Group(key, args...)
+}
+
+// --- Zap Logger Support ---
+
+// NewZapLogger creates a zap logger with the given configuration.
+func NewZapLogger(cfg *Config) (*zap.Logger, error) {
+	if cfg == nil {
+		cfg = DefaultConfig()
+	}
+
+	level := parseZapLevel(cfg.Level)
+
+	var config zap.Config
+	if cfg.Format == "text" {
+		config = zap.NewDevelopmentConfig()
+	} else {
+		config = zap.NewProductionConfig()
+	}
+	config.Level = zap.NewAtomicLevelAt(level)
+
+	return config.Build()
+}
+
+func parseZapLevel(level string) zapcore.Level {
+	switch strings.ToLower(level) {
+	case "debug":
+		return zapcore.DebugLevel
+	case "info":
+		return zapcore.InfoLevel
+	case "warn", "warning":
+		return zapcore.WarnLevel
+	case "error":
+		return zapcore.ErrorLevel
+	default:
+		return zapcore.InfoLevel
+	}
 }

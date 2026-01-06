@@ -10,24 +10,48 @@ import (
 	"github.com/uniedit/server/internal/module/ai/cache"
 	"github.com/uniedit/server/internal/module/ai/provider"
 	"github.com/uniedit/server/internal/module/ai/task"
+	"github.com/uniedit/server/internal/module/auth"
+	"github.com/uniedit/server/internal/module/billing"
+	billingquota "github.com/uniedit/server/internal/module/billing/quota"
+	billingusage "github.com/uniedit/server/internal/module/billing/usage"
+	"github.com/uniedit/server/internal/module/order"
+	"github.com/uniedit/server/internal/module/payment"
+	paymentprovider "github.com/uniedit/server/internal/module/payment/provider"
+	"github.com/uniedit/server/internal/module/user"
 	sharedcache "github.com/uniedit/server/internal/shared/cache"
 	"github.com/uniedit/server/internal/shared/config"
 	"github.com/uniedit/server/internal/shared/database"
 	"github.com/uniedit/server/internal/shared/logger"
 	"github.com/uniedit/server/internal/shared/middleware"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 // App represents the application.
 type App struct {
-	config *config.Config
-	db     *gorm.DB
-	redis  redis.UniversalClient
-	router *gin.Engine
-	logger *logger.Logger
+	config    *config.Config
+	db        *gorm.DB
+	redis     redis.UniversalClient
+	router    *gin.Engine
+	logger    *logger.Logger
+	zapLogger *zap.Logger
 
 	// Modules
-	aiModule *ai.Module
+	aiModule       *ai.Module
+	userHandler    *user.Handler
+	userAdmin      *user.AdminHandler
+	billingHandler *billing.Handler
+	orderHandler   *order.Handler
+	paymentHandler *payment.Handler
+	webhookHandler *payment.WebhookHandler
+
+	// Services (for cross-module dependencies)
+	billingService billing.ServiceInterface
+	billingRepo    billing.Repository
+	orderService   *order.Service
+	paymentService *payment.Service
+	usageRecorder  *billingusage.Recorder
+	quotaChecker   *billingquota.Checker
 }
 
 // New creates a new application instance.
@@ -38,9 +62,19 @@ func New(cfg *config.Config) (*App, error) {
 		Format: cfg.Log.Format,
 	})
 
+	// Initialize zap logger for modules that use zap
+	zapLog, err := logger.NewZapLogger(&logger.Config{
+		Level:  cfg.Log.Level,
+		Format: cfg.Log.Format,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init zap logger: %w", err)
+	}
+
 	app := &App{
-		config: cfg,
-		logger: log,
+		config:    cfg,
+		logger:    log,
+		zapLogger: zapLog,
 	}
 
 	// Initialize database
@@ -130,6 +164,199 @@ func (a *App) initModules() error {
 	}
 	a.aiModule = aiModule
 
+	// Initialize user module
+	if err := a.initUserModule(); err != nil {
+		return fmt.Errorf("init user module: %w", err)
+	}
+
+	// Initialize billing module
+	if err := a.initBillingModule(); err != nil {
+		return fmt.Errorf("init billing module: %w", err)
+	}
+
+	// Initialize order module
+	if err := a.initOrderModule(); err != nil {
+		return fmt.Errorf("init order module: %w", err)
+	}
+
+	// Initialize payment module
+	if err := a.initPaymentModule(); err != nil {
+		return fmt.Errorf("init payment module: %w", err)
+	}
+
+	return nil
+}
+
+// initUserModule initializes the user module.
+func (a *App) initUserModule() error {
+	// Create email sender
+	var emailSender user.EmailSender
+	if a.config.Email.Provider == "smtp" {
+		smtpConfig := &user.SMTPConfig{
+			Host:        a.config.Email.SMTP.Host,
+			Port:        a.config.Email.SMTP.Port,
+			User:        a.config.Email.SMTP.User,
+			Password:    a.config.Email.SMTP.Password,
+			FromAddress: a.config.Email.FromAddress,
+			FromName:    a.config.Email.FromName,
+			BaseURL:     a.config.Email.BaseURL,
+		}
+		emailSender = user.NewSMTPEmailSender(smtpConfig, a.zapLogger)
+	} else {
+		emailSender = user.NewNoOpEmailSender(a.zapLogger)
+	}
+
+	// Create repositories
+	userRepo := user.NewRepository(a.db)
+	tokenRepo := auth.NewRefreshTokenRepository(a.db)
+
+	// Create JWT manager
+	jwtManager := auth.NewJWTManager(&auth.JWTConfig{
+		Secret:             a.config.Auth.JWTSecret,
+		AccessTokenExpiry:  a.config.Auth.AccessTokenExpiry,
+		RefreshTokenExpiry: a.config.Auth.RefreshTokenExpiry,
+	})
+
+	// Create user service
+	userService := user.NewService(
+		userRepo,
+		tokenRepo,
+		jwtManager,
+		emailSender,
+		a.zapLogger,
+	)
+
+	// Create handlers
+	a.userHandler = user.NewHandler(userService)
+	a.userAdmin = user.NewAdminHandler(userService)
+
+	return nil
+}
+
+// initBillingModule initializes the billing module.
+func (a *App) initBillingModule() error {
+	// Create billing repository
+	a.billingRepo = billing.NewRepository(a.db)
+
+	// Create quota manager (only if Redis is available)
+	var quotaManager *billingquota.Manager
+	if redisClient, ok := a.redis.(*redis.Client); ok && redisClient != nil {
+		quotaManager = billingquota.NewManager(redisClient, a.zapLogger)
+	}
+
+	// Create billing service
+	a.billingService = billing.NewService(
+		a.billingRepo,
+		quotaManager,
+		a.zapLogger,
+	)
+
+	// Create quota checker middleware
+	a.quotaChecker = billingquota.NewChecker(a.billingService, a.zapLogger)
+
+	// Create usage recorder
+	a.usageRecorder = billingusage.NewRecorder(a.billingRepo, a.zapLogger, 1000)
+
+	// Create handler
+	a.billingHandler = billing.NewHandler(a.billingService)
+
+	return nil
+}
+
+// initOrderModule initializes the order module.
+func (a *App) initOrderModule() error {
+	// Create order repository
+	orderRepo := order.NewRepository(a.db)
+
+	// Create order service (needs billing.Repository)
+	a.orderService = order.NewService(
+		orderRepo,
+		a.billingRepo,
+		a.zapLogger,
+	)
+
+	// Create handler
+	a.orderHandler = order.NewHandler(a.orderService)
+
+	return nil
+}
+
+// initPaymentModule initializes the payment module.
+func (a *App) initPaymentModule() error {
+	// Create provider registry
+	providerRegistry := payment.NewProviderRegistry()
+
+	// Create and register Stripe provider
+	if a.config.Stripe.SecretKey != "" {
+		stripeProvider := paymentprovider.NewStripeProvider(&paymentprovider.StripeConfig{
+			APIKey:        a.config.Stripe.SecretKey,
+			WebhookSecret: a.config.Stripe.WebhookSecret,
+		})
+		providerRegistry.Register(stripeProvider)
+	}
+
+	// Create and register Alipay provider
+	if a.config.Alipay.AppID != "" && a.config.Alipay.PrivateKey != "" {
+		alipayProvider, err := paymentprovider.NewAlipayProvider(&paymentprovider.AlipayConfig{
+			AppID:           a.config.Alipay.AppID,
+			PrivateKey:      a.config.Alipay.PrivateKey,
+			AlipayPublicKey: a.config.Alipay.AlipayPublicKey,
+			IsProd:          a.config.Alipay.IsProd,
+			NotifyURL:       a.config.Alipay.NotifyURL,
+			ReturnURL:       a.config.Alipay.ReturnURL,
+		})
+		if err != nil {
+			return fmt.Errorf("create alipay provider: %w", err)
+		}
+		providerRegistry.Register(alipayProvider)
+	}
+
+	// Create and register WeChat provider
+	if a.config.Wechat.AppID != "" && a.config.Wechat.MchID != "" {
+		wechatProvider, err := paymentprovider.NewWechatProvider(&paymentprovider.WechatConfig{
+			AppID:                 a.config.Wechat.AppID,
+			MchID:                 a.config.Wechat.MchID,
+			APIKeyV3:              a.config.Wechat.APIKeyV3,
+			SerialNo:              a.config.Wechat.SerialNo,
+			PrivateKey:            a.config.Wechat.PrivateKey,
+			WechatPublicKeySerial: a.config.Wechat.WechatPublicKeySerial,
+			WechatPublicKey:       a.config.Wechat.WechatPublicKey,
+			IsProd:                a.config.Wechat.IsProd,
+			NotifyURL:             a.config.Wechat.NotifyURL,
+		})
+		if err != nil {
+			return fmt.Errorf("create wechat provider: %w", err)
+		}
+		providerRegistry.Register(wechatProvider)
+	}
+
+	// Create payment repository
+	paymentRepo := payment.NewRepository(a.db)
+
+	// Determine notify base URL
+	notifyBaseURL := a.config.Server.Address
+	if a.config.Email.BaseURL != "" {
+		notifyBaseURL = a.config.Email.BaseURL
+	}
+
+	// Create payment service
+	a.paymentService = payment.NewService(
+		paymentRepo,
+		a.orderService,
+		a.billingService,
+		providerRegistry,
+		notifyBaseURL,
+		a.zapLogger,
+	)
+
+	// Create handlers
+	a.paymentHandler = payment.NewHandler(a.paymentService)
+	a.webhookHandler = payment.NewWebhookHandler(
+		a.paymentService,
+		a.billingService,
+		a.zapLogger,
+	)
+
 	return nil
 }
 
@@ -157,8 +384,19 @@ func (a *App) registerRoutes() {
 	// Admin routes (requires admin auth)
 	adminRouter := v1.Group("/admin")
 
+	// Webhook routes (no auth required, uses signature verification)
+	webhookRouter := a.router.Group("/webhooks")
+
 	// Register AI module routes
 	a.aiModule.RegisterRoutes(publicRouter, adminRouter)
+
+	// Register new module routes
+	a.userHandler.RegisterRoutes(publicRouter)
+	a.userAdmin.RegisterRoutes(adminRouter)
+	a.billingHandler.RegisterRoutes(publicRouter)
+	a.orderHandler.RegisterRoutes(publicRouter)
+	a.paymentHandler.RegisterRoutes(publicRouter)
+	a.webhookHandler.RegisterRoutes(webhookRouter)
 }
 
 // Router returns the HTTP router.
@@ -171,6 +409,16 @@ func (a *App) Stop() {
 	// Stop modules
 	if a.aiModule != nil {
 		a.aiModule.Stop()
+	}
+
+	// Close usage recorder
+	if a.usageRecorder != nil {
+		a.usageRecorder.Close()
+	}
+
+	// Sync zap logger
+	if a.zapLogger != nil {
+		_ = a.zapLogger.Sync()
 	}
 
 	// Close Redis connection

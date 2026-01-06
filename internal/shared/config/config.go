@@ -17,6 +17,10 @@ type Config struct {
 	Auth     AuthConfig     `mapstructure:"auth"`
 	Storage  StorageConfig  `mapstructure:"storage"`
 	Log      LogConfig      `mapstructure:"log"`
+	Stripe   StripeConfig   `mapstructure:"stripe"`
+	Alipay   AlipayConfig   `mapstructure:"alipay"`
+	Wechat   WechatConfig   `mapstructure:"wechat"`
+	Email    EmailConfig    `mapstructure:"email"`
 }
 
 // ServerConfig holds HTTP server configuration.
@@ -105,6 +109,53 @@ type LogConfig struct {
 	Format string `mapstructure:"format"`
 }
 
+// StripeConfig holds Stripe payment configuration.
+type StripeConfig struct {
+	SecretKey      string `mapstructure:"secret_key"`
+	WebhookSecret  string `mapstructure:"webhook_secret"`
+	PublishableKey string `mapstructure:"publishable_key"`
+}
+
+// AlipayConfig holds Alipay payment configuration.
+type AlipayConfig struct {
+	AppID           string `mapstructure:"app_id"`
+	PrivateKey      string `mapstructure:"private_key"`       // RSA2 private key (PEM format)
+	AlipayPublicKey string `mapstructure:"alipay_public_key"` // Alipay public key (PEM format)
+	IsProd          bool   `mapstructure:"is_prod"`
+	NotifyURL       string `mapstructure:"notify_url"`
+	ReturnURL       string `mapstructure:"return_url"`
+}
+
+// WechatConfig holds WeChat Pay configuration.
+type WechatConfig struct {
+	AppID                 string `mapstructure:"app_id"`
+	MchID                 string `mapstructure:"mch_id"`                   // Merchant ID
+	APIKeyV3              string `mapstructure:"api_key_v3"`               // APIv3 Key
+	SerialNo              string `mapstructure:"serial_no"`                // Certificate serial number
+	PrivateKey            string `mapstructure:"private_key"`              // Private key (PEM format)
+	WechatPublicKeySerial string `mapstructure:"wechat_public_key_serial"` // Platform cert serial
+	WechatPublicKey       string `mapstructure:"wechat_public_key"`        // Platform public key (PEM)
+	IsProd                bool   `mapstructure:"is_prod"`
+	NotifyURL             string `mapstructure:"notify_url"`
+}
+
+// EmailConfig holds email configuration.
+type EmailConfig struct {
+	Provider    string     `mapstructure:"provider"` // "smtp" or "noop"
+	SMTP        SMTPConfig `mapstructure:"smtp"`
+	FromAddress string     `mapstructure:"from_address"`
+	FromName    string     `mapstructure:"from_name"`
+	BaseURL     string     `mapstructure:"base_url"` // For verification links
+}
+
+// SMTPConfig holds SMTP configuration.
+type SMTPConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+}
+
 // Load loads configuration from file and environment.
 func Load() (*Config, error) {
 	v := viper.New()
@@ -166,6 +217,40 @@ func Load() (*Config, error) {
 	if clientSecret := os.Getenv("UNIEDIT_GOOGLE_CLIENT_SECRET"); clientSecret != "" {
 		cfg.Auth.OAuth.Google.ClientSecret = clientSecret
 	}
+	// Stripe credentials from environment
+	if secretKey := os.Getenv("UNIEDIT_STRIPE_SECRET_KEY"); secretKey != "" {
+		cfg.Stripe.SecretKey = secretKey
+	}
+	if webhookSecret := os.Getenv("UNIEDIT_STRIPE_WEBHOOK_SECRET"); webhookSecret != "" {
+		cfg.Stripe.WebhookSecret = webhookSecret
+	}
+	// SMTP credentials from environment
+	if password := os.Getenv("UNIEDIT_SMTP_PASSWORD"); password != "" {
+		cfg.Email.SMTP.Password = password
+	}
+	// Alipay credentials from environment
+	if appID := os.Getenv("UNIEDIT_ALIPAY_APP_ID"); appID != "" {
+		cfg.Alipay.AppID = appID
+	}
+	if privateKey := os.Getenv("UNIEDIT_ALIPAY_PRIVATE_KEY"); privateKey != "" {
+		cfg.Alipay.PrivateKey = privateKey
+	}
+	if publicKey := os.Getenv("UNIEDIT_ALIPAY_PUBLIC_KEY"); publicKey != "" {
+		cfg.Alipay.AlipayPublicKey = publicKey
+	}
+	// WeChat credentials from environment
+	if appID := os.Getenv("UNIEDIT_WECHAT_APP_ID"); appID != "" {
+		cfg.Wechat.AppID = appID
+	}
+	if mchID := os.Getenv("UNIEDIT_WECHAT_MCH_ID"); mchID != "" {
+		cfg.Wechat.MchID = mchID
+	}
+	if apiKey := os.Getenv("UNIEDIT_WECHAT_API_KEY_V3"); apiKey != "" {
+		cfg.Wechat.APIKeyV3 = apiKey
+	}
+	if privateKey := os.Getenv("UNIEDIT_WECHAT_PRIVATE_KEY"); privateKey != "" {
+		cfg.Wechat.PrivateKey = privateKey
+	}
 
 	return &cfg, nil
 }
@@ -210,4 +295,9 @@ func setDefaults(v *viper.Viper) {
 	// Log defaults
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "json")
+
+	// Email defaults
+	v.SetDefault("email.provider", "noop")
+	v.SetDefault("email.smtp.port", 587)
+	v.SetDefault("email.from_name", "UniEdit")
 }
