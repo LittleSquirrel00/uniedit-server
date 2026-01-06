@@ -42,7 +42,8 @@
       "Bash(ls -la /Users/zhangfeng144/Git/uniedit-server/migrations/000010_*.sql)",
       "Bash(echo \"Migration files:\" ls /Users/zhangfeng144/Git/uniedit-server/migrations/*.sql)",
       "Bash(find /Users/zhangfeng144/Git/uniedit-server/migrations -name \"*.sql\" -exec grep -l \"cache\\\\|rate_limit\\\\|throttle\" {} ;)",
-      "Bash(ls -la /Users/zhangfeng144/Git/uniedit-server/migrations/*.sql)"
+      "Bash(ls -la /Users/zhangfeng144/Git/uniedit-server/migrations/*.sql)",
+      "Bash(openspec archive add-collaboration-module --yes)"
     ]
   }
 }

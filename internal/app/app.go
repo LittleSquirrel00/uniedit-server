@@ -15,6 +15,7 @@ import (
 	"github.com/uniedit/server/internal/module/billing"
 	billingquota "github.com/uniedit/server/internal/module/billing/quota"
 	billingusage "github.com/uniedit/server/internal/module/billing/usage"
+	"github.com/uniedit/server/internal/module/collaboration"
 	"github.com/uniedit/server/internal/module/git"
 	"github.com/uniedit/server/internal/module/git/lfs"
 	gitstorage "github.com/uniedit/server/internal/module/git/storage"
@@ -54,6 +55,7 @@ type App struct {
 	gitHandler     *git.Handler
 	gitHTTPHandler *git.GitHandler
 	lfsHandler     *lfs.BatchHandler
+	collabHandler  *collaboration.Handler
 
 	// Services (for cross-module dependencies)
 	billingService billing.ServiceInterface
@@ -204,6 +206,11 @@ func (a *App) initModules() error {
 	// Initialize git module
 	if err := a.initGitModule(); err != nil {
 		return fmt.Errorf("init git module: %w", err)
+	}
+
+	// Initialize collaboration module
+	if err := a.initCollaborationModule(); err != nil {
+		return fmt.Errorf("init collaboration module: %w", err)
 	}
 
 	return nil
@@ -500,6 +507,31 @@ func (a *App) initGitModule() error {
 	return nil
 }
 
+// initCollaborationModule initializes the collaboration module.
+func (a *App) initCollaborationModule() error {
+	// Create repositories
+	collabRepo := collaboration.NewRepository(a.db)
+	userRepo := collaboration.NewUserRepository(a.db)
+
+	// Create service
+	collabService := collaboration.NewService(
+		collabRepo,
+		userRepo,
+		a.zapLogger,
+	)
+
+	// Determine base URL
+	baseURL := a.config.Email.BaseURL
+	if baseURL == "" {
+		baseURL = "http://localhost" + a.config.Server.Address
+	}
+
+	// Create handler
+	a.collabHandler = collaboration.NewHandler(collabService, baseURL)
+
+	return nil
+}
+
 // gitLFSResolver implements lfs.RepoResolver interface.
 type gitLFSResolver struct {
 	service *git.Service
@@ -599,6 +631,11 @@ func (a *App) registerRoutes() {
 	}
 	if a.lfsHandler != nil {
 		a.lfsHandler.RegisterRoutes(v1)
+	}
+
+	// Register collaboration module routes
+	if a.collabHandler != nil {
+		a.collabHandler.RegisterRoutes(publicRouter)
 	}
 }
 
