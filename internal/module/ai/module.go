@@ -13,6 +13,7 @@ import (
 	"github.com/uniedit/server/internal/module/ai/llm"
 	"github.com/uniedit/server/internal/module/ai/media"
 	"github.com/uniedit/server/internal/module/ai/provider"
+	"github.com/uniedit/server/internal/module/ai/provider/pool"
 	"github.com/uniedit/server/internal/module/ai/routing"
 	"github.com/uniedit/server/internal/module/ai/task"
 	"gorm.io/gorm"
@@ -183,4 +184,9 @@ func (m *Module) GroupManager() *group.Manager {
 // EmbeddingCache returns the embedding cache.
 func (m *Module) EmbeddingCache() *cache.EmbeddingCache {
 	return m.embeddingCache
+}
+
+// SetAccountPool sets the account pool manager for routing.
+func (m *Module) SetAccountPool(accountPool *pool.Manager) {
+	m.routingManager.SetAccountPool(accountPool)
 }

@@ -108,4 +108,8 @@ type Result struct {
 	Model    *provider.Model    `json:"model"`
 	Score    float64            `json:"score"`
 	Reason   string             `json:"reason"`
+
+	// Account pool integration
+	AccountID *string `json:"account_id,omitempty"` // Provider account ID if using pool
+	APIKey    string  `json:"-"`                    // Decrypted API key (from pool or provider)
 }

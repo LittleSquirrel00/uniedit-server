@@ -10,6 +10,7 @@ import (
 	"github.com/uniedit/server/internal/module/ai"
 	"github.com/uniedit/server/internal/module/ai/cache"
 	"github.com/uniedit/server/internal/module/ai/provider"
+	"github.com/uniedit/server/internal/module/ai/provider/pool"
 	"github.com/uniedit/server/internal/module/ai/task"
 	"github.com/uniedit/server/internal/module/auth"
 	"github.com/uniedit/server/internal/module/billing"
@@ -42,20 +43,21 @@ type App struct {
 	zapLogger *zap.Logger
 
 	// Modules
-	aiModule       *ai.Module
-	authHandler    *auth.Handler
-	authService    *auth.Service
-	rateLimiter    *auth.RateLimiter
-	userHandler    *user.Handler
-	userAdmin      *user.AdminHandler
-	billingHandler *billing.Handler
-	orderHandler   *order.Handler
-	paymentHandler *payment.Handler
-	webhookHandler *payment.WebhookHandler
-	gitHandler     *git.Handler
-	gitHTTPHandler *git.GitHandler
-	lfsHandler     *lfs.BatchHandler
-	collabHandler  *collaboration.Handler
+	aiModule           *ai.Module
+	authHandler        *auth.Handler
+	authService        *auth.Service
+	rateLimiter        *auth.RateLimiter
+	userHandler        *user.Handler
+	userAdmin          *user.AdminHandler
+	billingHandler     *billing.Handler
+	orderHandler       *order.Handler
+	paymentHandler     *payment.Handler
+	webhookHandler     *payment.WebhookHandler
+	gitHandler         *git.Handler
+	gitHTTPHandler     *git.GitHandler
+	lfsHandler         *lfs.BatchHandler
+	collabHandler      *collaboration.Handler
+	accountPoolHandler *pool.Handler
 
 	// Services (for cross-module dependencies)
 	billingService billing.ServiceInterface
@@ -66,6 +68,7 @@ type App struct {
 	quotaChecker   *billingquota.Checker
 	gitService     *git.Service
 	r2Client       *gitstorage.R2Client
+	accountPool    *pool.Manager
 }
 
 // New creates a new application instance.
@@ -211,6 +214,11 @@ func (a *App) initModules() error {
 	// Initialize collaboration module
 	if err := a.initCollaborationModule(); err != nil {
 		return fmt.Errorf("init collaboration module: %w", err)
+	}
+
+	// Initialize account pool module
+	if err := a.initAccountPoolModule(); err != nil {
+		return fmt.Errorf("init account pool module: %w", err)
 	}
 
 	return nil
@@ -532,6 +540,45 @@ func (a *App) initCollaborationModule() error {
 	return nil
 }
 
+// initAccountPoolModule initializes the account pool module.
+func (a *App) initAccountPoolModule() error {
+	// Create repository
+	repo := pool.NewRepository(a.db)
+
+	// Determine scheduler type
+	schedulerType := pool.SchedulerRoundRobin
+	switch a.config.AI.AccountPoolScheduler {
+	case "weighted", "weighted_random":
+		schedulerType = pool.SchedulerWeightedRandom
+	case "priority":
+		schedulerType = pool.SchedulerPriority
+	}
+
+	// Create manager config
+	cfg := &pool.ManagerConfig{
+		SchedulerType: schedulerType,
+		CacheTTL:      a.config.AI.AccountPoolCacheTTL,
+		EncryptionKey: a.config.AI.AccountPoolEncryptionKey,
+	}
+
+	// Create manager
+	manager, err := pool.NewManager(repo, a.zapLogger, cfg)
+	if err != nil {
+		return fmt.Errorf("create account pool manager: %w", err)
+	}
+	a.accountPool = manager
+
+	// Create handler
+	a.accountPoolHandler = pool.NewHandler(manager, a.zapLogger)
+
+	// Wire to AI module's routing manager
+	if a.aiModule != nil {
+		a.aiModule.SetAccountPool(manager)
+	}
+
+	return nil
+}
+
 // gitLFSResolver implements lfs.RepoResolver interface.
 type gitLFSResolver struct {
 	service *git.Service
@@ -636,6 +683,11 @@ func (a *App) registerRoutes() {
 	// Register collaboration module routes
 	if a.collabHandler != nil {
 		a.collabHandler.RegisterRoutes(publicRouter)
+	}
+
+	// Register account pool admin routes
+	if a.accountPoolHandler != nil {
+		a.accountPoolHandler.RegisterRoutes(adminRouter)
 	}
 }
 

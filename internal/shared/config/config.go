@@ -71,6 +71,11 @@ type AIConfig struct {
 	TaskRetentionPeriod time.Duration `mapstructure:"task_retention_period"`
 	MaxConcurrentTasks  int           `mapstructure:"max_concurrent_tasks"`
 	EmbeddingCacheTTL   time.Duration `mapstructure:"embedding_cache_ttl"`
+
+	// Account pool configuration
+	AccountPoolScheduler    string        `mapstructure:"account_pool_scheduler"`     // round_robin, weighted, priority
+	AccountPoolCacheTTL     time.Duration `mapstructure:"account_pool_cache_ttl"`
+	AccountPoolEncryptionKey string       `mapstructure:"account_pool_encryption_key"` // Base64 encoded 32-byte key
 }
 
 // AuthConfig holds authentication configuration.
@@ -296,6 +301,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ai.task_retention_period", 24*time.Hour)
 	v.SetDefault("ai.max_concurrent_tasks", 100)
 	v.SetDefault("ai.embedding_cache_ttl", 24*time.Hour)
+	v.SetDefault("ai.account_pool_scheduler", "round_robin")
+	v.SetDefault("ai.account_pool_cache_ttl", 5*time.Minute)
 
 	// Auth defaults
 	v.SetDefault("auth.access_token_expiry", 15*time.Minute)

@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/uniedit/server/internal/module/ai/group"
 	"github.com/uniedit/server/internal/module/ai/provider"
+	"github.com/uniedit/server/internal/module/ai/provider/pool"
 )
 
 // Manager handles routing decisions.
@@ -14,6 +16,7 @@ type Manager struct {
 	healthMonitor *provider.HealthMonitor
 	groupManager  *group.Manager
 	chain         *Chain
+	accountPool   *pool.Manager // Optional account pool manager
 }
 
 // ManagerConfig contains manager configuration.
@@ -42,6 +45,11 @@ func NewManager(
 	}
 }
 
+// SetAccountPool sets the account pool manager for multi-account support.
+func (m *Manager) SetAccountPool(accountPool *pool.Manager) {
+	m.accountPool = accountPool
+}
+
 // Route selects the best model for the given context.
 func (m *Manager) Route(ctx context.Context, routingCtx *Context) (*Result, error) {
 	// Get candidates
@@ -63,7 +71,64 @@ func (m *Manager) Route(ctx context.Context, routingCtx *Context) (*Result, erro
 	}
 
 	// Execute strategy chain
-	return m.chain.Execute(routingCtx, candidates)
+	result, err := m.chain.Execute(routingCtx, candidates)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get API key from account pool or provider
+	if err := m.resolveAPIKey(ctx, result); err != nil {
+		return nil, fmt.Errorf("resolve API key: %w", err)
+	}
+
+	return result, nil
+}
+
+// resolveAPIKey gets the API key from account pool or falls back to provider.
+func (m *Manager) resolveAPIKey(ctx context.Context, result *Result) error {
+	// Try to get account from pool if available
+	if m.accountPool != nil {
+		account, err := m.accountPool.GetAccount(ctx, result.Provider.ID)
+		if err == nil && account != nil {
+			accountID := account.ID.String()
+			result.AccountID = &accountID
+			result.APIKey = account.DecryptedKey
+			return nil
+		}
+		// If pool returns error (e.g., no accounts), fall back to provider
+	}
+
+	// Fall back to provider's API key
+	result.APIKey = result.Provider.APIKey
+	return nil
+}
+
+// MarkAccountSuccess records a successful request for the account.
+func (m *Manager) MarkAccountSuccess(ctx context.Context, result *Result, tokens int, costUSD float64) error {
+	if m.accountPool == nil || result.AccountID == nil {
+		return nil
+	}
+
+	accountID, err := uuid.Parse(*result.AccountID)
+	if err != nil {
+		return err
+	}
+
+	return m.accountPool.MarkSuccess(ctx, accountID, tokens, costUSD)
+}
+
+// MarkAccountFailure records a failed request for the account.
+func (m *Manager) MarkAccountFailure(ctx context.Context, result *Result, reqErr error) error {
+	if m.accountPool == nil || result.AccountID == nil {
+		return nil
+	}
+
+	accountID, err := uuid.Parse(*result.AccountID)
+	if err != nil {
+		return err
+	}
+
+	return m.accountPool.MarkFailure(ctx, accountID, reqErr)
 }
 
 // RouteWithFallback routes with fallback support.
