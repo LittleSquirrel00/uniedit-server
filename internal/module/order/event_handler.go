@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 
+	"github.com/uniedit/server/internal/module/order/domain"
 	"github.com/uniedit/server/internal/shared/events"
 	"go.uber.org/zap"
 )
@@ -10,7 +11,6 @@ import (
 // EventHandler handles payment-related events for the order module.
 type EventHandler struct {
 	repo   Repository
-	sm     *StateMachine
 	logger *zap.Logger
 }
 
@@ -18,7 +18,6 @@ type EventHandler struct {
 func NewEventHandler(repo Repository, logger *zap.Logger) *EventHandler {
 	return &EventHandler{
 		repo:   repo,
-		sm:     NewStateMachine(),
 		logger: logger,
 	}
 }
@@ -60,15 +59,15 @@ func (h *EventHandler) handlePaymentSucceeded(event *events.PaymentSucceededEven
 	}
 
 	// Idempotency check: if already paid, skip
-	if order.Status == OrderStatusPaid {
+	if order.Status() == domain.StatusPaid {
 		h.logger.Info("order already paid, skipping",
 			zap.String("order_id", event.OrderID.String()),
 		)
 		return nil
 	}
 
-	// Transition to paid
-	if err := h.sm.Transition(order, OrderStatusPaid); err != nil {
+	// Use domain method for state transition
+	if err := order.MarkAsPaid(); err != nil {
 		h.logger.Error("failed to transition order to paid",
 			zap.String("order_id", event.OrderID.String()),
 			zap.Error(err),
@@ -106,15 +105,15 @@ func (h *EventHandler) handlePaymentFailed(event *events.PaymentFailedEvent) err
 	}
 
 	// Idempotency check: if already failed, skip
-	if order.Status == OrderStatusFailed {
+	if order.Status() == domain.StatusFailed {
 		h.logger.Info("order already failed, skipping",
 			zap.String("order_id", event.OrderID.String()),
 		)
 		return nil
 	}
 
-	// Transition to failed
-	if err := h.sm.Transition(order, OrderStatusFailed); err != nil {
+	// Use domain method for state transition
+	if err := order.MarkAsFailed(); err != nil {
 		h.logger.Error("failed to transition order to failed",
 			zap.String("order_id", event.OrderID.String()),
 			zap.Error(err),

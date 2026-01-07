@@ -166,12 +166,12 @@ func (h *Handler) GetPayment(c *gin.Context) {
 	}
 
 	// Check ownership
-	if payment.UserID != userID {
+	if payment.UserID() != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
 
-	c.JSON(http.StatusOK, payment.ToResponse())
+	c.JSON(http.StatusOK, PaymentToResponse(payment))
 }
 
 // --- Helpers ---

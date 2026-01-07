@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/uniedit/server/internal/module/order/domain"
+	"github.com/uniedit/server/internal/module/order/entity"
 )
 
 // CreateSubscriptionOrderRequest represents a request to create a subscription order.
@@ -18,8 +20,8 @@ type CreateTopupOrderRequest struct {
 
 // OrderFilter represents filters for listing orders.
 type OrderFilter struct {
-	Status *OrderStatus `form:"status"`
-	Type   *OrderType   `form:"type"`
+	Status *domain.OrderStatus `form:"status"`
+	Type   *domain.OrderType   `form:"type"`
 }
 
 // Pagination represents pagination parameters.
@@ -43,22 +45,22 @@ func (p *Pagination) Offset() int {
 
 // OrderResponse represents an order in API responses.
 type OrderResponse struct {
-	ID            uuid.UUID         `json:"id"`
-	OrderNo       string            `json:"order_no"`
-	Type          OrderType         `json:"type"`
-	Status        OrderStatus       `json:"status"`
-	Subtotal      int64             `json:"subtotal"`
-	Discount      int64             `json:"discount"`
-	Tax           int64             `json:"tax"`
-	Total         int64             `json:"total"`
-	Currency      string            `json:"currency"`
-	PlanID        *string           `json:"plan_id,omitempty"`
-	CreditsAmount int64             `json:"credits_amount,omitempty"`
-	PaidAt        *time.Time        `json:"paid_at,omitempty"`
-	CanceledAt    *time.Time        `json:"canceled_at,omitempty"`
-	RefundedAt    *time.Time        `json:"refunded_at,omitempty"`
-	ExpiresAt     *time.Time        `json:"expires_at,omitempty"`
-	CreatedAt     time.Time         `json:"created_at"`
+	ID            uuid.UUID           `json:"id"`
+	OrderNo       string              `json:"order_no"`
+	Type          domain.OrderType    `json:"type"`
+	Status        domain.OrderStatus  `json:"status"`
+	Subtotal      int64               `json:"subtotal"`
+	Discount      int64               `json:"discount"`
+	Tax           int64               `json:"tax"`
+	Total         int64               `json:"total"`
+	Currency      string              `json:"currency"`
+	PlanID        *string             `json:"plan_id,omitempty"`
+	CreditsAmount int64               `json:"credits_amount,omitempty"`
+	PaidAt        *time.Time          `json:"paid_at,omitempty"`
+	CanceledAt    *time.Time          `json:"canceled_at,omitempty"`
+	RefundedAt    *time.Time          `json:"refunded_at,omitempty"`
+	ExpiresAt     *time.Time          `json:"expires_at,omitempty"`
+	CreatedAt     time.Time           `json:"created_at"`
 	Items         []OrderItemResponse `json:"items,omitempty"`
 }
 
@@ -71,34 +73,35 @@ type OrderItemResponse struct {
 	Amount      int64     `json:"amount"`
 }
 
-// ToResponse converts an Order to OrderResponse.
-func (o *Order) ToResponse() *OrderResponse {
+// OrderToResponse converts a domain Order to OrderResponse.
+func OrderToResponse(o *domain.Order) *OrderResponse {
+	items := o.Items()
 	resp := &OrderResponse{
-		ID:            o.ID,
-		OrderNo:       o.OrderNo,
-		Type:          o.Type,
-		Status:        o.Status,
-		Subtotal:      o.Subtotal,
-		Discount:      o.Discount,
-		Tax:           o.Tax,
-		Total:         o.Total,
-		Currency:      o.Currency,
-		PlanID:        o.PlanID,
-		CreditsAmount: o.CreditsAmount,
-		PaidAt:        o.PaidAt,
-		CanceledAt:    o.CanceledAt,
-		RefundedAt:    o.RefundedAt,
-		ExpiresAt:     o.ExpiresAt,
-		CreatedAt:     o.CreatedAt,
-		Items:         make([]OrderItemResponse, len(o.Items)),
+		ID:            o.ID(),
+		OrderNo:       o.OrderNo(),
+		Type:          o.Type(),
+		Status:        o.Status(),
+		Subtotal:      o.Subtotal().Amount(),
+		Discount:      o.Discount().Amount(),
+		Tax:           o.Tax().Amount(),
+		Total:         o.Total().Amount(),
+		Currency:      o.Currency(),
+		PlanID:        o.PlanID(),
+		CreditsAmount: o.CreditsAmount(),
+		PaidAt:        o.PaidAt(),
+		CanceledAt:    o.CanceledAt(),
+		RefundedAt:    o.RefundedAt(),
+		ExpiresAt:     o.ExpiresAt(),
+		CreatedAt:     o.CreatedAt(),
+		Items:         make([]OrderItemResponse, len(items)),
 	}
-	for i, item := range o.Items {
+	for i, item := range items {
 		resp.Items[i] = OrderItemResponse{
-			ID:          item.ID,
-			Description: item.Description,
-			Quantity:    item.Quantity,
-			UnitPrice:   item.UnitPrice,
-			Amount:      item.Amount,
+			ID:          item.ID(),
+			Description: item.Description(),
+			Quantity:    item.Quantity(),
+			UnitPrice:   item.UnitPrice().Amount(),
+			Amount:      item.Amount().Amount(),
 		}
 	}
 	return resp
@@ -127,8 +130,8 @@ type InvoiceResponse struct {
 	PaidAt    *time.Time `json:"paid_at,omitempty"`
 }
 
-// ToResponse converts an Invoice to InvoiceResponse.
-func (i *Invoice) ToResponse() *InvoiceResponse {
+// InvoiceToResponse converts an InvoiceEntity to InvoiceResponse.
+func InvoiceToResponse(i *entity.InvoiceEntity) *InvoiceResponse {
 	return &InvoiceResponse{
 		ID:        i.ID,
 		InvoiceNo: i.InvoiceNo,

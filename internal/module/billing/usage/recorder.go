@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/uniedit/server/internal/module/billing"
+	"github.com/uniedit/server/internal/module/billing/domain"
 	"go.uber.org/zap"
 )
 
@@ -99,20 +100,18 @@ func (r *Recorder) persist(record *Record) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	usageRecord := &billing.UsageRecord{
-		UserID:       record.UserID,
-		Timestamp:    record.Timestamp,
-		RequestID:    record.RequestID,
-		TaskType:     record.TaskType,
-		ProviderID:   record.ProviderID,
-		ModelID:      record.ModelID,
-		InputTokens:  record.InputTokens,
-		OutputTokens: record.OutputTokens,
-		TotalTokens:  record.TotalTokens,
-		CostUSD:      record.CostUSD,
-		LatencyMs:    record.LatencyMs,
-		Success:      record.Success,
-	}
+	usageRecord := domain.NewUsageRecord(
+		record.UserID,
+		record.RequestID,
+		record.TaskType,
+		record.ProviderID,
+		record.ModelID,
+		record.InputTokens,
+		record.OutputTokens,
+		record.CostUSD,
+		record.LatencyMs,
+		record.Success,
+	)
 
 	if err := r.repo.CreateUsageRecord(ctx, usageRecord); err != nil {
 		r.logger.Error("failed to persist usage record",

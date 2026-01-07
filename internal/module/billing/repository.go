@@ -3,27 +3,30 @@ package billing
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/uniedit/server/internal/module/billing/domain"
+	"github.com/uniedit/server/internal/module/billing/entity"
 	"gorm.io/gorm"
 )
 
 // Repository defines the interface for billing data access.
 type Repository interface {
 	// Plan operations
-	ListActivePlans(ctx context.Context) ([]*Plan, error)
-	GetPlan(ctx context.Context, id string) (*Plan, error)
+	ListActivePlans(ctx context.Context) ([]*domain.Plan, error)
+	GetPlan(ctx context.Context, id string) (*domain.Plan, error)
 
 	// Subscription operations
-	CreateSubscription(ctx context.Context, sub *Subscription) error
-	GetSubscription(ctx context.Context, userID uuid.UUID) (*Subscription, error)
-	GetSubscriptionWithPlan(ctx context.Context, userID uuid.UUID) (*Subscription, error)
-	UpdateSubscription(ctx context.Context, sub *Subscription) error
-	GetSubscriptionByStripeID(ctx context.Context, stripeSubID string) (*Subscription, error)
+	CreateSubscription(ctx context.Context, sub *domain.Subscription) error
+	GetSubscription(ctx context.Context, userID uuid.UUID) (*domain.Subscription, error)
+	GetSubscriptionWithPlan(ctx context.Context, userID uuid.UUID) (*domain.Subscription, error)
+	UpdateSubscription(ctx context.Context, sub *domain.Subscription) error
+	GetSubscriptionByStripeID(ctx context.Context, stripeSubID string) (*domain.Subscription, error)
 
 	// Usage operations
-	CreateUsageRecord(ctx context.Context, record *UsageRecord) error
+	CreateUsageRecord(ctx context.Context, record *domain.UsageRecord) error
 	GetUsageStats(ctx context.Context, userID uuid.UUID, start, end time.Time) (*UsageStats, error)
 	GetMonthlyTokenUsage(ctx context.Context, userID uuid.UUID, start time.Time) (int64, error)
 	GetDailyRequestCount(ctx context.Context, userID uuid.UUID, date time.Time) (int, error)
@@ -40,84 +43,104 @@ func NewRepository(db *gorm.DB) Repository {
 
 // --- Plan Operations ---
 
-func (r *repository) ListActivePlans(ctx context.Context) ([]*Plan, error) {
-	var plans []*Plan
+func (r *repository) ListActivePlans(ctx context.Context) ([]*domain.Plan, error) {
+	var entities []*entity.PlanEntity
 	err := r.db.WithContext(ctx).
 		Where("active = ?", true).
 		Order("display_order ASC").
-		Find(&plans).Error
-	return plans, err
+		Find(&entities).Error
+	if err != nil {
+		return nil, fmt.Errorf("list active plans: %w", err)
+	}
+
+	plans := make([]*domain.Plan, len(entities))
+	for i, ent := range entities {
+		plans[i] = ent.ToDomain()
+	}
+	return plans, nil
 }
 
-func (r *repository) GetPlan(ctx context.Context, id string) (*Plan, error) {
-	var plan Plan
-	err := r.db.WithContext(ctx).First(&plan, "id = ?", id).Error
+func (r *repository) GetPlan(ctx context.Context, id string) (*domain.Plan, error) {
+	var ent entity.PlanEntity
+	err := r.db.WithContext(ctx).First(&ent, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrPlanNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("get plan: %w", err)
 	}
-	return &plan, nil
+	return ent.ToDomain(), nil
 }
 
 // --- Subscription Operations ---
 
-func (r *repository) CreateSubscription(ctx context.Context, sub *Subscription) error {
-	return r.db.WithContext(ctx).Create(sub).Error
+func (r *repository) CreateSubscription(ctx context.Context, sub *domain.Subscription) error {
+	ent := entity.FromDomainSubscription(sub)
+	if err := r.db.WithContext(ctx).Create(ent).Error; err != nil {
+		return fmt.Errorf("create subscription: %w", err)
+	}
+	return nil
 }
 
-func (r *repository) GetSubscription(ctx context.Context, userID uuid.UUID) (*Subscription, error) {
-	var sub Subscription
+func (r *repository) GetSubscription(ctx context.Context, userID uuid.UUID) (*domain.Subscription, error) {
+	var ent entity.SubscriptionEntity
 	err := r.db.WithContext(ctx).
 		Where("user_id = ?", userID).
-		First(&sub).Error
+		First(&ent).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrSubscriptionNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("get subscription: %w", err)
 	}
-	return &sub, nil
+	return ent.ToDomain(), nil
 }
 
-func (r *repository) GetSubscriptionWithPlan(ctx context.Context, userID uuid.UUID) (*Subscription, error) {
-	var sub Subscription
+func (r *repository) GetSubscriptionWithPlan(ctx context.Context, userID uuid.UUID) (*domain.Subscription, error) {
+	var ent entity.SubscriptionEntity
 	err := r.db.WithContext(ctx).
 		Preload("Plan").
 		Where("user_id = ?", userID).
-		First(&sub).Error
+		First(&ent).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrSubscriptionNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("get subscription with plan: %w", err)
 	}
-	return &sub, nil
+	return ent.ToDomain(), nil
 }
 
-func (r *repository) UpdateSubscription(ctx context.Context, sub *Subscription) error {
-	return r.db.WithContext(ctx).Save(sub).Error
+func (r *repository) UpdateSubscription(ctx context.Context, sub *domain.Subscription) error {
+	ent := entity.FromDomainSubscription(sub)
+	if err := r.db.WithContext(ctx).Save(ent).Error; err != nil {
+		return fmt.Errorf("update subscription: %w", err)
+	}
+	return nil
 }
 
-func (r *repository) GetSubscriptionByStripeID(ctx context.Context, stripeSubID string) (*Subscription, error) {
-	var sub Subscription
+func (r *repository) GetSubscriptionByStripeID(ctx context.Context, stripeSubID string) (*domain.Subscription, error) {
+	var ent entity.SubscriptionEntity
 	err := r.db.WithContext(ctx).
 		Where("stripe_subscription_id = ?", stripeSubID).
-		First(&sub).Error
+		First(&ent).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrSubscriptionNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("get subscription by stripe id: %w", err)
 	}
-	return &sub, nil
+	return ent.ToDomain(), nil
 }
 
 // --- Usage Operations ---
 
-func (r *repository) CreateUsageRecord(ctx context.Context, record *UsageRecord) error {
-	return r.db.WithContext(ctx).Create(record).Error
+func (r *repository) CreateUsageRecord(ctx context.Context, record *domain.UsageRecord) error {
+	ent := entity.FromDomainUsageRecord(record)
+	if err := r.db.WithContext(ctx).Create(ent).Error; err != nil {
+		return fmt.Errorf("create usage record: %w", err)
+	}
+	return nil
 }
 
 func (r *repository) GetUsageStats(ctx context.Context, userID uuid.UUID, start, end time.Time) (*UsageStats, error) {
@@ -133,12 +156,12 @@ func (r *repository) GetUsageStats(ctx context.Context, userID uuid.UUID, start,
 		TotalCostUSD  float64
 	}
 	err := r.db.WithContext(ctx).
-		Model(&UsageRecord{}).
+		Model(&entity.UsageRecordEntity{}).
 		Select("COALESCE(SUM(total_tokens), 0) as total_tokens, COUNT(*) as total_requests, COALESCE(SUM(cost_usd), 0) as total_cost_usd").
 		Where("user_id = ? AND timestamp >= ? AND timestamp < ? AND success = true", userID, start, end).
 		Scan(&totals).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get usage totals: %w", err)
 	}
 	stats.TotalTokens = totals.TotalTokens
 	stats.TotalRequests = int(totals.TotalRequests)
@@ -152,13 +175,13 @@ func (r *repository) GetUsageStats(ctx context.Context, userID uuid.UUID, start,
 		TotalCostUSD  float64
 	}
 	err = r.db.WithContext(ctx).
-		Model(&UsageRecord{}).
+		Model(&entity.UsageRecordEntity{}).
 		Select("model_id, COALESCE(SUM(total_tokens), 0) as total_tokens, COUNT(*) as total_requests, COALESCE(SUM(cost_usd), 0) as total_cost_usd").
 		Where("user_id = ? AND timestamp >= ? AND timestamp < ? AND success = true", userID, start, end).
 		Group("model_id").
 		Scan(&modelStats).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get usage by model: %w", err)
 	}
 	for _, m := range modelStats {
 		stats.ByModel[m.ModelID] = &ModelUsage{
@@ -177,14 +200,14 @@ func (r *repository) GetUsageStats(ctx context.Context, userID uuid.UUID, start,
 		TotalCostUSD  float64
 	}
 	err = r.db.WithContext(ctx).
-		Model(&UsageRecord{}).
+		Model(&entity.UsageRecordEntity{}).
 		Select("DATE(timestamp) as date, COALESCE(SUM(total_tokens), 0) as total_tokens, COUNT(*) as total_requests, COALESCE(SUM(cost_usd), 0) as total_cost_usd").
 		Where("user_id = ? AND timestamp >= ? AND timestamp < ? AND success = true", userID, start, end).
 		Group("DATE(timestamp)").
 		Order("DATE(timestamp) ASC").
 		Scan(&dailyStats).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get usage by day: %w", err)
 	}
 	for _, d := range dailyStats {
 		stats.ByDay = append(stats.ByDay, &DailyUsage{
@@ -201,11 +224,14 @@ func (r *repository) GetUsageStats(ctx context.Context, userID uuid.UUID, start,
 func (r *repository) GetMonthlyTokenUsage(ctx context.Context, userID uuid.UUID, start time.Time) (int64, error) {
 	var total int64
 	err := r.db.WithContext(ctx).
-		Model(&UsageRecord{}).
+		Model(&entity.UsageRecordEntity{}).
 		Select("COALESCE(SUM(total_tokens), 0)").
 		Where("user_id = ? AND timestamp >= ? AND success = true", userID, start).
 		Scan(&total).Error
-	return total, err
+	if err != nil {
+		return 0, fmt.Errorf("get monthly token usage: %w", err)
+	}
+	return total, nil
 }
 
 func (r *repository) GetDailyRequestCount(ctx context.Context, userID uuid.UUID, date time.Time) (int, error) {
@@ -213,8 +239,11 @@ func (r *repository) GetDailyRequestCount(ctx context.Context, userID uuid.UUID,
 	startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
 	endOfDay := startOfDay.Add(24 * time.Hour)
 	err := r.db.WithContext(ctx).
-		Model(&UsageRecord{}).
+		Model(&entity.UsageRecordEntity{}).
 		Where("user_id = ? AND timestamp >= ? AND timestamp < ?", userID, startOfDay, endOfDay).
 		Count(&count).Error
-	return int(count), err
+	if err != nil {
+		return 0, fmt.Errorf("get daily request count: %w", err)
+	}
+	return int(count), nil
 }

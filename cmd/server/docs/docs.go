@@ -1947,7 +1947,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_uniedit_server_internal_module_ai_media.ImageGenerationRequest"
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_module_media.ImageGenerationRequest"
                         }
                     }
                 ],
@@ -1955,7 +1955,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_uniedit_server_internal_module_ai_media.ImageGenerationResponse"
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_module_media.ImageGenerationResponse"
                         }
                     },
                     "400": {
@@ -2230,7 +2230,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_uniedit_server_internal_module_ai_media.VideoGenerationRequest"
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_module_media.VideoGenerationRequest"
                         }
                     }
                 ],
@@ -2238,7 +2238,7 @@ const docTemplate = `{
                     "202": {
                         "description": "Task created for async processing",
                         "schema": {
-                            "$ref": "#/definitions/github_com_uniedit_server_internal_module_ai_media.VideoGenerationResponse"
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_module_media.VideoGenerationResponse"
                         }
                     },
                     "400": {
@@ -2311,7 +2311,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_uniedit_server_internal_module_ai_media.VideoGenerationResponse"
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_module_media.VideoGenerationResponse"
                         }
                     },
                     "400": {
@@ -7126,179 +7126,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_uniedit_server_internal_module_ai_media.GeneratedImage": {
-            "type": "object",
-            "properties": {
-                "b64_json": {
-                    "type": "string"
-                },
-                "revised_prompt": {
-                    "type": "string"
-                },
-                "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_uniedit_server_internal_module_ai_media.GeneratedVideo": {
-            "type": "object",
-            "properties": {
-                "duration": {
-                    "type": "integer"
-                },
-                "file_size": {
-                    "type": "integer"
-                },
-                "format": {
-                    "type": "string"
-                },
-                "fps": {
-                    "type": "integer"
-                },
-                "height": {
-                    "type": "integer"
-                },
-                "url": {
-                    "type": "string"
-                },
-                "width": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_uniedit_server_internal_module_ai_media.ImageGenerationRequest": {
-            "type": "object",
-            "properties": {
-                "model": {
-                    "type": "string"
-                },
-                "n": {
-                    "type": "integer"
-                },
-                "negative_prompt": {
-                    "type": "string"
-                },
-                "prompt": {
-                    "type": "string"
-                },
-                "quality": {
-                    "type": "string"
-                },
-                "response_format": {
-                    "type": "string"
-                },
-                "size": {
-                    "type": "string"
-                },
-                "style": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_uniedit_server_internal_module_ai_media.ImageGenerationResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "integer"
-                },
-                "images": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_uniedit_server_internal_module_ai_media.GeneratedImage"
-                    }
-                },
-                "model": {
-                    "type": "string"
-                },
-                "task_id": {
-                    "type": "string"
-                },
-                "usage": {
-                    "$ref": "#/definitions/github_com_uniedit_server_internal_module_ai_media.ImageUsage"
-                }
-            }
-        },
-        "github_com_uniedit_server_internal_module_ai_media.ImageUsage": {
-            "type": "object",
-            "properties": {
-                "cost_usd": {
-                    "type": "number"
-                },
-                "total_images": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_uniedit_server_internal_module_ai_media.VideoGenerationRequest": {
-            "type": "object",
-            "properties": {
-                "aspect_ratio": {
-                    "type": "string"
-                },
-                "async": {
-                    "type": "boolean"
-                },
-                "duration": {
-                    "type": "integer"
-                },
-                "fps": {
-                    "type": "integer"
-                },
-                "input_image": {
-                    "type": "string"
-                },
-                "input_video": {
-                    "type": "string"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "prompt": {
-                    "type": "string"
-                },
-                "resolution": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_uniedit_server_internal_module_ai_media.VideoGenerationResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "integer"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "progress": {
-                    "type": "integer"
-                },
-                "status": {
-                    "$ref": "#/definitions/github_com_uniedit_server_internal_module_ai_media.VideoState"
-                },
-                "task_id": {
-                    "type": "string"
-                },
-                "video": {
-                    "$ref": "#/definitions/github_com_uniedit_server_internal_module_ai_media.GeneratedVideo"
-                }
-            }
-        },
-        "github_com_uniedit_server_internal_module_ai_media.VideoState": {
-            "type": "string",
-            "enum": [
-                "pending",
-                "processing",
-                "completed",
-                "failed"
-            ],
-            "x-enum-varnames": [
-                "VideoStatePending",
-                "VideoStateProcessing",
-                "VideoStateCompleted",
-                "VideoStateFailed"
-            ]
-        },
         "github_com_uniedit_server_internal_module_ai_provider.Capability": {
             "type": "string",
             "enum": [
@@ -7459,17 +7286,178 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_uniedit_server_internal_module_ai_task.Error": {
+        "github_com_uniedit_server_internal_module_media.GeneratedImage": {
             "type": "object",
             "properties": {
-                "code": {
+                "b64_json": {
                     "type": "string"
                 },
-                "details": {},
-                "message": {
+                "revised_prompt": {
+                    "type": "string"
+                },
+                "url": {
                     "type": "string"
                 }
             }
+        },
+        "github_com_uniedit_server_internal_module_media.GeneratedVideo": {
+            "type": "object",
+            "properties": {
+                "duration": {
+                    "type": "integer"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "format": {
+                    "type": "string"
+                },
+                "fps": {
+                    "type": "integer"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_module_media.ImageGenerationRequest": {
+            "type": "object",
+            "properties": {
+                "model": {
+                    "type": "string"
+                },
+                "n": {
+                    "type": "integer"
+                },
+                "negative_prompt": {
+                    "type": "string"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "quality": {
+                    "type": "string"
+                },
+                "response_format": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "string"
+                },
+                "style": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_module_media.ImageGenerationResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "integer"
+                },
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_uniedit_server_internal_module_media.GeneratedImage"
+                    }
+                },
+                "model": {
+                    "type": "string"
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "usage": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_module_media.ImageUsage"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_module_media.ImageUsage": {
+            "type": "object",
+            "properties": {
+                "cost_usd": {
+                    "type": "number"
+                },
+                "total_images": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_module_media.VideoGenerationRequest": {
+            "type": "object",
+            "properties": {
+                "aspect_ratio": {
+                    "type": "string"
+                },
+                "async": {
+                    "type": "boolean"
+                },
+                "duration": {
+                    "type": "integer"
+                },
+                "fps": {
+                    "type": "integer"
+                },
+                "input_image": {
+                    "type": "string"
+                },
+                "input_video": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "resolution": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_module_media.VideoGenerationResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "progress": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_module_media.VideoState"
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "video": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_module_media.GeneratedVideo"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_module_media.VideoState": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "processing",
+                "completed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "VideoStatePending",
+                "VideoStateProcessing",
+                "VideoStateCompleted",
+                "VideoStateFailed"
+            ]
         },
         "github_com_uniedit_server_internal_module_payment_provider.PaymentScene": {
             "type": "string",
@@ -7501,6 +7489,18 @@ const docTemplate = `{
                 "PaymentSceneNative",
                 "PaymentSceneMini"
             ]
+        },
+        "github_com_uniedit_server_internal_shared_task.Error": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "details": {},
+                "message": {
+                    "type": "string"
+                }
+            }
         },
         "internal_module_ai_handler.CreateGroupRequest": {
             "type": "object",
@@ -7696,7 +7696,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "error": {
-                    "$ref": "#/definitions/github_com_uniedit_server_internal_module_ai_task.Error"
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_shared_task.Error"
                 },
                 "id": {
                     "type": "string"

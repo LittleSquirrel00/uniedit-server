@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/uniedit/server/internal/module/billing/domain"
 )
 
 // GetPlansResponse represents the response for listing plans.
@@ -38,28 +39,26 @@ type PlanResponse struct {
 	MaxTeamMembers int `json:"max_team_members"`
 }
 
-// ToResponse converts a Plan to PlanResponse.
-func (p *Plan) ToResponse() *PlanResponse {
-	features := make([]string, len(p.Features))
-	copy(features, p.Features)
+// PlanToResponse converts a domain Plan to PlanResponse.
+func PlanToResponse(p *domain.Plan) *PlanResponse {
 	return &PlanResponse{
-		ID:                     p.ID,
-		Type:                   string(p.Type),
-		Name:                   p.Name,
-		Description:            p.Description,
-		BillingCycle:           string(p.BillingCycle),
-		PriceUSD:               p.PriceUSD,
-		MonthlyTokens:          p.MonthlyTokens,
-		DailyRequests:          p.DailyRequests,
-		MaxAPIKeys:             p.MaxAPIKeys,
-		Features:               features,
-		MonthlyChatTokens:      p.MonthlyChatTokens,
-		MonthlyImageCredits:    p.MonthlyImageCredits,
-		MonthlyVideoMinutes:    p.MonthlyVideoMinutes,
-		MonthlyEmbeddingTokens: p.MonthlyEmbeddingTokens,
-		GitStorageMB:           p.GitStorageMB,
-		LFSStorageMB:           p.LFSStorageMB,
-		MaxTeamMembers:         p.MaxTeamMembers,
+		ID:                     p.ID(),
+		Type:                   string(p.Type()),
+		Name:                   p.Name(),
+		Description:            p.Description(),
+		BillingCycle:           string(p.BillingCycle()),
+		PriceUSD:               p.PriceUSD(),
+		MonthlyTokens:          p.MonthlyTokens(),
+		DailyRequests:          p.DailyRequests(),
+		MaxAPIKeys:             p.MaxAPIKeys(),
+		Features:               p.Features(),
+		MonthlyChatTokens:      p.MonthlyChatTokens(),
+		MonthlyImageCredits:    p.MonthlyImageCredits(),
+		MonthlyVideoMinutes:    p.MonthlyVideoMinutes(),
+		MonthlyEmbeddingTokens: p.MonthlyEmbeddingTokens(),
+		GitStorageMB:           p.GitStorageMB(),
+		LFSStorageMB:           p.LFSStorageMB(),
+		MaxTeamMembers:         p.MaxTeamMembers(),
 	}
 }
 
@@ -77,21 +76,21 @@ type SubscriptionResponse struct {
 	Plan               *PlanResponse `json:"plan,omitempty"`
 }
 
-// ToResponse converts a Subscription to SubscriptionResponse.
-func (s *Subscription) ToResponse() *SubscriptionResponse {
+// SubscriptionToResponse converts a domain Subscription to SubscriptionResponse.
+func SubscriptionToResponse(s *domain.Subscription) *SubscriptionResponse {
 	resp := &SubscriptionResponse{
-		ID:                 s.ID,
-		PlanID:             s.PlanID,
-		Status:             string(s.Status),
-		CurrentPeriodStart: s.CurrentPeriodStart,
-		CurrentPeriodEnd:   s.CurrentPeriodEnd,
-		CancelAtPeriodEnd:  s.CancelAtPeriodEnd,
-		CanceledAt:         s.CanceledAt,
-		CreditsBalance:     s.CreditsBalance,
-		CreatedAt:          s.CreatedAt,
+		ID:                 s.ID(),
+		PlanID:             s.PlanID(),
+		Status:             string(s.Status()),
+		CurrentPeriodStart: s.CurrentPeriodStart(),
+		CurrentPeriodEnd:   s.CurrentPeriodEnd(),
+		CancelAtPeriodEnd:  s.CancelAtPeriodEnd(),
+		CanceledAt:         s.CanceledAt(),
+		CreditsBalance:     s.CreditsBalance(),
+		CreatedAt:          s.CreatedAt(),
 	}
-	if s.Plan != nil {
-		resp.Plan = s.Plan.ToResponse()
+	if s.Plan() != nil {
+		resp.Plan = PlanToResponse(s.Plan())
 	}
 	return resp
 }

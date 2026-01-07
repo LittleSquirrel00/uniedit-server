@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -365,49 +366,49 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 // --- Error Handling ---
 
 func (h *Handler) handleError(c *gin.Context, err error) {
-	switch err {
-	case ErrUserNotFound:
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-	case ErrInvalidToken, ErrInvalidTokenClaims:
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-	case ErrExpiredToken:
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token expired"})
-	case ErrRevokedToken:
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token revoked"})
-	case ErrTokenNotFound:
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token not found"})
-	case ErrInvalidOAuthProvider:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid oauth provider"})
-	case ErrInvalidOAuthCode:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid oauth code"})
-	case ErrInvalidOAuthState:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid oauth state"})
-	case ErrOAuthFailed:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "oauth authentication failed"})
-	case ErrAPIKeyNotFound:
-		c.JSON(http.StatusNotFound, gin.H{"error": "api key not found"})
-	case ErrAPIKeyAlreadyExists:
-		c.JSON(http.StatusConflict, gin.H{"error": "api key already exists for this provider"})
-	case ErrForbidden:
+	switch {
+	case errors.Is(err, ErrUserNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
+	case errors.Is(err, ErrInvalidToken), errors.Is(err, ErrInvalidTokenClaims):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_token"})
+	case errors.Is(err, ErrExpiredToken):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token_expired"})
+	case errors.Is(err, ErrRevokedToken):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token_revoked"})
+	case errors.Is(err, ErrTokenNotFound):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token_not_found"})
+	case errors.Is(err, ErrInvalidOAuthProvider):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_oauth_provider"})
+	case errors.Is(err, ErrInvalidOAuthCode):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_oauth_code"})
+	case errors.Is(err, ErrInvalidOAuthState):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_oauth_state"})
+	case errors.Is(err, ErrOAuthFailed):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "oauth_failed"})
+	case errors.Is(err, ErrAPIKeyNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "api_key_not_found"})
+	case errors.Is(err, ErrAPIKeyAlreadyExists):
+		c.JSON(http.StatusConflict, gin.H{"error": "api_key_already_exists"})
+	case errors.Is(err, ErrForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-	case ErrSystemAPIKeyNotFound:
-		c.JSON(http.StatusNotFound, gin.H{"error": "api key not found"})
-	case ErrSystemAPIKeyDisabled:
-		c.JSON(http.StatusForbidden, gin.H{"error": "api key is disabled"})
-	case ErrSystemAPIKeyExpired:
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "api key has expired"})
-	case ErrSystemAPIKeyLimitExceeded:
-		c.JSON(http.StatusConflict, gin.H{"error": "maximum number of api keys reached"})
-	case ErrInvalidAPIKeyFormat:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid api key format"})
-	case ErrInvalidAPIKeyScope:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid api key scope"})
-	case ErrRateLimitExceeded:
-		c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
-	case ErrTPMExceeded:
-		c.JSON(http.StatusTooManyRequests, gin.H{"error": "tokens per minute limit exceeded"})
+	case errors.Is(err, ErrSystemAPIKeyNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "api_key_not_found"})
+	case errors.Is(err, ErrSystemAPIKeyDisabled):
+		c.JSON(http.StatusForbidden, gin.H{"error": "api_key_disabled"})
+	case errors.Is(err, ErrSystemAPIKeyExpired):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "api_key_expired"})
+	case errors.Is(err, ErrSystemAPIKeyLimitExceeded):
+		c.JSON(http.StatusConflict, gin.H{"error": "api_key_limit_exceeded"})
+	case errors.Is(err, ErrInvalidAPIKeyFormat):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_api_key_format"})
+	case errors.Is(err, ErrInvalidAPIKeyScope):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_api_key_scope"})
+	case errors.Is(err, ErrRateLimitExceeded):
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate_limit_exceeded"})
+	case errors.Is(err, ErrTPMExceeded):
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "tpm_exceeded"})
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 	}
 }
 

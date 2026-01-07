@@ -26,12 +26,12 @@ func (a *TeamQuotaAdapter) GetTeamMemberLimit(ctx context.Context, teamOwnerID u
 		return -1, nil // Default to unlimited on error
 	}
 
-	plan := sub.Plan
+	plan := sub.Plan()
 	if plan == nil || plan.IsUnlimitedTeamMembers() {
 		return -1, nil
 	}
 
-	return plan.MaxTeamMembers, nil
+	return plan.MaxTeamMembers(), nil
 }
 
 // CheckTeamMemberQuota checks if the team owner has quota for adding more members.

@@ -74,7 +74,7 @@ func (h *Handler) CreateSubscriptionOrder(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"order": order.ToResponse(),
+		"order": OrderToResponse(order),
 	})
 }
 
@@ -111,7 +111,7 @@ func (h *Handler) CreateTopupOrder(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"order": order.ToResponse(),
+		"order": OrderToResponse(order),
 	})
 }
 
@@ -157,7 +157,7 @@ func (h *Handler) ListOrders(c *gin.Context) {
 
 	responses := make([]*OrderResponse, len(orders))
 	for i, order := range orders {
-		responses[i] = order.ToResponse()
+		responses[i] = OrderToResponse(order)
 	}
 
 	totalPages := int(total) / pagination.PageSize
@@ -208,12 +208,12 @@ func (h *Handler) GetOrder(c *gin.Context) {
 	}
 
 	// Check ownership
-	if order.UserID != userID {
+	if order.UserID() != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
 
-	c.JSON(http.StatusOK, order.ToResponse())
+	c.JSON(http.StatusOK, OrderToResponse(order))
 }
 
 // CancelOrder cancels a pending order.
@@ -249,7 +249,7 @@ func (h *Handler) CancelOrder(c *gin.Context) {
 		handleOrderError(c, err)
 		return
 	}
-	if order.UserID != userID {
+	if order.UserID() != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
@@ -288,7 +288,7 @@ func (h *Handler) ListInvoices(c *gin.Context) {
 
 	responses := make([]*InvoiceResponse, len(invoices))
 	for i, invoice := range invoices {
-		responses[i] = invoice.ToResponse()
+		responses[i] = InvoiceToResponse(invoice)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"invoices": responses})
@@ -333,7 +333,7 @@ func (h *Handler) GetInvoice(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, invoice.ToResponse())
+	c.JSON(http.StatusOK, InvoiceToResponse(invoice))
 }
 
 // --- Helpers ---

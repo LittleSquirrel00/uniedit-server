@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/uniedit/server/internal/module/payment/domain"
 	"github.com/uniedit/server/internal/module/payment/provider"
 )
 
@@ -76,22 +77,22 @@ type PaymentResponse struct {
 	CreatedAt      time.Time     `json:"created_at"`
 }
 
-// ToResponse converts a Payment to PaymentResponse.
-func (p *Payment) ToResponse() *PaymentResponse {
+// PaymentToResponse converts a domain Payment to PaymentResponse.
+func PaymentToResponse(p *domain.Payment) *PaymentResponse {
 	return &PaymentResponse{
-		ID:             p.ID,
-		OrderID:        p.OrderID,
-		Amount:         p.Amount,
-		Currency:       p.Currency,
-		Method:         p.Method,
-		Status:         p.Status,
-		Provider:       p.Provider,
-		FailureCode:    p.FailureCode,
-		FailureMessage: p.FailureMessage,
-		RefundedAmount: p.RefundedAmount,
-		SucceededAt:    p.SucceededAt,
-		FailedAt:       p.FailedAt,
-		CreatedAt:      p.CreatedAt,
+		ID:             p.ID(),
+		OrderID:        p.OrderID(),
+		Amount:         p.Amount(),
+		Currency:       p.Currency(),
+		Method:         PaymentMethod(p.Method()),
+		Status:         PaymentStatus(p.Status()),
+		Provider:       p.Provider(),
+		FailureCode:    p.FailureCode(),
+		FailureMessage: p.FailureMessage(),
+		RefundedAmount: p.RefundedAmount(),
+		SucceededAt:    p.SucceededAt(),
+		FailedAt:       p.FailedAt(),
+		CreatedAt:      p.CreatedAt(),
 	}
 }
 

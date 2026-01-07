@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/uniedit/server/internal/module/billing/domain"
 	"go.uber.org/zap"
 )
 
@@ -22,13 +23,13 @@ type QuotaManager interface {
 // ServiceInterface defines the billing service interface.
 type ServiceInterface interface {
 	// Plan operations
-	ListPlans(ctx context.Context) ([]*Plan, error)
-	GetPlan(ctx context.Context, planID string) (*Plan, error)
+	ListPlans(ctx context.Context) ([]*domain.Plan, error)
+	GetPlan(ctx context.Context, planID string) (*domain.Plan, error)
 
 	// Subscription operations
-	GetSubscription(ctx context.Context, userID uuid.UUID) (*Subscription, error)
-	CreateSubscription(ctx context.Context, userID uuid.UUID, planID string) (*Subscription, error)
-	CancelSubscription(ctx context.Context, userID uuid.UUID, immediately bool) (*Subscription, error)
+	GetSubscription(ctx context.Context, userID uuid.UUID) (*domain.Subscription, error)
+	CreateSubscription(ctx context.Context, userID uuid.UUID, planID string) (*domain.Subscription, error)
+	CancelSubscription(ctx context.Context, userID uuid.UUID, immediately bool) (*domain.Subscription, error)
 
 	// Quota operations
 	GetQuotaStatus(ctx context.Context, userID uuid.UUID) (*QuotaStatus, error)
@@ -45,7 +46,7 @@ type ServiceInterface interface {
 	DeductCredits(ctx context.Context, userID uuid.UUID, amount int64, reason string) error
 
 	// Stripe sync
-	UpdateSubscriptionFromStripe(ctx context.Context, stripeSubID string, status SubscriptionStatus, periodStart, periodEnd time.Time, cancelAtPeriodEnd bool) error
+	UpdateSubscriptionFromStripe(ctx context.Context, stripeSubID string, status domain.SubscriptionStatus, periodStart, periodEnd time.Time, cancelAtPeriodEnd bool) error
 }
 
 // Service implements billing operations.
@@ -66,21 +67,21 @@ func NewService(repo Repository, quotaManager QuotaManager, logger *zap.Logger) 
 
 // --- Plan Operations ---
 
-func (s *Service) ListPlans(ctx context.Context) ([]*Plan, error) {
+func (s *Service) ListPlans(ctx context.Context) ([]*domain.Plan, error) {
 	return s.repo.ListActivePlans(ctx)
 }
 
-func (s *Service) GetPlan(ctx context.Context, planID string) (*Plan, error) {
+func (s *Service) GetPlan(ctx context.Context, planID string) (*domain.Plan, error) {
 	return s.repo.GetPlan(ctx, planID)
 }
 
 // --- Subscription Operations ---
 
-func (s *Service) GetSubscription(ctx context.Context, userID uuid.UUID) (*Subscription, error) {
+func (s *Service) GetSubscription(ctx context.Context, userID uuid.UUID) (*domain.Subscription, error) {
 	return s.repo.GetSubscriptionWithPlan(ctx, userID)
 }
 
-func (s *Service) CreateSubscription(ctx context.Context, userID uuid.UUID, planID string) (*Subscription, error) {
+func (s *Service) CreateSubscription(ctx context.Context, userID uuid.UUID, planID string) (*domain.Subscription, error) {
 	// Check if subscription already exists
 	existing, err := s.repo.GetSubscription(ctx, userID)
 	if err == nil && existing != nil {
@@ -90,56 +91,38 @@ func (s *Service) CreateSubscription(ctx context.Context, userID uuid.UUID, plan
 		return nil, fmt.Errorf("check existing subscription: %w", err)
 	}
 
-	// Get plan
+	// Get plan to verify it exists and is active
 	plan, err := s.repo.GetPlan(ctx, planID)
 	if err != nil {
 		return nil, err
 	}
-	if !plan.Active {
+	if !plan.Active() {
 		return nil, ErrPlanNotActive
 	}
 
-	// Create subscription
-	now := time.Now()
-	periodEnd := endOfMonth(now)
-
-	sub := &Subscription{
-		ID:                 uuid.New(),
-		UserID:             userID,
-		PlanID:             planID,
-		Status:             SubscriptionStatusActive,
-		CurrentPeriodStart: now,
-		CurrentPeriodEnd:   periodEnd,
-	}
-
-	if err := s.repo.CreateSubscription(ctx, sub); err != nil {
+	// Create subscription using domain factory
+	sub, err := domain.NewSubscription(userID, planID)
+	if err != nil {
 		return nil, fmt.Errorf("create subscription: %w", err)
 	}
 
-	// Load plan for response
-	sub.Plan = plan
-	return sub, nil
+	if err := s.repo.CreateSubscription(ctx, sub); err != nil {
+		return nil, fmt.Errorf("save subscription: %w", err)
+	}
+
+	// Reload with plan for response
+	return s.repo.GetSubscriptionWithPlan(ctx, userID)
 }
 
-func (s *Service) CancelSubscription(ctx context.Context, userID uuid.UUID, immediately bool) (*Subscription, error) {
+func (s *Service) CancelSubscription(ctx context.Context, userID uuid.UUID, immediately bool) (*domain.Subscription, error) {
 	sub, err := s.repo.GetSubscriptionWithPlan(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	if sub.IsCanceled() {
+	// Use domain method for cancellation
+	if err := sub.Cancel(immediately); err != nil {
 		return nil, ErrSubscriptionCanceled
-	}
-
-	now := time.Now()
-	if immediately {
-		sub.Status = SubscriptionStatusCanceled
-		sub.CanceledAt = &now
-		// Downgrade to free plan
-		sub.PlanID = "free"
-	} else {
-		sub.CancelAtPeriodEnd = true
-		sub.CanceledAt = &now
 	}
 
 	if err := s.repo.UpdateSubscription(ctx, sub); err != nil {
@@ -157,11 +140,16 @@ func (s *Service) GetQuotaStatus(ctx context.Context, userID uuid.UUID) (*QuotaS
 		return nil, err
 	}
 
+	plan := sub.Plan()
+	if plan == nil {
+		return nil, fmt.Errorf("subscription has no plan loaded")
+	}
+
 	// Get current usage from Redis
-	tokensUsed, err := s.quotaManager.GetTokensUsed(ctx, userID, sub.CurrentPeriodStart)
+	tokensUsed, err := s.quotaManager.GetTokensUsed(ctx, userID, sub.CurrentPeriodStart())
 	if err != nil {
 		s.logger.Warn("failed to get tokens from redis, using DB", zap.Error(err))
-		tokensUsed, _ = s.repo.GetMonthlyTokenUsage(ctx, userID, sub.CurrentPeriodStart)
+		tokensUsed, _ = s.repo.GetMonthlyTokenUsage(ctx, userID, sub.CurrentPeriodStart())
 	}
 
 	requestsToday, err := s.quotaManager.GetRequestsToday(ctx, userID)
@@ -170,7 +158,7 @@ func (s *Service) GetQuotaStatus(ctx context.Context, userID uuid.UUID) (*QuotaS
 		requestsToday, _ = s.repo.GetDailyRequestCount(ctx, userID, time.Now().UTC())
 	}
 
-	tokenLimit := sub.Plan.MonthlyTokens
+	tokenLimit := plan.MonthlyTokens()
 	tokensRemaining := tokenLimit - tokensUsed
 	if tokenLimit == -1 {
 		tokensRemaining = -1
@@ -179,13 +167,13 @@ func (s *Service) GetQuotaStatus(ctx context.Context, userID uuid.UUID) (*QuotaS
 	}
 
 	return &QuotaStatus{
-		Plan:            sub.Plan.Name,
+		Plan:            plan.Name(),
 		TokensUsed:      tokensUsed,
 		TokensLimit:     tokenLimit,
 		TokensRemaining: tokensRemaining,
 		RequestsToday:   requestsToday,
-		RequestsLimit:   sub.Plan.DailyRequests,
-		ResetAt:         sub.CurrentPeriodEnd,
+		RequestsLimit:   plan.DailyRequests(),
+		ResetAt:         sub.CurrentPeriodEnd(),
 	}, nil
 }
 
@@ -193,7 +181,6 @@ func (s *Service) CheckQuota(ctx context.Context, userID uuid.UUID, taskType str
 	sub, err := s.repo.GetSubscriptionWithPlan(ctx, userID)
 	if err != nil {
 		if err == ErrSubscriptionNotFound {
-			// No subscription = no quota
 			return ErrQuotaExceeded
 		}
 		return err
@@ -203,12 +190,17 @@ func (s *Service) CheckQuota(ctx context.Context, userID uuid.UUID, taskType str
 		return ErrQuotaExceeded
 	}
 
+	plan := sub.Plan()
+	if plan == nil {
+		return fmt.Errorf("subscription has no plan loaded")
+	}
+
 	return s.quotaManager.CheckQuota(
 		ctx,
 		userID,
-		sub.CurrentPeriodStart,
-		sub.Plan.MonthlyTokens,
-		sub.Plan.DailyRequests,
+		sub.CurrentPeriodStart(),
+		plan.MonthlyTokens(),
+		plan.DailyRequests(),
 	)
 }
 
@@ -219,7 +211,7 @@ func (s *Service) ConsumeQuota(ctx context.Context, userID uuid.UUID, tokens int
 	}
 
 	// Increment token counter
-	_, err = s.quotaManager.IncrementTokens(ctx, userID, sub.CurrentPeriodStart, sub.CurrentPeriodEnd, int64(tokens))
+	_, err = s.quotaManager.IncrementTokens(ctx, userID, sub.CurrentPeriodStart(), sub.CurrentPeriodEnd(), int64(tokens))
 	if err != nil {
 		s.logger.Error("failed to increment tokens in redis", zap.Error(err))
 	}
@@ -260,20 +252,18 @@ func (s *Service) GetUsageStats(ctx context.Context, userID uuid.UUID, period Us
 }
 
 func (s *Service) RecordUsage(ctx context.Context, userID uuid.UUID, req *RecordUsageRequest) error {
-	record := &UsageRecord{
-		UserID:       userID,
-		Timestamp:    time.Now(),
-		RequestID:    req.RequestID,
-		TaskType:     req.TaskType,
-		ProviderID:   req.ProviderID,
-		ModelID:      req.ModelID,
-		InputTokens:  req.InputTokens,
-		OutputTokens: req.OutputTokens,
-		TotalTokens:  req.InputTokens + req.OutputTokens,
-		CostUSD:      req.CostUSD,
-		LatencyMs:    req.LatencyMs,
-		Success:      req.Success,
-	}
+	record := domain.NewUsageRecord(
+		userID,
+		req.RequestID,
+		req.TaskType,
+		req.ProviderID,
+		req.ModelID,
+		req.InputTokens,
+		req.OutputTokens,
+		req.CostUSD,
+		req.LatencyMs,
+		req.Success,
+	)
 
 	if err := s.repo.CreateUsageRecord(ctx, record); err != nil {
 		return fmt.Errorf("create usage record: %w", err)
@@ -281,7 +271,7 @@ func (s *Service) RecordUsage(ctx context.Context, userID uuid.UUID, req *Record
 
 	// Update quota counters if successful
 	if req.Success {
-		if err := s.ConsumeQuota(ctx, userID, record.TotalTokens); err != nil {
+		if err := s.ConsumeQuota(ctx, userID, record.TotalTokens()); err != nil {
 			s.logger.Error("failed to consume quota", zap.Error(err))
 		}
 	}
@@ -296,7 +286,7 @@ func (s *Service) GetBalance(ctx context.Context, userID uuid.UUID) (int64, erro
 	if err != nil {
 		return 0, err
 	}
-	return sub.CreditsBalance, nil
+	return sub.CreditsBalance(), nil
 }
 
 func (s *Service) AddCredits(ctx context.Context, userID uuid.UUID, amount int64, source string) error {
@@ -305,7 +295,11 @@ func (s *Service) AddCredits(ctx context.Context, userID uuid.UUID, amount int64
 		return err
 	}
 
-	sub.CreditsBalance += amount
+	// Use domain method for adding credits
+	if err := sub.AddCredits(amount); err != nil {
+		return err
+	}
+
 	if err := s.repo.UpdateSubscription(ctx, sub); err != nil {
 		return fmt.Errorf("update subscription: %w", err)
 	}
@@ -325,11 +319,11 @@ func (s *Service) DeductCredits(ctx context.Context, userID uuid.UUID, amount in
 		return err
 	}
 
-	if sub.CreditsBalance < amount {
+	// Use domain method for deducting credits
+	if err := sub.DeductCredits(amount); err != nil {
 		return ErrInsufficientCredits
 	}
 
-	sub.CreditsBalance -= amount
 	if err := s.repo.UpdateSubscription(ctx, sub); err != nil {
 		return fmt.Errorf("update subscription: %w", err)
 	}
@@ -345,33 +339,27 @@ func (s *Service) DeductCredits(ctx context.Context, userID uuid.UUID, amount in
 
 // --- Stripe Sync ---
 
-func (s *Service) UpdateSubscriptionFromStripe(ctx context.Context, stripeSubID string, status SubscriptionStatus, periodStart, periodEnd time.Time, cancelAtPeriodEnd bool) error {
+func (s *Service) UpdateSubscriptionFromStripe(ctx context.Context, stripeSubID string, status domain.SubscriptionStatus, periodStart, periodEnd time.Time, cancelAtPeriodEnd bool) error {
 	sub, err := s.repo.GetSubscriptionByStripeID(ctx, stripeSubID)
 	if err != nil {
 		return err
 	}
 
-	sub.Status = status
-	sub.CurrentPeriodStart = periodStart
-	sub.CurrentPeriodEnd = periodEnd
-	sub.CancelAtPeriodEnd = cancelAtPeriodEnd
+	oldPeriodStart := sub.CurrentPeriodStart()
+
+	// Use domain method for Stripe updates
+	sub.UpdateFromStripe(status, periodStart, periodEnd, cancelAtPeriodEnd)
 
 	if err := s.repo.UpdateSubscription(ctx, sub); err != nil {
 		return fmt.Errorf("update subscription: %w", err)
 	}
 
 	// Reset quota counters on period renewal
-	if periodStart.After(sub.CurrentPeriodStart) {
-		if err := s.quotaManager.ResetTokens(ctx, sub.UserID, sub.CurrentPeriodStart); err != nil {
+	if periodStart.After(oldPeriodStart) {
+		if err := s.quotaManager.ResetTokens(ctx, sub.UserID(), oldPeriodStart); err != nil {
 			s.logger.Error("failed to reset tokens", zap.Error(err))
 		}
 	}
 
 	return nil
-}
-
-// --- Helpers ---
-
-func endOfMonth(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month()+1, 1, 0, 0, 0, 0, time.UTC).Add(-time.Nanosecond)
 }

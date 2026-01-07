@@ -47,7 +47,7 @@ func (a *AITaskQuotaAdapter) RecordChatUsage(ctx context.Context, userID uuid.UU
 	if err != nil {
 		return nil // Ignore on error
 	}
-	return a.checker.IncrementChatTokens(ctx, userID, sub.CurrentPeriodStart, sub.CurrentPeriodEnd, tokens)
+	return a.checker.IncrementChatTokens(ctx, userID, sub.CurrentPeriodStart(), sub.CurrentPeriodEnd(), tokens)
 }
 
 // RecordImageUsage records image credit usage after request completion.
@@ -57,7 +57,7 @@ func (a *AITaskQuotaAdapter) RecordImageUsage(ctx context.Context, userID uuid.U
 	if err != nil {
 		return nil // Ignore on error
 	}
-	return a.checker.IncrementImageCredits(ctx, userID, sub.CurrentPeriodStart, sub.CurrentPeriodEnd, int64(count))
+	return a.checker.IncrementImageCredits(ctx, userID, sub.CurrentPeriodStart(), sub.CurrentPeriodEnd(), int64(count))
 }
 
 // RecordVideoUsage records video minutes usage after request completion.
@@ -67,7 +67,7 @@ func (a *AITaskQuotaAdapter) RecordVideoUsage(ctx context.Context, userID uuid.U
 	if err != nil {
 		return nil // Ignore on error
 	}
-	return a.checker.IncrementVideoMinutes(ctx, userID, sub.CurrentPeriodStart, sub.CurrentPeriodEnd, int64(minutes))
+	return a.checker.IncrementVideoMinutes(ctx, userID, sub.CurrentPeriodStart(), sub.CurrentPeriodEnd(), int64(minutes))
 }
 
 // RecordEmbeddingUsage records embedding token usage after request completion.
@@ -76,5 +76,5 @@ func (a *AITaskQuotaAdapter) RecordEmbeddingUsage(ctx context.Context, userID uu
 	if err != nil {
 		return nil // Ignore on error
 	}
-	return a.checker.IncrementEmbeddingTokens(ctx, userID, sub.CurrentPeriodStart, sub.CurrentPeriodEnd, tokens)
+	return a.checker.IncrementEmbeddingTokens(ctx, userID, sub.CurrentPeriodStart(), sub.CurrentPeriodEnd(), tokens)
 }

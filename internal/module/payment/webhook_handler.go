@@ -82,12 +82,7 @@ func (h *WebhookHandler) HandleStripeWebhook(c *gin.Context) {
 	}
 
 	// Store event
-	webhookEvent := &StripeWebhookEvent{
-		EventID: event.ID,
-		Type:    string(event.Type),
-		Data:    string(payload),
-	}
-	if err := h.paymentService.CreateWebhookEvent(ctx, webhookEvent); err != nil {
+	if err := h.paymentService.CreateWebhookEvent(ctx, event.ID, string(event.Type), string(payload)); err != nil {
 		h.logger.Error("failed to store webhook event", zap.Error(err))
 	}
 

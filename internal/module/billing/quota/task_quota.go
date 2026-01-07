@@ -43,7 +43,7 @@ func (c *TaskQuotaChecker) CheckChatQuota(ctx context.Context, userID uuid.UUID,
 		return nil
 	}
 
-	plan := sub.Plan
+	plan := sub.Plan()
 	if plan == nil {
 		return nil
 	}
@@ -55,7 +55,7 @@ func (c *TaskQuotaChecker) CheckChatQuota(ctx context.Context, userID uuid.UUID,
 	}
 
 	// Get current usage
-	used, err := c.GetChatTokensUsed(ctx, userID, sub.CurrentPeriodStart)
+	used, err := c.GetChatTokensUsed(ctx, userID, sub.CurrentPeriodStart())
 	if err != nil {
 		c.logger.Warn("redis error, allowing request", zap.Error(err))
 		return nil
@@ -76,18 +76,18 @@ func (c *TaskQuotaChecker) CheckImageQuota(ctx context.Context, userID uuid.UUID
 		return nil
 	}
 
-	plan := sub.Plan
+	plan := sub.Plan()
 	if plan == nil || plan.IsUnlimitedImageCredits() {
 		return nil
 	}
 
-	used, err := c.GetImageCreditsUsed(ctx, userID, sub.CurrentPeriodStart)
+	used, err := c.GetImageCreditsUsed(ctx, userID, sub.CurrentPeriodStart())
 	if err != nil {
 		c.logger.Warn("redis error, allowing request", zap.Error(err))
 		return nil
 	}
 
-	if used >= int64(plan.MonthlyImageCredits) {
+	if used >= int64(plan.MonthlyImageCredits()) {
 		return ErrImageQuotaExceeded
 	}
 
@@ -102,18 +102,18 @@ func (c *TaskQuotaChecker) CheckVideoQuota(ctx context.Context, userID uuid.UUID
 		return nil
 	}
 
-	plan := sub.Plan
+	plan := sub.Plan()
 	if plan == nil || plan.IsUnlimitedVideoMinutes() {
 		return nil
 	}
 
-	used, err := c.GetVideoMinutesUsed(ctx, userID, sub.CurrentPeriodStart)
+	used, err := c.GetVideoMinutesUsed(ctx, userID, sub.CurrentPeriodStart())
 	if err != nil {
 		c.logger.Warn("redis error, allowing request", zap.Error(err))
 		return nil
 	}
 
-	if int(used)+estimatedMinutes > plan.MonthlyVideoMinutes {
+	if int(used)+estimatedMinutes > plan.MonthlyVideoMinutes() {
 		return ErrVideoQuotaExceeded
 	}
 
@@ -128,18 +128,18 @@ func (c *TaskQuotaChecker) CheckEmbeddingQuota(ctx context.Context, userID uuid.
 		return nil
 	}
 
-	plan := sub.Plan
+	plan := sub.Plan()
 	if plan == nil || plan.IsUnlimitedEmbeddingTokens() {
 		return nil
 	}
 
-	used, err := c.GetEmbeddingTokensUsed(ctx, userID, sub.CurrentPeriodStart)
+	used, err := c.GetEmbeddingTokensUsed(ctx, userID, sub.CurrentPeriodStart())
 	if err != nil {
 		c.logger.Warn("redis error, allowing request", zap.Error(err))
 		return nil
 	}
 
-	if used+estimatedTokens > plan.MonthlyEmbeddingTokens {
+	if used+estimatedTokens > plan.MonthlyEmbeddingTokens() {
 		return ErrEmbeddingQuotaExceeded
 	}
 

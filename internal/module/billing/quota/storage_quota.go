@@ -52,7 +52,7 @@ func (c *StorageQuotaChecker) CheckGitStorageQuota(ctx context.Context, userID u
 		return nil
 	}
 
-	plan := sub.Plan
+	plan := sub.Plan()
 	if plan == nil || plan.IsUnlimitedGitStorage() {
 		return nil
 	}
@@ -63,7 +63,7 @@ func (c *StorageQuotaChecker) CheckGitStorageQuota(ctx context.Context, userID u
 		return nil
 	}
 
-	limitBytes := plan.GitStorageMB * 1024 * 1024
+	limitBytes := plan.GitStorageMB() * 1024 * 1024
 	if usage.GitBytes+additionalBytes > limitBytes {
 		return ErrGitStorageQuotaExceeded
 	}
@@ -79,7 +79,7 @@ func (c *StorageQuotaChecker) CheckLFSStorageQuota(ctx context.Context, userID u
 		return nil
 	}
 
-	plan := sub.Plan
+	plan := sub.Plan()
 	if plan == nil || plan.IsUnlimitedLFSStorage() {
 		return nil
 	}
@@ -90,7 +90,7 @@ func (c *StorageQuotaChecker) CheckLFSStorageQuota(ctx context.Context, userID u
 		return nil
 	}
 
-	limitBytes := plan.LFSStorageMB * 1024 * 1024
+	limitBytes := plan.LFSStorageMB() * 1024 * 1024
 	if usage.LFSBytes+additionalBytes > limitBytes {
 		return ErrLFSStorageQuotaExceeded
 	}

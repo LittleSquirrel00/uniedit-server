@@ -27,13 +27,13 @@ func (a *GitStorageQuotaAdapter) GetStorageQuota(ctx context.Context, userID uui
 		return -1, nil // Default to unlimited on error
 	}
 
-	plan := sub.Plan
+	plan := sub.Plan()
 	if plan == nil || plan.IsUnlimitedGitStorage() {
 		return -1, nil
 	}
 
 	// Convert MB to bytes
-	return plan.GitStorageMB * 1024 * 1024, nil
+	return plan.GitStorageMB() * 1024 * 1024, nil
 }
 
 // GetStorageUsed returns the storage used in bytes for a user.
@@ -71,13 +71,13 @@ func (a *LFSStorageQuotaAdapter) GetLFSQuota(ctx context.Context, userID uuid.UU
 		return -1, nil // Default to unlimited on error
 	}
 
-	plan := sub.Plan
+	plan := sub.Plan()
 	if plan == nil || plan.IsUnlimitedLFSStorage() {
 		return -1, nil
 	}
 
 	// Convert MB to bytes
-	return plan.LFSStorageMB * 1024 * 1024, nil
+	return plan.LFSStorageMB() * 1024 * 1024, nil
 }
 
 // GetLFSUsed returns the LFS storage used in bytes for a user.

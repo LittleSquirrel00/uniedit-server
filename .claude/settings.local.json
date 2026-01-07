@@ -81,7 +81,21 @@
       "Bash(__NEW_LINE__ echo -e \"\\\\n=== Test POST /api/v1/admin/providers \\(create provider\\) ===\")",
       "Bash(__NEW_LINE__ echo -e \"\\\\n=== Test GET /api/v1/admin/providers \\(after creating\\) ===\")",
       "Bash(docker logs:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(psql:*)",
+      "Bash(redis-cli ping:*)",
+      "Bash(brew services:*)",
+      "Bash(go run:*)",
+      "Bash(brew install:*)",
+      "Bash(for f in /Users/zhangfeng144/Git/uniedit-server/migrations/*.up.sql)",
+      "Bash(do)",
+      "Bash(echo:*)",
+      "Bash(docker-compose:*)",
+      "Bash(tee:*)",
+      "Bash(for dir in /Users/zhangfeng144/Git/uniedit-server/internal/module/*/)",
+      "Bash(do echo '=== $\\(basename $dir\\) ===' ls -1 $dir)",
+      "Bash(paste:*)",
+      "Bash(tr:*)"
     ]
   }
 }

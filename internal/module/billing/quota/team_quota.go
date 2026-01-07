@@ -39,7 +39,7 @@ func (c *TeamQuotaChecker) CheckTeamMemberQuota(ctx context.Context, teamOwnerID
 		return nil
 	}
 
-	plan := sub.Plan
+	plan := sub.Plan()
 	if plan == nil || plan.IsUnlimitedTeamMembers() {
 		return nil
 	}
@@ -47,7 +47,7 @@ func (c *TeamQuotaChecker) CheckTeamMemberQuota(ctx context.Context, teamOwnerID
 	// Total committed = current members + pending invites
 	totalCommitted := currentCount + pendingInvites
 
-	if totalCommitted >= plan.MaxTeamMembers {
+	if totalCommitted >= plan.MaxTeamMembers() {
 		return ErrTeamMemberQuotaExceeded
 	}
 
@@ -61,7 +61,7 @@ func (c *TeamQuotaChecker) GetTeamMemberQuotaStatus(ctx context.Context, teamOwn
 		return nil, fmt.Errorf("get subscription: %w", err)
 	}
 
-	plan := sub.Plan
+	plan := sub.Plan()
 	if plan == nil {
 		return &TeamMemberQuotaStatus{
 			Current:   currentCount,
@@ -75,12 +75,12 @@ func (c *TeamQuotaChecker) GetTeamMemberQuotaStatus(ctx context.Context, teamOwn
 	status := &TeamMemberQuotaStatus{
 		Current:   currentCount,
 		Pending:   pendingInvites,
-		Limit:     plan.MaxTeamMembers,
+		Limit:     plan.MaxTeamMembers(),
 		Unlimited: plan.IsUnlimitedTeamMembers(),
 	}
 
 	if !status.Unlimited {
-		status.Remaining = plan.MaxTeamMembers - currentCount - pendingInvites
+		status.Remaining = plan.MaxTeamMembers() - currentCount - pendingInvites
 		if status.Remaining < 0 {
 			status.Remaining = 0
 			status.OverQuota = true

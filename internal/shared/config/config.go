@@ -48,10 +48,14 @@ type DatabaseConfig struct {
 
 // DSN returns the database connection string.
 func (c *DatabaseConfig) DSN() string {
-	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		c.Host, c.Port, c.User, c.Password, c.Database, c.SSLMode,
+	dsn := fmt.Sprintf(
+		"host=%s port=%d user=%s dbname=%s sslmode=%s",
+		c.Host, c.Port, c.User, c.Database, c.SSLMode,
 	)
+	if c.Password != "" {
+		dsn += fmt.Sprintf(" password=%s", c.Password)
+	}
+	return dsn
 }
 
 // RedisConfig holds Redis configuration.

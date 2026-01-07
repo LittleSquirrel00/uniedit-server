@@ -56,7 +56,7 @@ func (h *Handler) ListPlans(c *gin.Context) {
 
 	responses := make([]*PlanResponse, len(plans))
 	for i, plan := range plans {
-		responses[i] = plan.ToResponse()
+		responses[i] = PlanToResponse(plan)
 	}
 
 	c.JSON(http.StatusOK, GetPlansResponse{Plans: responses})
@@ -97,7 +97,7 @@ func (h *Handler) GetSubscription(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"subscription": sub.ToResponse(),
+		"subscription": SubscriptionToResponse(sub),
 		"quota":        quota,
 	})
 }
@@ -135,7 +135,7 @@ func (h *Handler) CancelSubscription(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, sub.ToResponse())
+	c.JSON(http.StatusOK, SubscriptionToResponse(sub))
 }
 
 // GetQuotaStatus returns the user's quota status.
