@@ -1,5 +1,6 @@
 # Binaries
 bin/
+server
 *.exe
 *.exe~
 *.dll
@@ -89,3 +90,8 @@ mage_output_file.go
 
 # Claude Code
 .claude/plans/
+
+# Docker volumes (local development data)
+postgres_data/
+redis_data/
+minio_data/
