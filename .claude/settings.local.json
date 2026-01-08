@@ -95,7 +95,10 @@
       "Bash(for dir in /Users/zhangfeng144/Git/uniedit-server/internal/module/*/)",
       "Bash(do echo '=== $\\(basename $dir\\) ===' ls -1 $dir)",
       "Bash(paste:*)",
-      "Bash(tr:*)"
+      "Bash(tr:*)",
+      "Bash(__NEW_LINE__ echo \"\")",
+      "Bash(go list:*)",
+      "Bash(go tool cover:*)"
     ]
   }
 }

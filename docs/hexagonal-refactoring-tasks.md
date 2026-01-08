@@ -1063,23 +1063,56 @@ rm -rf internal/module/
 
 | Phase | 任务 | 状态 | 负责人 | 备注 |
 |-------|------|------|--------|------|
-| P0.1 | 创建目录结构 | ⬜ | | |
-| P0.2 | 通用 Port 定义 | ⬜ | | |
-| P0.3 | 通用 Model 定义 | ⬜ | | |
-| P1.1 | User Model | ⬜ | | |
-| P1.2 | User Outbound Port | ⬜ | | |
-| P1.3 | User Inbound Port | ⬜ | | |
-| P1.4 | User Domain | ⬜ | | |
-| P1.5 | User Postgres Adapter | ⬜ | | |
-| P1.6 | User HTTP Adapter | ⬜ | | |
-| P1.7 | Domain Registry | ⬜ | | |
-| P1.8 | User Domain 测试 | ⬜ | | |
-| P1.9 | 集成验证 | ⬜ | | |
-| P2.x | Auth 迁移 | ⬜ | | |
-| P3.x | Billing 迁移 | ⬜ | | |
-| P4.x | Order 迁移 | ⬜ | | |
-| P5.x | Payment 迁移 | ⬜ | | |
-| P6.x | AI 迁移 | ⬜ | | |
+| P0.1 | 创建目录结构 | ✅ | Claude | 完成 |
+| P0.2 | 通用 Port 定义 | ✅ | Claude | database/cache/storage/message |
+| P0.3 | 通用 Model 定义 | ✅ | Claude | request/response |
+| P1.1 | User Model | ✅ | Claude | 完成 |
+| P1.2 | User Outbound Port | ✅ | Claude | 完成 |
+| P1.3 | User Inbound Port | ✅ | Claude | 完成 |
+| P1.4 | User Domain | ✅ | Claude | 完成 |
+| P1.5 | User Postgres Adapter | ✅ | Claude | 完成 |
+| P1.6 | User HTTP Adapter | ✅ | Claude | 完成 |
+| P1.7 | Domain Registry | ✅ | Claude | 完成 |
+| P1.8 | User Domain 测试 | ✅ | Claude | 6 个测试用例通过 |
+| P1.9 | 集成验证 | ✅ | Claude | 编译通过，测试通过 |
+| P2.1 | Auth Model | ✅ | Claude | RefreshToken, UserAPIKey, SystemAPIKey, TokenPair |
+| P2.2 | Auth Outbound Port | ✅ | Claude | RefreshTokenDB, UserAPIKeyDB, SystemAPIKeyDB, OAuth, JWT, Crypto |
+| P2.3 | Auth Inbound Port | ✅ | Claude | AuthHttpPort, APIKeyHttpPort, SystemAPIKeyHttpPort |
+| P2.4 | Auth Domain | ✅ | Claude | OAuth登录, Token刷新, API Key管理 |
+| P2.5 | Auth Postgres Adapter | ✅ | Claude | refresh_token, user_api_key, system_api_key |
+| P2.6 | Auth Redis Adapter | ✅ | Claude | oauth_state, rate_limiter |
+| P2.7 | OAuth Adapter | ✅ | Claude | GitHub, Google providers, Registry |
+| P2.8 | Auth HTTP Adapter | ✅ | Claude | auth, api_key, system_api_key handlers |
+| P2.9 | Domain Registry | ✅ | Claude | 添加 Auth Domain 到注册表 |
+| P2.10 | Auth Domain 测试 | ✅ | Claude | 15 个测试用例全部通过 |
+| P2.11 | 集成验证 | ✅ | Claude | 编译通过，测试通过，依赖方向正确 |
+| P3.1 | Billing Model | ✅ | Claude | Plan, Subscription, UsageRecord, Quota, Balance, Credits |
+| P3.2 | Billing Outbound Port | ✅ | Claude | PlanDB, SubscriptionDB, UsageDB, QuotaCache |
+| P3.3 | Billing Inbound Port | ✅ | Claude | BillingHttpPort, UsageHttpPort, CreditsHttpPort |
+| P3.4 | Billing Domain | ✅ | Claude | 订阅管理, 用量记录, 配额检查, 余额管理 |
+| P3.5 | Billing Postgres Adapter | ✅ | Claude | plan, subscription, usage_record |
+| P3.6 | Billing Redis Adapter | ✅ | Claude | quota_cache |
+| P3.7 | Billing HTTP Adapter | ✅ | Claude | billing, usage, credits handlers |
+| P3.8 | Billing Domain 测试 | ✅ | Claude | 覆盖率 41.3% |
+| P3.9 | 集成验证 | ✅ | Claude | 编译通过，测试通过 |
+| P4.1 | Order Model | ✅ | Claude | Order, OrderItem, Invoice, OrderStatus |
+| P4.2 | Order Outbound Port | ✅ | Claude | OrderDB, OrderItemDB, InvoiceDB |
+| P4.3 | Order Inbound Port | ✅ | Claude | OrderHttpPort, InvoiceHttpPort |
+| P4.4 | Order Domain | ✅ | Claude | 订单创建, 状态流转, 发票管理 |
+| P4.5 | Order Postgres Adapter | ✅ | Claude | order, order_item, invoice |
+| P4.6 | Order HTTP Adapter | ✅ | Claude | order, invoice handlers |
+| P4.7 | Order Domain 测试 | ✅ | Claude | 覆盖率 57.3% |
+| P4.8 | 集成验证 | ✅ | Claude | 编译通过，测试通过 |
+| P5.1 | Payment Model | ✅ | Claude | Payment, PaymentStatus, PaymentMethod, WebhookEvent |
+| P5.2 | Payment Outbound Port | ✅ | Claude | PaymentDB, WebhookEventDB, ProviderRegistry, OrderReader, BillingReader |
+| P5.3 | Payment Inbound Port | ✅ | Claude | PaymentHttpPort, RefundHttpPort, WebhookHttpPort |
+| P5.4 | Payment Domain | ✅ | Claude | Stripe支付, 原生支付(支付宝/微信), 退款, Webhook处理 |
+| P5.5 | Payment Postgres Adapter | ✅ | Claude | payment, webhook_event |
+| P5.6 | Payment HTTP Adapter | ✅ | Claude | payment, refund, webhook handlers |
+| P5.7 | Domain Registry | ✅ | Claude | 添加 Payment Domain 到注册表 |
+| P5.8 | Payment Domain 测试 | ✅ | Claude | 17 个测试用例通过，覆盖率 29.0% |
+| P5.9 | 集成验证 | ✅ | Claude | 编译通过，测试通过，依赖方向正确 |
+| P6.x | AI 迁移 | ⬜ | | 复杂模块，需保留核心逻辑 |
 | P7.x | Git 迁移 | ⬜ | | |
 | P8.x | Media 迁移 | ⬜ | | |
 | P9.x | Collaboration 迁移 | ⬜ | | |
@@ -1100,8 +1133,44 @@ rm -rf internal/module/
 
 ## 验收标准
 
-1. **编译通过**: `go build ./...` 无错误
-2. **测试通过**: `go test ./...` 全部通过
-3. **覆盖率达标**: Domain 层 > 80%，Adapter 层 > 60%
-4. **依赖正确**: Domain 不依赖 Adapter
-5. **文档完整**: 所有新接口有注释
+1. **编译通过**: `go build ./...` 无错误 ✅
+2. **测试通过**: `go test ./...` 全部通过 ✅
+3. **覆盖率达标**: Domain 层 > 80%，Adapter 层 > 60% ⚠️ (见下表)
+4. **依赖正确**: Domain 不依赖 Adapter ✅
+5. **文档完整**: 所有新接口有注释 ⬜
+
+---
+
+## 当前覆盖率统计
+
+| Domain | 覆盖率 | 状态 | 备注 |
+|--------|--------|------|------|
+| user | 31.7% | ⚠️ | 需提升至 80% |
+| auth | 39.5% | ⚠️ | 需提升至 80% |
+| billing | 41.3% | ⚠️ | 需提升至 80% |
+| order | 57.3% | ⚠️ | 需提升至 80% |
+| payment | 29.0% | ⚠️ | 需提升至 80% |
+
+**测试提升优先级**: order > billing > auth > user > payment
+
+---
+
+## 迁移进度汇总
+
+```
+Phase 0: 准备工作        [███████████████████████] 100%
+Phase 1: User 迁移       [███████████████████████] 100%
+Phase 2: Auth 迁移       [███████████████████████] 100%
+Phase 3: Billing 迁移    [███████████████████████] 100%
+Phase 4: Order 迁移      [███████████████████████] 100%
+Phase 5: Payment 迁移    [███████████████████████] 100%
+Phase 6: AI 迁移         [░░░░░░░░░░░░░░░░░░░░░░░]   0%
+Phase 7: Git 迁移        [░░░░░░░░░░░░░░░░░░░░░░░]   0%
+Phase 8: Media 迁移      [░░░░░░░░░░░░░░░░░░░░░░░]   0%
+Phase 9: Collaboration   [░░░░░░░░░░░░░░░░░░░░░░░]   0%
+Phase 10: 清理优化       [░░░░░░░░░░░░░░░░░░░░░░░]   0%
+
+总体进度: 5/10 phases (50%)
+```
+
+**下一步**: Phase 6 AI 迁移（复杂模块，包含 routing/provider/pool 等子模块）
