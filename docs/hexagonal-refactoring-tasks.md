@@ -1,0 +1,1107 @@
+# UniEdit Server 六边形架构重构任务清单
+
+## 概述
+
+本文档定义了将 UniEdit Server 从当前模块化架构重构为六边形架构的详细任务清单。重构采用渐进式策略，确保系统在重构过程中保持可用。
+
+### 重构目标
+
+```
+当前结构                              目标结构
+internal/                            internal/
+├── app/                             ├── app.go
+├── module/                          ├── config.go
+│   ├── auth/                        ├── domain/
+│   │   ├── handler.go               │   ├── registry.go
+│   │   ├── service.go               │   ├── auth/
+│   │   ├── repository.go            │   ├── user/
+│   │   └── ...                      │   ├── billing/
+│   ├── billing/                     │   └── ...
+│   ├── ai/                          ├── port/
+│   └── ...                          │   ├── inbound/
+├── shared/                          │   └── outbound/
+│   ├── config/                      ├── adapter/
+│   ├── database/                    │   ├── inbound/
+│   └── ...                          │   └── outbound/
+└── ...                              ├── model/
+                                     └── migration/
+```
+
+### 重构原则
+
+1. **渐进式迁移** - 一次迁移一个实体，保持系统可用
+2. **测试先行** - 迁移前确保测试覆盖，迁移后验证通过
+3. **依赖向内** - 严格遵循依赖方向规则
+4. **接口优先** - 先定义 Port 接口，再实现 Adapter
+
+---
+
+## Phase 0: 准备工作
+
+### P0.1 创建目录结构骨架
+
+**任务**: 创建新的目录结构，不删除现有代码
+
+```bash
+# 执行脚本
+mkdir -p internal/domain
+mkdir -p internal/port/inbound
+mkdir -p internal/port/outbound
+mkdir -p internal/adapter/inbound/gin
+mkdir -p internal/adapter/inbound/grpc
+mkdir -p internal/adapter/inbound/command
+mkdir -p internal/adapter/outbound/postgres
+mkdir -p internal/adapter/outbound/redis
+mkdir -p internal/adapter/outbound/r2
+mkdir -p internal/adapter/outbound/http
+mkdir -p internal/adapter/outbound/oauth
+mkdir -p internal/adapter/outbound/rabbitmq
+mkdir -p internal/model
+```
+
+**产出文件**:
+- [ ] `internal/domain/registry.go` - Domain 注册表骨架
+- [ ] `internal/port/inbound/registry.go` - Inbound Port 注册表骨架
+- [ ] `internal/port/outbound/registry.go` - Outbound Port 注册表骨架
+
+**验证**:
+```bash
+tree internal/ -L 3 -d
+```
+
+---
+
+### P0.2 创建通用 Port 定义
+
+**任务**: 定义通用的基础设施端口接口
+
+**产出文件**:
+
+#### `internal/port/outbound/database.go`
+```go
+package outbound
+
+import (
+    "context"
+    "gorm.io/gorm"
+)
+
+// DatabaseExecutor defines generic database operations.
+type DatabaseExecutor interface {
+    DB() *gorm.DB
+    Transaction(ctx context.Context, fn func(tx *gorm.DB) error) error
+}
+```
+
+#### `internal/port/outbound/cache.go`
+```go
+package outbound
+
+import (
+    "context"
+    "time"
+)
+
+// CachePort defines generic cache operations.
+type CachePort interface {
+    Get(ctx context.Context, key string) ([]byte, error)
+    Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
+    Delete(ctx context.Context, key string) error
+    Exists(ctx context.Context, key string) (bool, error)
+}
+```
+
+#### `internal/port/outbound/storage.go`
+```go
+package outbound
+
+import (
+    "context"
+    "io"
+    "time"
+)
+
+// StoragePort defines object storage operations.
+type StoragePort interface {
+    Put(ctx context.Context, key string, reader io.Reader, size int64) error
+    Get(ctx context.Context, key string) (io.ReadCloser, error)
+    Delete(ctx context.Context, key string) error
+    GetPresignedURL(ctx context.Context, key string, duration time.Duration) (string, error)
+}
+```
+
+#### `internal/port/outbound/message.go`
+```go
+package outbound
+
+import "context"
+
+// EventPublisherPort defines event publishing operations.
+type EventPublisherPort interface {
+    Publish(ctx context.Context, event interface{}) error
+}
+
+// MessagePort defines message queue operations.
+type MessagePort interface {
+    Publish(ctx context.Context, topic string, message []byte) error
+    Subscribe(ctx context.Context, topic string, handler func([]byte) error) error
+}
+```
+
+---
+
+### P0.3 创建通用 Model 定义
+
+**任务**: 创建共享的请求/响应模型
+
+**产出文件**:
+
+#### `internal/model/request.go`
+```go
+package model
+
+// PaginationRequest defines pagination parameters.
+type PaginationRequest struct {
+    Page     int `json:"page" form:"page"`
+    PageSize int `json:"page_size" form:"page_size"`
+}
+
+// DefaultPagination returns default pagination values.
+func (p *PaginationRequest) DefaultPagination() {
+    if p.Page <= 0 {
+        p.Page = 1
+    }
+    if p.PageSize <= 0 || p.PageSize > 100 {
+        p.PageSize = 20
+    }
+}
+
+// Offset returns the offset for database queries.
+func (p *PaginationRequest) Offset() int {
+    return (p.Page - 1) * p.PageSize
+}
+```
+
+#### `internal/model/response.go`
+```go
+package model
+
+// PaginatedResponse defines paginated response structure.
+type PaginatedResponse[T any] struct {
+    Data       []T   `json:"data"`
+    Total      int64 `json:"total"`
+    Page       int   `json:"page"`
+    PageSize   int   `json:"page_size"`
+    TotalPages int   `json:"total_pages"`
+}
+
+// ErrorResponse defines error response structure.
+type ErrorResponse struct {
+    Code    string `json:"code"`
+    Message string `json:"message"`
+    Details any    `json:"details,omitempty"`
+}
+```
+
+---
+
+## Phase 1: User 实体迁移（示范）
+
+选择 User 作为第一个迁移实体，因为它相对简单且依赖较少。
+
+### P1.1 定义 User Model
+
+**任务**: 在 `internal/model/` 创建 User 相关数据结构
+
+**产出文件**: `internal/model/user.go`
+
+```go
+package model
+
+import (
+    "time"
+    "github.com/google/uuid"
+)
+
+// User represents user data structure.
+type User struct {
+    ID        uuid.UUID  `json:"id" gorm:"type:uuid;primaryKey"`
+    Email     string     `json:"email" gorm:"uniqueIndex;not null"`
+    Name      string     `json:"name"`
+    AvatarURL string     `json:"avatar_url"`
+    CreatedAt time.Time  `json:"created_at"`
+    UpdatedAt time.Time  `json:"updated_at"`
+    DeletedAt *time.Time `json:"deleted_at,omitempty" gorm:"index"`
+}
+
+// TableName returns the table name for GORM.
+func (User) TableName() string {
+    return "users"
+}
+
+// UserInput represents user creation/update input.
+type UserInput struct {
+    Email     string `json:"email" binding:"required,email"`
+    Name      string `json:"name" binding:"required"`
+    AvatarURL string `json:"avatar_url"`
+}
+
+// UserFilter represents user query filters.
+type UserFilter struct {
+    IDs    []uuid.UUID `json:"ids"`
+    Email  string      `json:"email"`
+    Search string      `json:"search"`
+    PaginationRequest
+}
+
+// Profile represents user profile.
+type Profile struct {
+    UserID      uuid.UUID `json:"user_id"`
+    DisplayName string    `json:"display_name"`
+    Bio         string    `json:"bio"`
+    AvatarURL   string    `json:"avatar_url"`
+    UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// Preferences represents user preferences.
+type Preferences struct {
+    UserID   uuid.UUID `json:"user_id"`
+    Theme    string    `json:"theme"`
+    Language string    `json:"language"`
+    Timezone string    `json:"timezone"`
+}
+```
+
+---
+
+### P1.2 定义 User Outbound Port
+
+**任务**: 定义 User 相关的出站端口接口
+
+**产出文件**: `internal/port/outbound/user.go`
+
+```go
+package outbound
+
+import (
+    "context"
+    "github.com/google/uuid"
+    "github.com/uniedit/server/internal/model"
+)
+
+// UserDatabasePort defines user persistence operations.
+type UserDatabasePort interface {
+    // Create creates a new user.
+    Create(ctx context.Context, user *model.User) error
+
+    // FindByID finds a user by ID.
+    FindByID(ctx context.Context, id uuid.UUID) (*model.User, error)
+
+    // FindByEmail finds a user by email.
+    FindByEmail(ctx context.Context, email string) (*model.User, error)
+
+    // FindByFilter finds users by filter.
+    FindByFilter(ctx context.Context, filter model.UserFilter) ([]*model.User, int64, error)
+
+    // Update updates a user.
+    Update(ctx context.Context, user *model.User) error
+
+    // Delete soft deletes a user.
+    Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// ProfileDatabasePort defines profile persistence operations.
+type ProfileDatabasePort interface {
+    // GetProfile gets user profile.
+    GetProfile(ctx context.Context, userID uuid.UUID) (*model.Profile, error)
+
+    // UpdateProfile updates user profile.
+    UpdateProfile(ctx context.Context, profile *model.Profile) error
+}
+
+// PreferencesDatabasePort defines preferences persistence operations.
+type PreferencesDatabasePort interface {
+    // GetPreferences gets user preferences.
+    GetPreferences(ctx context.Context, userID uuid.UUID) (*model.Preferences, error)
+
+    // UpdatePreferences updates user preferences.
+    UpdatePreferences(ctx context.Context, prefs *model.Preferences) error
+}
+
+// AvatarStoragePort defines avatar storage operations.
+type AvatarStoragePort interface {
+    // Upload uploads user avatar.
+    Upload(ctx context.Context, userID uuid.UUID, data []byte, contentType string) (string, error)
+
+    // Delete deletes user avatar.
+    Delete(ctx context.Context, userID uuid.UUID) error
+
+    // GetURL gets avatar URL.
+    GetURL(ctx context.Context, userID uuid.UUID) (string, error)
+}
+```
+
+---
+
+### P1.3 定义 User Inbound Port
+
+**任务**: 定义 User 相关的入站端口接口
+
+**产出文件**: `internal/port/inbound/user.go`
+
+```go
+package inbound
+
+import "github.com/gin-gonic/gin"
+
+// UserHttpPort defines HTTP handler interface for user operations.
+type UserHttpPort interface {
+    // GetProfile handles GET /users/me/profile
+    GetProfile(c *gin.Context)
+
+    // UpdateProfile handles PUT /users/me/profile
+    UpdateProfile(c *gin.Context)
+
+    // GetPreferences handles GET /users/me/preferences
+    GetPreferences(c *gin.Context)
+
+    // UpdatePreferences handles PUT /users/me/preferences
+    UpdatePreferences(c *gin.Context)
+
+    // UploadAvatar handles POST /users/me/avatar
+    UploadAvatar(c *gin.Context)
+}
+
+// UserAdminPort defines admin interface for user management.
+type UserAdminPort interface {
+    // ListUsers handles GET /admin/users
+    ListUsers(c *gin.Context)
+
+    // GetUser handles GET /admin/users/:id
+    GetUser(c *gin.Context)
+
+    // SuspendUser handles POST /admin/users/:id/suspend
+    SuspendUser(c *gin.Context)
+
+    // DeleteUser handles DELETE /admin/users/:id
+    DeleteUser(c *gin.Context)
+}
+```
+
+---
+
+### P1.4 创建 User Domain
+
+**任务**: 创建 User 领域服务
+
+**产出文件**: `internal/domain/user/domain.go`
+
+```go
+package user
+
+import (
+    "context"
+    "errors"
+    "github.com/google/uuid"
+    "github.com/uniedit/server/internal/model"
+    "github.com/uniedit/server/internal/port/outbound"
+)
+
+var (
+    ErrUserNotFound = errors.New("user not found")
+    ErrUserExists   = errors.New("user already exists")
+)
+
+// UserDomain defines user domain service interface.
+type UserDomain interface {
+    // GetProfile gets user profile.
+    GetProfile(ctx context.Context, userID uuid.UUID) (*model.Profile, error)
+
+    // UpdateProfile updates user profile.
+    UpdateProfile(ctx context.Context, userID uuid.UUID, input *model.Profile) error
+
+    // GetPreferences gets user preferences.
+    GetPreferences(ctx context.Context, userID uuid.UUID) (*model.Preferences, error)
+
+    // UpdatePreferences updates user preferences.
+    UpdatePreferences(ctx context.Context, userID uuid.UUID, prefs *model.Preferences) error
+
+    // UploadAvatar uploads user avatar.
+    UploadAvatar(ctx context.Context, userID uuid.UUID, data []byte, contentType string) (string, error)
+
+    // ListUsers lists users (admin).
+    ListUsers(ctx context.Context, filter model.UserFilter) ([]*model.User, int64, error)
+
+    // GetUser gets user by ID (admin).
+    GetUser(ctx context.Context, id uuid.UUID) (*model.User, error)
+
+    // SuspendUser suspends a user (admin).
+    SuspendUser(ctx context.Context, id uuid.UUID, reason string) error
+
+    // DeleteUser deletes a user (admin).
+    DeleteUser(ctx context.Context, id uuid.UUID) error
+}
+
+// userDomain implements UserDomain.
+type userDomain struct {
+    userDB    outbound.UserDatabasePort
+    profileDB outbound.ProfileDatabasePort
+    prefsDB   outbound.PreferencesDatabasePort
+    avatarSt  outbound.AvatarStoragePort
+}
+
+// NewUserDomain creates a new user domain service.
+func NewUserDomain(
+    userDB outbound.UserDatabasePort,
+    profileDB outbound.ProfileDatabasePort,
+    prefsDB outbound.PreferencesDatabasePort,
+    avatarSt outbound.AvatarStoragePort,
+) UserDomain {
+    return &userDomain{
+        userDB:    userDB,
+        profileDB: profileDB,
+        prefsDB:   prefsDB,
+        avatarSt:  avatarSt,
+    }
+}
+
+func (d *userDomain) GetProfile(ctx context.Context, userID uuid.UUID) (*model.Profile, error) {
+    profile, err := d.profileDB.GetProfile(ctx, userID)
+    if err != nil {
+        return nil, err
+    }
+    if profile == nil {
+        return nil, ErrUserNotFound
+    }
+    return profile, nil
+}
+
+func (d *userDomain) UpdateProfile(ctx context.Context, userID uuid.UUID, input *model.Profile) error {
+    input.UserID = userID
+    return d.profileDB.UpdateProfile(ctx, input)
+}
+
+func (d *userDomain) GetPreferences(ctx context.Context, userID uuid.UUID) (*model.Preferences, error) {
+    return d.prefsDB.GetPreferences(ctx, userID)
+}
+
+func (d *userDomain) UpdatePreferences(ctx context.Context, userID uuid.UUID, prefs *model.Preferences) error {
+    prefs.UserID = userID
+    return d.prefsDB.UpdatePreferences(ctx, prefs)
+}
+
+func (d *userDomain) UploadAvatar(ctx context.Context, userID uuid.UUID, data []byte, contentType string) (string, error) {
+    return d.avatarSt.Upload(ctx, userID, data, contentType)
+}
+
+func (d *userDomain) ListUsers(ctx context.Context, filter model.UserFilter) ([]*model.User, int64, error) {
+    return d.userDB.FindByFilter(ctx, filter)
+}
+
+func (d *userDomain) GetUser(ctx context.Context, id uuid.UUID) (*model.User, error) {
+    user, err := d.userDB.FindByID(ctx, id)
+    if err != nil {
+        return nil, err
+    }
+    if user == nil {
+        return nil, ErrUserNotFound
+    }
+    return user, nil
+}
+
+func (d *userDomain) SuspendUser(ctx context.Context, id uuid.UUID, reason string) error {
+    // Business logic for suspension
+    // Could involve audit logging, notification, etc.
+    return d.userDB.Delete(ctx, id)
+}
+
+func (d *userDomain) DeleteUser(ctx context.Context, id uuid.UUID) error {
+    return d.userDB.Delete(ctx, id)
+}
+```
+
+---
+
+### P1.5 创建 User Postgres Adapter
+
+**任务**: 实现 User 数据库适配器
+
+**产出文件**: `internal/adapter/outbound/postgres/user.go`
+
+```go
+package postgres
+
+import (
+    "context"
+    "errors"
+    "github.com/google/uuid"
+    "github.com/uniedit/server/internal/model"
+    "github.com/uniedit/server/internal/port/outbound"
+    "gorm.io/gorm"
+)
+
+// userAdapter implements outbound.UserDatabasePort.
+type userAdapter struct {
+    db *gorm.DB
+}
+
+// NewUserAdapter creates a new user database adapter.
+func NewUserAdapter(db *gorm.DB) outbound.UserDatabasePort {
+    return &userAdapter{db: db}
+}
+
+func (a *userAdapter) Create(ctx context.Context, user *model.User) error {
+    return a.db.WithContext(ctx).Create(user).Error
+}
+
+func (a *userAdapter) FindByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
+    var user model.User
+    err := a.db.WithContext(ctx).Where("id = ?", id).First(&user).Error
+    if errors.Is(err, gorm.ErrRecordNotFound) {
+        return nil, nil
+    }
+    if err != nil {
+        return nil, err
+    }
+    return &user, nil
+}
+
+func (a *userAdapter) FindByEmail(ctx context.Context, email string) (*model.User, error) {
+    var user model.User
+    err := a.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
+    if errors.Is(err, gorm.ErrRecordNotFound) {
+        return nil, nil
+    }
+    if err != nil {
+        return nil, err
+    }
+    return &user, nil
+}
+
+func (a *userAdapter) FindByFilter(ctx context.Context, filter model.UserFilter) ([]*model.User, int64, error) {
+    var users []*model.User
+    var total int64
+
+    query := a.db.WithContext(ctx).Model(&model.User{})
+
+    if len(filter.IDs) > 0 {
+        query = query.Where("id IN ?", filter.IDs)
+    }
+    if filter.Email != "" {
+        query = query.Where("email = ?", filter.Email)
+    }
+    if filter.Search != "" {
+        query = query.Where("name ILIKE ? OR email ILIKE ?", "%"+filter.Search+"%", "%"+filter.Search+"%")
+    }
+
+    if err := query.Count(&total).Error; err != nil {
+        return nil, 0, err
+    }
+
+    filter.DefaultPagination()
+    if err := query.Offset(filter.Offset()).Limit(filter.PageSize).Find(&users).Error; err != nil {
+        return nil, 0, err
+    }
+
+    return users, total, nil
+}
+
+func (a *userAdapter) Update(ctx context.Context, user *model.User) error {
+    return a.db.WithContext(ctx).Save(user).Error
+}
+
+func (a *userAdapter) Delete(ctx context.Context, id uuid.UUID) error {
+    return a.db.WithContext(ctx).Delete(&model.User{}, "id = ?", id).Error
+}
+
+// Compile-time check
+var _ outbound.UserDatabasePort = (*userAdapter)(nil)
+```
+
+---
+
+### P1.6 创建 User HTTP Adapter
+
+**任务**: 实现 User HTTP 处理适配器
+
+**产出文件**: `internal/adapter/inbound/gin/user.go`
+
+```go
+package gin
+
+import (
+    "net/http"
+    "github.com/gin-gonic/gin"
+    "github.com/google/uuid"
+    "github.com/uniedit/server/internal/domain/user"
+    "github.com/uniedit/server/internal/model"
+    "github.com/uniedit/server/internal/port/inbound"
+)
+
+// userAdapter implements inbound.UserHttpPort.
+type userAdapter struct {
+    domain user.UserDomain
+}
+
+// NewUserAdapter creates a new user HTTP adapter.
+func NewUserAdapter(domain user.UserDomain) inbound.UserHttpPort {
+    return &userAdapter{domain: domain}
+}
+
+// RegisterRoutes registers user routes.
+func (a *userAdapter) RegisterRoutes(r *gin.RouterGroup) {
+    users := r.Group("/users")
+    {
+        users.GET("/me/profile", a.GetProfile)
+        users.PUT("/me/profile", a.UpdateProfile)
+        users.GET("/me/preferences", a.GetPreferences)
+        users.PUT("/me/preferences", a.UpdatePreferences)
+        users.POST("/me/avatar", a.UploadAvatar)
+    }
+}
+
+func (a *userAdapter) GetProfile(c *gin.Context) {
+    userID := c.MustGet("user_id").(uuid.UUID)
+
+    profile, err := a.domain.GetProfile(c.Request.Context(), userID)
+    if err != nil {
+        handleError(c, err)
+        return
+    }
+
+    c.JSON(http.StatusOK, profile)
+}
+
+func (a *userAdapter) UpdateProfile(c *gin.Context) {
+    userID := c.MustGet("user_id").(uuid.UUID)
+
+    var input model.Profile
+    if err := c.ShouldBindJSON(&input); err != nil {
+        c.JSON(http.StatusBadRequest, model.ErrorResponse{
+            Code:    "invalid_input",
+            Message: err.Error(),
+        })
+        return
+    }
+
+    if err := a.domain.UpdateProfile(c.Request.Context(), userID, &input); err != nil {
+        handleError(c, err)
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "profile updated"})
+}
+
+func (a *userAdapter) GetPreferences(c *gin.Context) {
+    userID := c.MustGet("user_id").(uuid.UUID)
+
+    prefs, err := a.domain.GetPreferences(c.Request.Context(), userID)
+    if err != nil {
+        handleError(c, err)
+        return
+    }
+
+    c.JSON(http.StatusOK, prefs)
+}
+
+func (a *userAdapter) UpdatePreferences(c *gin.Context) {
+    userID := c.MustGet("user_id").(uuid.UUID)
+
+    var input model.Preferences
+    if err := c.ShouldBindJSON(&input); err != nil {
+        c.JSON(http.StatusBadRequest, model.ErrorResponse{
+            Code:    "invalid_input",
+            Message: err.Error(),
+        })
+        return
+    }
+
+    if err := a.domain.UpdatePreferences(c.Request.Context(), userID, &input); err != nil {
+        handleError(c, err)
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "preferences updated"})
+}
+
+func (a *userAdapter) UploadAvatar(c *gin.Context) {
+    userID := c.MustGet("user_id").(uuid.UUID)
+
+    file, err := c.FormFile("avatar")
+    if err != nil {
+        c.JSON(http.StatusBadRequest, model.ErrorResponse{
+            Code:    "invalid_file",
+            Message: "avatar file is required",
+        })
+        return
+    }
+
+    f, err := file.Open()
+    if err != nil {
+        handleError(c, err)
+        return
+    }
+    defer f.Close()
+
+    data := make([]byte, file.Size)
+    if _, err := f.Read(data); err != nil {
+        handleError(c, err)
+        return
+    }
+
+    url, err := a.domain.UploadAvatar(c.Request.Context(), userID, data, file.Header.Get("Content-Type"))
+    if err != nil {
+        handleError(c, err)
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"url": url})
+}
+
+// Compile-time check
+var _ inbound.UserHttpPort = (*userAdapter)(nil)
+```
+
+---
+
+### P1.7 更新 Domain Registry
+
+**任务**: 在 Domain Registry 中注册 User Domain
+
+**产出文件**: `internal/domain/registry.go`
+
+```go
+package domain
+
+import (
+    "github.com/uniedit/server/internal/domain/user"
+)
+
+// Domain holds all domain services.
+type Domain struct {
+    User user.UserDomain
+    // Auth    auth.AuthDomain      // Phase 2
+    // Billing billing.BillingDomain // Phase 3
+    // ...
+}
+
+// NewDomain creates domain services with dependencies.
+func NewDomain(ports *OutboundPorts) *Domain {
+    return &Domain{
+        User: user.NewUserDomain(
+            ports.UserDB,
+            ports.ProfileDB,
+            ports.PrefsDB,
+            ports.AvatarStorage,
+        ),
+    }
+}
+
+// OutboundPorts holds all outbound port implementations.
+type OutboundPorts struct {
+    // User ports
+    UserDB        outbound.UserDatabasePort
+    ProfileDB     outbound.ProfileDatabasePort
+    PrefsDB       outbound.PreferencesDatabasePort
+    AvatarStorage outbound.AvatarStoragePort
+
+    // Generic ports
+    Database DatabaseExecutor
+    Cache    CachePort
+    Storage  StoragePort
+}
+```
+
+---
+
+### P1.8 编写 User Domain 测试
+
+**任务**: 为 User Domain 编写单元测试
+
+**产出文件**: `internal/domain/user/domain_test.go`
+
+```go
+package user
+
+import (
+    "context"
+    "testing"
+    "github.com/google/uuid"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/mock"
+    "github.com/uniedit/server/internal/model"
+)
+
+// MockUserDatabasePort is a mock implementation.
+type MockUserDatabasePort struct {
+    mock.Mock
+}
+
+func (m *MockUserDatabasePort) FindByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
+    args := m.Called(ctx, id)
+    if args.Get(0) == nil {
+        return nil, args.Error(1)
+    }
+    return args.Get(0).(*model.User), args.Error(1)
+}
+
+// ... other mock methods
+
+func TestUserDomain_GetUser(t *testing.T) {
+    t.Run("success", func(t *testing.T) {
+        mockDB := new(MockUserDatabasePort)
+        domain := NewUserDomain(mockDB, nil, nil, nil)
+
+        userID := uuid.New()
+        expectedUser := &model.User{
+            ID:    userID,
+            Email: "test@example.com",
+            Name:  "Test User",
+        }
+
+        mockDB.On("FindByID", mock.Anything, userID).Return(expectedUser, nil)
+
+        user, err := domain.GetUser(context.Background(), userID)
+
+        assert.NoError(t, err)
+        assert.Equal(t, expectedUser, user)
+        mockDB.AssertExpectations(t)
+    })
+
+    t.Run("not found", func(t *testing.T) {
+        mockDB := new(MockUserDatabasePort)
+        domain := NewUserDomain(mockDB, nil, nil, nil)
+
+        userID := uuid.New()
+        mockDB.On("FindByID", mock.Anything, userID).Return(nil, nil)
+
+        user, err := domain.GetUser(context.Background(), userID)
+
+        assert.ErrorIs(t, err, ErrUserNotFound)
+        assert.Nil(t, user)
+    })
+}
+```
+
+---
+
+### P1.9 集成测试与验证
+
+**任务**: 验证 User 模块迁移完成
+
+**验证步骤**:
+
+```bash
+# 1. 运行单元测试
+go test ./internal/domain/user/...
+
+# 2. 检查依赖方向
+grep -r "adapter" internal/domain/
+# 应该无输出
+
+# 3. 编译检查
+go build ./...
+
+# 4. 运行集成测试
+go test ./tests/integration/user_test.go
+```
+
+---
+
+## Phase 2: Auth 实体迁移
+
+### P2.1 定义 Auth Model
+
+**产出文件**: `internal/model/auth.go`
+
+| 模型 | 说明 |
+|------|------|
+| `User` | 复用 P1 定义 |
+| `RefreshToken` | 刷新令牌 |
+| `APIKey` | API 密钥 |
+| `Session` | 会话信息 |
+| `AuditLog` | 审计日志 |
+
+### P2.2 定义 Auth Ports
+
+**产出文件**:
+- `internal/port/outbound/auth.go` - 数据库、缓存、OAuth 端口
+- `internal/port/inbound/auth.go` - HTTP、API Key 端口
+
+### P2.3 创建 Auth Domain
+
+**产出文件**:
+- `internal/domain/auth/domain.go` - 领域服务
+- `internal/domain/auth/user.go` - User 聚合根
+- `internal/domain/auth/token.go` - Token 实体
+- `internal/domain/auth/apikey.go` - API Key 实体
+- `internal/domain/auth/event.go` - 领域事件
+
+### P2.4 创建 Auth Adapters
+
+**产出文件**:
+- `internal/adapter/outbound/postgres/auth.go`
+- `internal/adapter/outbound/redis/session.go`
+- `internal/adapter/outbound/oauth/google.go`
+- `internal/adapter/outbound/oauth/github.go`
+- `internal/adapter/inbound/gin/auth.go`
+
+### P2.5 测试与验证
+
+---
+
+## Phase 3: Billing 实体迁移
+
+### P3.1 定义 Billing Model
+
+**产出文件**: `internal/model/billing.go`
+
+| 模型 | 说明 |
+|------|------|
+| `Subscription` | 订阅信息 |
+| `Plan` | 套餐计划 |
+| `Balance` | 余额 |
+| `Usage` | 使用记录 |
+| `Quota` | 配额 |
+
+### P3.2 - P3.5 同上模式
+
+---
+
+## Phase 4: Order 实体迁移
+
+### P4.1 - P4.5 同上模式
+
+---
+
+## Phase 5: Payment 实体迁移
+
+### P5.1 - P5.5 同上模式
+
+**特殊注意**: Payment 依赖 Order 和 Billing，需要定义跨域端口。
+
+---
+
+## Phase 6: AI 实体迁移
+
+### P6.1 定义 AI Model
+
+**产出文件**: `internal/model/ai.go`
+
+| 模型 | 说明 |
+|------|------|
+| `Provider` | AI 提供商 |
+| `AIModel` | AI 模型 |
+| `AIRequest` | 请求 |
+| `AIResponse` | 响应 |
+| `AIStreamChunk` | 流式块 |
+
+### P6.2 - P6.5 同上模式
+
+**特殊注意**: AI 模块复杂度高，需要保留现有的 routing、pool 等子模块逻辑。
+
+---
+
+## Phase 7: Git 实体迁移
+
+### P7.1 - P7.5 同上模式
+
+---
+
+## Phase 8: Media 实体迁移
+
+### P8.1 - P8.5 同上模式
+
+---
+
+## Phase 9: Collaboration 实体迁移
+
+### P9.1 - P9.5 同上模式
+
+---
+
+## Phase 10: 清理与优化
+
+### P10.1 删除旧代码
+
+**任务**: 删除 `internal/module/` 目录
+
+```bash
+# 确保所有测试通过后
+rm -rf internal/module/
+```
+
+### P10.2 更新 shared 目录
+
+**任务**: 将 `internal/shared/` 中的工具移动到合适位置
+
+| 原位置 | 新位置 |
+|--------|--------|
+| `shared/config/` | `internal/config.go` |
+| `shared/database/` | `internal/adapter/outbound/postgres/database.go` |
+| `shared/cache/` | `internal/adapter/outbound/redis/cache.go` |
+| `shared/middleware/` | `internal/adapter/inbound/gin/middleware.go` |
+| `shared/errors/` | `internal/model/errors.go` |
+
+### P10.3 更新 app.go
+
+**任务**: 重写应用组装层
+
+**产出文件**: `internal/app.go`
+
+### P10.4 更新文档
+
+**任务**: 更新项目文档
+
+- [ ] 更新 `README.md`
+- [ ] 更新 `CLAUDE.md`
+- [ ] 生成 API 文档
+
+---
+
+## 任务追踪表
+
+| Phase | 任务 | 状态 | 负责人 | 备注 |
+|-------|------|------|--------|------|
+| P0.1 | 创建目录结构 | ⬜ | | |
+| P0.2 | 通用 Port 定义 | ⬜ | | |
+| P0.3 | 通用 Model 定义 | ⬜ | | |
+| P1.1 | User Model | ⬜ | | |
+| P1.2 | User Outbound Port | ⬜ | | |
+| P1.3 | User Inbound Port | ⬜ | | |
+| P1.4 | User Domain | ⬜ | | |
+| P1.5 | User Postgres Adapter | ⬜ | | |
+| P1.6 | User HTTP Adapter | ⬜ | | |
+| P1.7 | Domain Registry | ⬜ | | |
+| P1.8 | User Domain 测试 | ⬜ | | |
+| P1.9 | 集成验证 | ⬜ | | |
+| P2.x | Auth 迁移 | ⬜ | | |
+| P3.x | Billing 迁移 | ⬜ | | |
+| P4.x | Order 迁移 | ⬜ | | |
+| P5.x | Payment 迁移 | ⬜ | | |
+| P6.x | AI 迁移 | ⬜ | | |
+| P7.x | Git 迁移 | ⬜ | | |
+| P8.x | Media 迁移 | ⬜ | | |
+| P9.x | Collaboration 迁移 | ⬜ | | |
+| P10.x | 清理优化 | ⬜ | | |
+
+---
+
+## 风险与缓解
+
+| 风险 | 影响 | 缓解措施 |
+|------|------|---------|
+| 循环依赖 | 编译失败 | 严格遵循依赖方向，使用接口隔离 |
+| 测试覆盖不足 | 迁移后 Bug | 迁移前补充测试，迁移后验证 |
+| 业务中断 | 用户影响 | 渐进式迁移，保持旧代码可用 |
+| AI 模块复杂 | 迁移困难 | 保留核心逻辑，仅重组结构 |
+
+---
+
+## 验收标准
+
+1. **编译通过**: `go build ./...` 无错误
+2. **测试通过**: `go test ./...` 全部通过
+3. **覆盖率达标**: Domain 层 > 80%，Adapter 层 > 60%
+4. **依赖正确**: Domain 不依赖 Adapter
+5. **文档完整**: 所有新接口有注释
