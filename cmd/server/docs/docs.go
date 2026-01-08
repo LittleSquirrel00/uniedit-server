@@ -7459,6 +7459,36 @@ const docTemplate = `{
                 "VideoStateFailed"
             ]
         },
+        "github_com_uniedit_server_internal_module_order_domain.OrderStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "paid",
+                "canceled",
+                "refunded",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusPaid",
+                "StatusCanceled",
+                "StatusRefunded",
+                "StatusFailed"
+            ]
+        },
+        "github_com_uniedit_server_internal_module_order_domain.OrderType": {
+            "type": "string",
+            "enum": [
+                "subscription",
+                "topup",
+                "upgrade"
+            ],
+            "x-enum-varnames": [
+                "TypeSubscription",
+                "TypeTopup",
+                "TypeUpgrade"
+            ]
+        },
         "github_com_uniedit_server_internal_module_payment_provider.PaymentScene": {
             "type": "string",
             "enum": [
@@ -9332,7 +9362,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "$ref": "#/definitions/internal_module_order.OrderStatus"
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_module_order_domain.OrderStatus"
                 },
                 "subtotal": {
                     "type": "integer"
@@ -9344,39 +9374,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "type": {
-                    "$ref": "#/definitions/internal_module_order.OrderType"
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_module_order_domain.OrderType"
                 }
             }
-        },
-        "internal_module_order.OrderStatus": {
-            "type": "string",
-            "enum": [
-                "pending",
-                "paid",
-                "canceled",
-                "refunded",
-                "failed"
-            ],
-            "x-enum-varnames": [
-                "OrderStatusPending",
-                "OrderStatusPaid",
-                "OrderStatusCanceled",
-                "OrderStatusRefunded",
-                "OrderStatusFailed"
-            ]
-        },
-        "internal_module_order.OrderType": {
-            "type": "string",
-            "enum": [
-                "subscription",
-                "topup",
-                "upgrade"
-            ],
-            "x-enum-varnames": [
-                "OrderTypeSubscription",
-                "OrderTypeTopup",
-                "OrderTypeUpgrade"
-            ]
         },
         "internal_module_payment.CreateNativePaymentRequest": {
             "type": "object",
@@ -9499,6 +9499,9 @@ const docTemplate = `{
             "enum": [
                 "card",
                 "alipay",
+                "wechat",
+                "card",
+                "alipay",
                 "wechat"
             ],
             "x-enum-varnames": [
@@ -9554,6 +9557,12 @@ const docTemplate = `{
         "internal_module_payment.PaymentStatus": {
             "type": "string",
             "enum": [
+                "pending",
+                "processing",
+                "succeeded",
+                "failed",
+                "canceled",
+                "refunded",
                 "pending",
                 "processing",
                 "succeeded",

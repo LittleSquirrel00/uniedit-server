@@ -443,6 +443,30 @@ definitions:
     - VideoStateProcessing
     - VideoStateCompleted
     - VideoStateFailed
+  github_com_uniedit_server_internal_module_order_domain.OrderStatus:
+    enum:
+    - pending
+    - paid
+    - canceled
+    - refunded
+    - failed
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusPaid
+    - StatusCanceled
+    - StatusRefunded
+    - StatusFailed
+  github_com_uniedit_server_internal_module_order_domain.OrderType:
+    enum:
+    - subscription
+    - topup
+    - upgrade
+    type: string
+    x-enum-varnames:
+    - TypeSubscription
+    - TypeTopup
+    - TypeUpgrade
   github_com_uniedit_server_internal_module_payment_provider.PaymentScene:
     enum:
     - web
@@ -1696,7 +1720,7 @@ definitions:
       refunded_at:
         type: string
       status:
-        $ref: '#/definitions/internal_module_order.OrderStatus'
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_order_domain.OrderStatus'
       subtotal:
         type: integer
       tax:
@@ -1704,32 +1728,8 @@ definitions:
       total:
         type: integer
       type:
-        $ref: '#/definitions/internal_module_order.OrderType'
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_order_domain.OrderType'
     type: object
-  internal_module_order.OrderStatus:
-    enum:
-    - pending
-    - paid
-    - canceled
-    - refunded
-    - failed
-    type: string
-    x-enum-varnames:
-    - OrderStatusPending
-    - OrderStatusPaid
-    - OrderStatusCanceled
-    - OrderStatusRefunded
-    - OrderStatusFailed
-  internal_module_order.OrderType:
-    enum:
-    - subscription
-    - topup
-    - upgrade
-    type: string
-    x-enum-varnames:
-    - OrderTypeSubscription
-    - OrderTypeTopup
-    - OrderTypeUpgrade
   internal_module_payment.CreateNativePaymentRequest:
     properties:
       method:
@@ -1812,6 +1812,9 @@ definitions:
     - card
     - alipay
     - wechat
+    - card
+    - alipay
+    - wechat
     type: string
     x-enum-varnames:
     - PaymentMethodCard
@@ -1848,6 +1851,12 @@ definitions:
     type: object
   internal_module_payment.PaymentStatus:
     enum:
+    - pending
+    - processing
+    - succeeded
+    - failed
+    - canceled
+    - refunded
     - pending
     - processing
     - succeeded
