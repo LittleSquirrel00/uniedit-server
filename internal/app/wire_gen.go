@@ -22,6 +22,7 @@ import (
 	"github.com/uniedit/server/internal/utils/metrics"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"net/http"
 )
 
 import (
@@ -41,6 +42,7 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 		return nil, nil, err
 	}
 	universalClient := ProvideRedisClient(cfg, logger)
+	client := ProvideHTTPClient(cfg)
 	loggerLogger := ProvideLogger(cfg)
 	metrics := ProvideMetrics()
 	userDatabasePort := postgres.NewUserAdapter(db)
@@ -75,7 +77,7 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 	aiModelGroupDatabasePort := postgres.NewAIModelGroupAdapter(db)
 	aiProviderHealthCachePort := ProvideAIHealthCache(universalClient)
 	aiEmbeddingCachePort := ProvideAIEmbeddingCache(universalClient)
-	aiVendorRegistryPort := ProvideVendorRegistry()
+	aiVendorRegistryPort := ProvideVendorRegistry(client)
 	aiCryptoPort := ProvideAICryptoAdapter(cfg)
 	aiDomain := ProvideAIDomain(aiProviderDatabasePort, aiModelDatabasePort, aiProviderAccountDatabasePort, aiModelGroupDatabasePort, aiProviderHealthCachePort, aiEmbeddingCachePort, aiVendorRegistryPort, aiCryptoPort, logger)
 	gitRepoDatabaseAdapter := postgres.NewGitRepoDatabaseAdapter(db)
@@ -94,13 +96,15 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 	mediaModelDBAdapter := postgres.NewMediaModelDBAdapter(db)
 	mediaTaskDBAdapter := postgres.NewMediaTaskDBAdapter(db)
 	mediaProviderHealthCachePort := ProvideMediaHealthCache(universalClient)
+	mediaVendorRegistryPort := ProvideMediaVendorRegistry(client)
 	mediaCryptoPort := ProvideMediaCryptoAdapter(cfg)
-	mediaDomain := ProvideMediaDomain(mediaProviderDBAdapter, mediaModelDBAdapter, mediaTaskDBAdapter, mediaProviderHealthCachePort, mediaCryptoPort, logger)
+	mediaDomain := ProvideMediaDomain(mediaProviderDBAdapter, mediaModelDBAdapter, mediaTaskDBAdapter, mediaProviderHealthCachePort, mediaVendorRegistryPort, mediaCryptoPort, logger)
 	chatHandler := ai.NewChatHandler(aiDomain)
 	dependencies := &Dependencies{
 		Config:              cfg,
 		DB:                  db,
 		Redis:               universalClient,
+		HTTPClient:          client,
 		Logger:              loggerLogger,
 		ZapLogger:           logger,
 		Metrics:             metrics,
@@ -123,12 +127,13 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 
 // Dependencies holds all injected dependencies.
 type Dependencies struct {
-	Config    *config.Config
-	DB        *gorm.DB
-	Redis     redis.UniversalClient
-	Logger    *logger.Logger
-	ZapLogger *zap.Logger
-	Metrics   *metrics.Metrics
+	Config     *config.Config
+	DB         *gorm.DB
+	Redis      redis.UniversalClient
+	HTTPClient *http.Client
+	Logger     *logger.Logger
+	ZapLogger  *zap.Logger
+	Metrics    *metrics.Metrics
 
 	// Domains
 	UserDomain          user.UserDomain

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"net/http"
+
 	"github.com/google/wire"
 	goredis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -25,6 +27,7 @@ import (
 	"github.com/uniedit/server/internal/port/outbound"
 
 	// Outbound adapters
+	"github.com/uniedit/server/internal/adapter/outbound/mediavendor"
 	"github.com/uniedit/server/internal/adapter/outbound/oauth"
 	"github.com/uniedit/server/internal/adapter/outbound/postgres"
 	redisadapter "github.com/uniedit/server/internal/adapter/outbound/redis"
@@ -34,6 +37,7 @@ import (
 	"github.com/uniedit/server/internal/infra/cache"
 	"github.com/uniedit/server/internal/infra/config"
 	"github.com/uniedit/server/internal/infra/database"
+	"github.com/uniedit/server/internal/infra/httpclient"
 
 	// Utils
 	"github.com/uniedit/server/internal/utils/logger"
@@ -46,6 +50,8 @@ import (
 var InfraSet = wire.NewSet(
 	ProvideDatabase,
 	ProvideRedisClient,
+	ProvideHTTPClient,
+	ProvideRateLimiter,
 	ProvideLogger,
 	ProvideZapLogger,
 	ProvideMetrics,
@@ -83,6 +89,22 @@ func ProvideZapLogger(cfg *config.Config) (*zap.Logger, error) {
 		Level:  cfg.Log.Level,
 		Format: cfg.Log.Format,
 	})
+}
+
+// ProvideHTTPClient creates a shared HTTP client with connection pooling.
+func ProvideHTTPClient(cfg *config.Config) *http.Client {
+	return httpclient.New(cfg.HTTPClient)
+}
+
+// ProvideRateLimiter creates a rate limiter.
+func ProvideRateLimiter(redis goredis.UniversalClient) outbound.RateLimiterPort {
+	if redis == nil {
+		return nil
+	}
+	if client, ok := redis.(*goredis.Client); ok {
+		return redisadapter.NewRateLimiter(client)
+	}
+	return nil
 }
 
 // ProvideMetrics creates a metrics instance.
@@ -357,11 +379,9 @@ func ProvideAIEmbeddingCache(redis goredis.UniversalClient) outbound.AIEmbedding
 	return nil
 }
 
-// ProvideVendorRegistry creates the vendor registry.
-func ProvideVendorRegistry() outbound.AIVendorRegistryPort {
-	registry := vendor.NewRegistry()
-	registry.RegisterDefaults()
-	return registry
+// ProvideVendorRegistry creates the vendor registry with shared HTTP client.
+func ProvideVendorRegistry(client *http.Client) outbound.AIVendorRegistryPort {
+	return vendor.NewDefaultRegistry(client)
 }
 
 // ProvideAICryptoAdapter creates the crypto adapter for AI.
@@ -494,6 +514,7 @@ var MediaSet = wire.NewSet(
 	postgres.NewMediaTaskDBAdapter,
 	wire.Bind(new(outbound.MediaTaskDatabasePort), new(*postgres.MediaTaskDBAdapter)),
 	ProvideMediaHealthCache,
+	ProvideMediaVendorRegistry,
 	ProvideMediaCryptoAdapter,
 	ProvideMediaDomain,
 )
@@ -511,12 +532,20 @@ func ProvideMediaCryptoAdapter(cfg *config.Config) outbound.MediaCryptoPort {
 	return vendor.NewCryptoAdapter(cfg.Auth.MasterKey)
 }
 
+// ProvideMediaVendorRegistry creates the media vendor registry with shared HTTP client.
+func ProvideMediaVendorRegistry(client *http.Client) outbound.MediaVendorRegistryPort {
+	registry := mediavendor.NewRegistry()
+	registry.Register(mediavendor.NewOpenAIAdapter(client))
+	return registry
+}
+
 // ProvideMediaDomain creates the media domain.
 func ProvideMediaDomain(
 	providerDB outbound.MediaProviderDatabasePort,
 	modelDB outbound.MediaModelDatabasePort,
 	taskDB outbound.MediaTaskDatabasePort,
 	healthCache outbound.MediaProviderHealthCachePort,
+	vendorRegistry outbound.MediaVendorRegistryPort,
 	crypto outbound.MediaCryptoPort,
 	zapLog *zap.Logger,
 ) inbound.MediaDomain {
@@ -525,7 +554,7 @@ func ProvideMediaDomain(
 		modelDB,
 		taskDB,
 		healthCache,
-		nil, // vendorRegistry
+		vendorRegistry,
 		crypto,
 		media.DefaultConfig(),
 		zapLog,

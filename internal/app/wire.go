@@ -4,6 +4,8 @@
 package app
 
 import (
+	"net/http"
+
 	"github.com/google/wire"
 	goredis "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -22,6 +24,7 @@ import (
 
 	// Ports
 	"github.com/uniedit/server/internal/port/inbound"
+	"github.com/uniedit/server/internal/port/outbound"
 
 	// Infrastructure
 	"github.com/uniedit/server/internal/infra/config"
@@ -33,12 +36,14 @@ import (
 
 // Dependencies holds all injected dependencies.
 type Dependencies struct {
-	Config    *config.Config
-	DB        *gorm.DB
-	Redis     goredis.UniversalClient
-	Logger    *logger.Logger
-	ZapLogger *zap.Logger
-	Metrics   *metrics.Metrics
+	Config      *config.Config
+	DB          *gorm.DB
+	Redis       goredis.UniversalClient
+	HTTPClient  *http.Client
+	RateLimiter outbound.RateLimiterPort
+	Logger      *logger.Logger
+	ZapLogger   *zap.Logger
+	Metrics     *metrics.Metrics
 
 	// Domains
 	UserDomain          user.UserDomain

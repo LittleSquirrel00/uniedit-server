@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/outbound"
@@ -18,12 +17,10 @@ type OpenAIAdapter struct {
 	client *http.Client
 }
 
-// NewOpenAIAdapter creates a new OpenAI media adapter.
-func NewOpenAIAdapter() *OpenAIAdapter {
+// NewOpenAIAdapter creates a new OpenAI media adapter with the given HTTP client.
+func NewOpenAIAdapter(client *http.Client) *OpenAIAdapter {
 	return &OpenAIAdapter{
-		client: &http.Client{
-			Timeout: 120 * time.Second,
-		},
+		client: client,
 	}
 }
 

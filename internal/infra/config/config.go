@@ -10,19 +10,21 @@ import (
 
 // Config holds all application configuration.
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Redis    RedisConfig    `mapstructure:"redis"`
-	AI       AIConfig       `mapstructure:"ai"`
-	Auth     AuthConfig     `mapstructure:"auth"`
-	Storage  StorageConfig  `mapstructure:"storage"`
-	Git      GitConfig      `mapstructure:"git"`
-	Log      LogConfig      `mapstructure:"log"`
-	Stripe   StripeConfig   `mapstructure:"stripe"`
-	Alipay   AlipayConfig   `mapstructure:"alipay"`
-	Wechat   WechatConfig   `mapstructure:"wechat"`
-	Email    EmailConfig    `mapstructure:"email"`
-	Features FeaturesConfig `mapstructure:"features"`
+	Server     ServerConfig     `mapstructure:"server"`
+	Database   DatabaseConfig   `mapstructure:"database"`
+	Redis      RedisConfig      `mapstructure:"redis"`
+	HTTPClient HTTPClientConfig `mapstructure:"http_client"`
+	RateLimit  RateLimitConfig  `mapstructure:"rate_limit"`
+	AI         AIConfig         `mapstructure:"ai"`
+	Auth       AuthConfig       `mapstructure:"auth"`
+	Storage    StorageConfig    `mapstructure:"storage"`
+	Git        GitConfig        `mapstructure:"git"`
+	Log        LogConfig        `mapstructure:"log"`
+	Stripe     StripeConfig     `mapstructure:"stripe"`
+	Alipay     AlipayConfig     `mapstructure:"alipay"`
+	Wechat     WechatConfig     `mapstructure:"wechat"`
+	Email      EmailConfig      `mapstructure:"email"`
+	Features   FeaturesConfig   `mapstructure:"features"`
 }
 
 // FeaturesConfig holds feature flags for gradual rollout.
@@ -69,6 +71,39 @@ type RedisConfig struct {
 	Address  string `mapstructure:"address"`
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`
+}
+
+// HTTPClientConfig holds HTTP client configuration for connection pooling.
+type HTTPClientConfig struct {
+	// Connection pool settings
+	MaxIdleConns        int           `mapstructure:"max_idle_conns"`
+	MaxIdleConnsPerHost int           `mapstructure:"max_idle_conns_per_host"`
+	MaxConnsPerHost     int           `mapstructure:"max_conns_per_host"`
+	IdleConnTimeout     time.Duration `mapstructure:"idle_conn_timeout"`
+
+	// Timeout settings
+	DialTimeout         time.Duration `mapstructure:"dial_timeout"`
+	TLSHandshakeTimeout time.Duration `mapstructure:"tls_handshake_timeout"`
+	ResponseTimeout     time.Duration `mapstructure:"response_timeout"`
+
+	// Keep-alive settings
+	KeepAlive time.Duration `mapstructure:"keep_alive"`
+}
+
+// RateLimitConfig holds rate limiting configuration.
+type RateLimitConfig struct {
+	// Enabled enables/disables rate limiting.
+	Enabled bool `mapstructure:"enabled"`
+	// GlobalLimit is the global rate limit per IP per minute.
+	GlobalLimit int `mapstructure:"global_limit"`
+	// GlobalWindow is the global rate limit window.
+	GlobalWindow time.Duration `mapstructure:"global_window"`
+	// APILimit is the API rate limit per user per minute.
+	APILimit int `mapstructure:"api_limit"`
+	// APIWindow is the API rate limit window.
+	APIWindow time.Duration `mapstructure:"api_window"`
+	// IdempotencyTTL is the TTL for idempotency keys.
+	IdempotencyTTL time.Duration `mapstructure:"idempotency_ttl"`
 }
 
 // AIConfig holds AI module configuration.
@@ -301,6 +336,24 @@ func setDefaults(v *viper.Viper) {
 	// Redis defaults
 	v.SetDefault("redis.address", "localhost:6379")
 	v.SetDefault("redis.db", 0)
+
+	// HTTP client defaults
+	v.SetDefault("http_client.max_idle_conns", 100)
+	v.SetDefault("http_client.max_idle_conns_per_host", 20)
+	v.SetDefault("http_client.max_conns_per_host", 50)
+	v.SetDefault("http_client.idle_conn_timeout", 90*time.Second)
+	v.SetDefault("http_client.dial_timeout", 30*time.Second)
+	v.SetDefault("http_client.tls_handshake_timeout", 10*time.Second)
+	v.SetDefault("http_client.response_timeout", 120*time.Second)
+	v.SetDefault("http_client.keep_alive", 30*time.Second)
+
+	// Rate limit defaults
+	v.SetDefault("rate_limit.enabled", true)
+	v.SetDefault("rate_limit.global_limit", 100)
+	v.SetDefault("rate_limit.global_window", time.Minute)
+	v.SetDefault("rate_limit.api_limit", 60)
+	v.SetDefault("rate_limit.api_window", time.Minute)
+	v.SetDefault("rate_limit.idempotency_ttl", 24*time.Hour)
 
 	// AI defaults
 	v.SetDefault("ai.health_check_interval", 30*time.Second)

@@ -47,13 +47,14 @@ type Application interface {
 
 // App represents the application using hexagonal architecture.
 type App struct {
-	config    *config.Config
-	db        *gorm.DB
-	redis     goredis.UniversalClient
-	router    *gin.Engine
-	logger    *logger.Logger
-	zapLogger *zap.Logger
-	metrics   *metrics.Metrics
+	config      *config.Config
+	db          *gorm.DB
+	redis       goredis.UniversalClient
+	router      *gin.Engine
+	logger      *logger.Logger
+	zapLogger   *zap.Logger
+	metrics     *metrics.Metrics
+	rateLimiter outbound.RateLimiterPort
 
 	// Domain services
 	userDomain          user.UserDomain
