@@ -1,4 +1,4 @@
-package gin
+package billinghttp
 
 import (
 	"net/http"
@@ -10,18 +10,28 @@ import (
 	"github.com/uniedit/server/internal/port/inbound"
 )
 
-// usageHandler implements inbound.UsageHttpPort.
-type usageHandler struct {
+// UsageHandler handles usage HTTP requests.
+type UsageHandler struct {
 	billingDomain billing.BillingDomain
 }
 
-// NewUsageHandler creates a new usage HTTP handler.
-func NewUsageHandler(billingDomain billing.BillingDomain) inbound.UsageHttpPort {
-	return &usageHandler{billingDomain: billingDomain}
+// NewUsageHandler creates a new usage handler.
+func NewUsageHandler(billingDomain billing.BillingDomain) *UsageHandler {
+	return &UsageHandler{billingDomain: billingDomain}
 }
 
-func (h *usageHandler) GetUsageStats(c *gin.Context) {
-	userID, ok := GetUserIDFromContext(c)
+// RegisterRoutes registers usage routes.
+func (h *UsageHandler) RegisterRoutes(r *gin.RouterGroup) {
+	billing := r.Group("/billing")
+	{
+		billing.GET("/usage", h.GetUsageStats)
+		billing.POST("/usage", h.RecordUsage)
+	}
+}
+
+// GetUsageStats handles GET /billing/usage.
+func (h *UsageHandler) GetUsageStats(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
 	if !ok {
 		return
 	}
@@ -44,15 +54,16 @@ func (h *usageHandler) GetUsageStats(c *gin.Context) {
 
 	stats, err := h.billingDomain.GetUsageStats(c.Request.Context(), userID, period, start, end)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get usage stats"})
+		handleError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, stats)
 }
 
-func (h *usageHandler) RecordUsage(c *gin.Context) {
-	userID, ok := GetUserIDFromContext(c)
+// RecordUsage handles POST /billing/usage.
+func (h *UsageHandler) RecordUsage(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
 	if !ok {
 		return
 	}
@@ -86,7 +97,7 @@ func (h *usageHandler) RecordUsage(c *gin.Context) {
 	}
 
 	if err := h.billingDomain.RecordUsage(c.Request.Context(), userID, input); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to record usage"})
+		handleError(c, err)
 		return
 	}
 
@@ -94,4 +105,4 @@ func (h *usageHandler) RecordUsage(c *gin.Context) {
 }
 
 // Compile-time check
-var _ inbound.UsageHttpPort = (*usageHandler)(nil)
+var _ inbound.UsageHttpPort = (*UsageHandler)(nil)

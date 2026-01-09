@@ -21,6 +21,11 @@ import (
 
 	// Inbound adapters
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
+	authhttp "github.com/uniedit/server/internal/adapter/inbound/http/auth"
+	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	orderhttp "github.com/uniedit/server/internal/adapter/inbound/http/order"
+	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
+	userhttp "github.com/uniedit/server/internal/adapter/inbound/http/user"
 
 	// Ports
 	"github.com/uniedit/server/internal/port/inbound"
@@ -58,6 +63,31 @@ type Dependencies struct {
 
 	// HTTP Handlers
 	AIChatHandler *aihttp.ChatHandler
+
+	// Auth HTTP Handlers
+	OAuthHandler          *authhttp.OAuthHandler
+	APIKeyHandler         *authhttp.APIKeyHandler
+	SystemAPIKeyHandler   *authhttp.SystemAPIKeyHandler
+
+	// User HTTP Handlers
+	ProfileHandler      *userhttp.ProfileHandler
+	RegistrationHandler *userhttp.RegistrationHandler
+	UserAdminHandler    *userhttp.AdminHandler
+
+	// Billing HTTP Handlers
+	SubscriptionHandler *billinghttp.SubscriptionHandler
+	QuotaHandler        *billinghttp.QuotaHandler
+	CreditsHandler      *billinghttp.CreditsHandler
+	UsageHandler        *billinghttp.UsageHandler
+
+	// Order HTTP Handlers
+	OrderHandler   *orderhttp.OrderHandler
+	InvoiceHandler *orderhttp.InvoiceHandler
+
+	// Payment HTTP Handlers
+	PaymentHandler *paymenthttp.PaymentHandler
+	RefundHandler  *paymenthttp.RefundHandler
+	WebhookHandler *paymenthttp.WebhookHandler
 }
 
 // InitializeDependencies creates all dependencies using Wire.

@@ -1,4 +1,4 @@
-package gin
+package authhttp
 
 import (
 	"net/http"
@@ -10,35 +10,32 @@ import (
 	"github.com/uniedit/server/internal/port/inbound"
 )
 
-// apiKeyAdapter implements inbound.APIKeyHttpPort.
-type apiKeyAdapter struct {
+// APIKeyHandler handles user API key HTTP requests.
+type APIKeyHandler struct {
 	authDomain auth.AuthDomain
 }
 
-// NewAPIKeyAdapter creates a new API key HTTP adapter.
-func NewAPIKeyAdapter(authDomain auth.AuthDomain) inbound.APIKeyHttpPort {
-	return &apiKeyAdapter{authDomain: authDomain}
+// NewAPIKeyHandler creates a new API key handler.
+func NewAPIKeyHandler(authDomain auth.AuthDomain) *APIKeyHandler {
+	return &APIKeyHandler{authDomain: authDomain}
 }
 
 // RegisterRoutes registers API key routes.
-func (a *apiKeyAdapter) RegisterRoutes(r *gin.RouterGroup) {
+func (h *APIKeyHandler) RegisterRoutes(r *gin.RouterGroup) {
 	apiKeys := r.Group("/api-keys")
 	{
-		apiKeys.POST("", a.CreateAPIKey)
-		apiKeys.GET("", a.ListAPIKeys)
-		apiKeys.GET("/:id", a.GetAPIKey)
-		apiKeys.DELETE("/:id", a.DeleteAPIKey)
-		apiKeys.POST("/:id/rotate", a.RotateAPIKey)
+		apiKeys.POST("", h.CreateAPIKey)
+		apiKeys.GET("", h.ListAPIKeys)
+		apiKeys.GET("/:id", h.GetAPIKey)
+		apiKeys.DELETE("/:id", h.DeleteAPIKey)
+		apiKeys.POST("/:id/rotate", h.RotateAPIKey)
 	}
 }
 
-func (a *apiKeyAdapter) CreateAPIKey(c *gin.Context) {
-	userID := MustGetUserID(c)
-	if userID == uuid.Nil {
-		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
-			Code:    "unauthorized",
-			Message: "User not authenticated",
-		})
+// CreateAPIKey handles POST /api-keys.
+func (h *APIKeyHandler) CreateAPIKey(c *gin.Context) {
+	userID, ok := requireAuth(c)
+	if !ok {
 		return
 	}
 
@@ -63,28 +60,25 @@ func (a *apiKeyAdapter) CreateAPIKey(c *gin.Context) {
 		Scopes:   req.Scopes,
 	}
 
-	apiKey, err := a.authDomain.CreateUserAPIKey(c.Request.Context(), userID, input)
+	apiKey, err := h.authDomain.CreateUserAPIKey(c.Request.Context(), userID, input)
 	if err != nil {
-		handleAuthError(c, err)
+		handleError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusCreated, apiKey.ToResponse())
 }
 
-func (a *apiKeyAdapter) ListAPIKeys(c *gin.Context) {
-	userID := MustGetUserID(c)
-	if userID == uuid.Nil {
-		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
-			Code:    "unauthorized",
-			Message: "User not authenticated",
-		})
+// ListAPIKeys handles GET /api-keys.
+func (h *APIKeyHandler) ListAPIKeys(c *gin.Context) {
+	userID, ok := requireAuth(c)
+	if !ok {
 		return
 	}
 
-	apiKeys, err := a.authDomain.ListUserAPIKeys(c.Request.Context(), userID)
+	apiKeys, err := h.authDomain.ListUserAPIKeys(c.Request.Context(), userID)
 	if err != nil {
-		handleAuthError(c, err)
+		handleError(c, err)
 		return
 	}
 
@@ -96,13 +90,10 @@ func (a *apiKeyAdapter) ListAPIKeys(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"api_keys": response})
 }
 
-func (a *apiKeyAdapter) GetAPIKey(c *gin.Context) {
-	userID := MustGetUserID(c)
-	if userID == uuid.Nil {
-		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
-			Code:    "unauthorized",
-			Message: "User not authenticated",
-		})
+// GetAPIKey handles GET /api-keys/:id.
+func (h *APIKeyHandler) GetAPIKey(c *gin.Context) {
+	userID, ok := requireAuth(c)
+	if !ok {
 		return
 	}
 
@@ -116,12 +107,9 @@ func (a *apiKeyAdapter) GetAPIKey(c *gin.Context) {
 		return
 	}
 
-	// Get decrypted key for the specified provider
-	// Note: This assumes the ID param is actually a provider name for decrypted access
-	// For actual key retrieval by ID, we'd need a different method
-	apiKeys, err := a.authDomain.ListUserAPIKeys(c.Request.Context(), userID)
+	apiKeys, err := h.authDomain.ListUserAPIKeys(c.Request.Context(), userID)
 	if err != nil {
-		handleAuthError(c, err)
+		handleError(c, err)
 		return
 	}
 
@@ -138,13 +126,10 @@ func (a *apiKeyAdapter) GetAPIKey(c *gin.Context) {
 	})
 }
 
-func (a *apiKeyAdapter) DeleteAPIKey(c *gin.Context) {
-	userID := MustGetUserID(c)
-	if userID == uuid.Nil {
-		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
-			Code:    "unauthorized",
-			Message: "User not authenticated",
-		})
+// DeleteAPIKey handles DELETE /api-keys/:id.
+func (h *APIKeyHandler) DeleteAPIKey(c *gin.Context) {
+	userID, ok := requireAuth(c)
+	if !ok {
 		return
 	}
 
@@ -158,21 +143,18 @@ func (a *apiKeyAdapter) DeleteAPIKey(c *gin.Context) {
 		return
 	}
 
-	if err := a.authDomain.DeleteUserAPIKey(c.Request.Context(), userID, keyID); err != nil {
-		handleAuthError(c, err)
+	if err := h.authDomain.DeleteUserAPIKey(c.Request.Context(), userID, keyID); err != nil {
+		handleError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "API key deleted"})
 }
 
-func (a *apiKeyAdapter) RotateAPIKey(c *gin.Context) {
-	userID := MustGetUserID(c)
-	if userID == uuid.Nil {
-		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
-			Code:    "unauthorized",
-			Message: "User not authenticated",
-		})
+// RotateAPIKey handles POST /api-keys/:id/rotate.
+func (h *APIKeyHandler) RotateAPIKey(c *gin.Context) {
+	userID, ok := requireAuth(c)
+	if !ok {
 		return
 	}
 
@@ -197,9 +179,9 @@ func (a *apiKeyAdapter) RotateAPIKey(c *gin.Context) {
 		return
 	}
 
-	apiKey, err := a.authDomain.RotateUserAPIKey(c.Request.Context(), userID, keyID, req.NewAPIKey)
+	apiKey, err := h.authDomain.RotateUserAPIKey(c.Request.Context(), userID, keyID, req.NewAPIKey)
 	if err != nil {
-		handleAuthError(c, err)
+		handleError(c, err)
 		return
 	}
 
@@ -207,4 +189,4 @@ func (a *apiKeyAdapter) RotateAPIKey(c *gin.Context) {
 }
 
 // Compile-time check
-var _ inbound.APIKeyHttpPort = (*apiKeyAdapter)(nil)
+var _ inbound.APIKeyHttpPort = (*APIKeyHandler)(nil)

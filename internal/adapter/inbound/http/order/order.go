@@ -1,4 +1,4 @@
-package gin
+package orderhttp
 
 import (
 	"net/http"
@@ -11,18 +11,31 @@ import (
 	"github.com/uniedit/server/internal/port/inbound"
 )
 
-// orderHandler implements inbound.OrderHttpPort.
-type orderHandler struct {
+// OrderHandler handles order HTTP requests.
+type OrderHandler struct {
 	orderDomain order.OrderDomain
 }
 
-// NewOrderHandler creates a new order HTTP handler.
-func NewOrderHandler(orderDomain order.OrderDomain) inbound.OrderHttpPort {
-	return &orderHandler{orderDomain: orderDomain}
+// NewOrderHandler creates a new order handler.
+func NewOrderHandler(orderDomain order.OrderDomain) *OrderHandler {
+	return &OrderHandler{orderDomain: orderDomain}
 }
 
-func (h *orderHandler) CreateSubscriptionOrder(c *gin.Context) {
-	userID, ok := GetUserIDFromContext(c)
+// RegisterRoutes registers order routes.
+func (h *OrderHandler) RegisterRoutes(r *gin.RouterGroup) {
+	orders := r.Group("/orders")
+	{
+		orders.POST("/subscription", h.CreateSubscriptionOrder)
+		orders.POST("/topup", h.CreateTopupOrder)
+		orders.GET("", h.ListOrders)
+		orders.GET("/:id", h.GetOrder)
+		orders.POST("/:id/cancel", h.CancelOrder)
+	}
+}
+
+// CreateSubscriptionOrder handles POST /orders/subscription.
+func (h *OrderHandler) CreateSubscriptionOrder(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
 	if !ok {
 		return
 	}
@@ -37,15 +50,16 @@ func (h *orderHandler) CreateSubscriptionOrder(c *gin.Context) {
 
 	ord, err := h.orderDomain.CreateSubscriptionOrder(c.Request.Context(), userID, req.PlanID)
 	if err != nil {
-		handleOrderError(c, err)
+		handleError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusCreated, ord.ToResponse())
 }
 
-func (h *orderHandler) CreateTopupOrder(c *gin.Context) {
-	userID, ok := GetUserIDFromContext(c)
+// CreateTopupOrder handles POST /orders/topup.
+func (h *OrderHandler) CreateTopupOrder(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
 	if !ok {
 		return
 	}
@@ -60,15 +74,16 @@ func (h *orderHandler) CreateTopupOrder(c *gin.Context) {
 
 	ord, err := h.orderDomain.CreateTopupOrder(c.Request.Context(), userID, req.Amount)
 	if err != nil {
-		handleOrderError(c, err)
+		handleError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusCreated, ord.ToResponse())
 }
 
-func (h *orderHandler) GetOrder(c *gin.Context) {
-	userID, ok := GetUserIDFromContext(c)
+// GetOrder handles GET /orders/:id.
+func (h *OrderHandler) GetOrder(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
 	if !ok {
 		return
 	}
@@ -82,7 +97,7 @@ func (h *orderHandler) GetOrder(c *gin.Context) {
 
 	ord, err := h.orderDomain.GetOrder(c.Request.Context(), orderID)
 	if err != nil {
-		handleOrderError(c, err)
+		handleError(c, err)
 		return
 	}
 
@@ -95,8 +110,9 @@ func (h *orderHandler) GetOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, ord.ToResponse())
 }
 
-func (h *orderHandler) ListOrders(c *gin.Context) {
-	userID, ok := GetUserIDFromContext(c)
+// ListOrders handles GET /orders.
+func (h *OrderHandler) ListOrders(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
 	if !ok {
 		return
 	}
@@ -135,7 +151,6 @@ func (h *orderHandler) ListOrders(c *gin.Context) {
 		return
 	}
 
-	// Convert to response
 	responses := make([]*model.OrderResponse, len(orders))
 	for i, ord := range orders {
 		responses[i] = ord.ToResponse()
@@ -155,8 +170,9 @@ func (h *orderHandler) ListOrders(c *gin.Context) {
 	})
 }
 
-func (h *orderHandler) CancelOrder(c *gin.Context) {
-	userID, ok := GetUserIDFromContext(c)
+// CancelOrder handles POST /orders/:id/cancel.
+func (h *OrderHandler) CancelOrder(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
 	if !ok {
 		return
 	}
@@ -171,7 +187,7 @@ func (h *orderHandler) CancelOrder(c *gin.Context) {
 	// Verify ownership first
 	ord, err := h.orderDomain.GetOrder(c.Request.Context(), orderID)
 	if err != nil {
-		handleOrderError(c, err)
+		handleError(c, err)
 		return
 	}
 	if ord.UserID != userID {
@@ -185,29 +201,12 @@ func (h *orderHandler) CancelOrder(c *gin.Context) {
 	_ = c.ShouldBindJSON(&req)
 
 	if err := h.orderDomain.CancelOrder(c.Request.Context(), orderID, req.Reason); err != nil {
-		handleOrderError(c, err)
+		handleError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "order canceled"})
 }
 
-func handleOrderError(c *gin.Context, err error) {
-	switch err {
-	case order.ErrOrderNotFound:
-		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
-	case order.ErrOrderNotCancelable:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "order cannot be canceled"})
-	case order.ErrOrderNotRefundable:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "order cannot be refunded"})
-	case order.ErrMinimumTopupAmount:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "minimum top-up is $1.00"})
-	case order.ErrFreePlanNotOrderable:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot create order for free plan"})
-	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
-	}
-}
-
 // Compile-time check
-var _ inbound.OrderHttpPort = (*orderHandler)(nil)
+var _ inbound.OrderHttpPort = (*OrderHandler)(nil)

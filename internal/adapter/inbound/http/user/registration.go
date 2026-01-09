@@ -1,4 +1,4 @@
-package gin
+package userhttp
 
 import (
 	"net/http"
@@ -9,29 +9,30 @@ import (
 	"github.com/uniedit/server/internal/port/inbound"
 )
 
-// userAuthAdapter implements inbound.UserAuthPort.
-type userAuthAdapter struct {
+// RegistrationHandler handles user registration HTTP requests.
+type RegistrationHandler struct {
 	domain user.UserDomain
 }
 
-// NewUserAuthAdapter creates a new user auth HTTP adapter.
-func NewUserAuthAdapter(domain user.UserDomain) inbound.UserAuthPort {
-	return &userAuthAdapter{domain: domain}
+// NewRegistrationHandler creates a new registration handler.
+func NewRegistrationHandler(domain user.UserDomain) *RegistrationHandler {
+	return &RegistrationHandler{domain: domain}
 }
 
-// RegisterRoutes registers auth routes.
-func (a *userAuthAdapter) RegisterRoutes(r *gin.RouterGroup) {
+// RegisterRoutes registers registration routes.
+func (h *RegistrationHandler) RegisterRoutes(r *gin.RouterGroup) {
 	auth := r.Group("/auth")
 	{
-		auth.POST("/register", a.Register)
-		auth.POST("/verify-email", a.VerifyEmail)
-		auth.POST("/resend-verification", a.ResendVerification)
-		auth.POST("/password-reset", a.RequestPasswordReset)
-		auth.POST("/password-reset/complete", a.CompletePasswordReset)
+		auth.POST("/register", h.Register)
+		auth.POST("/verify-email", h.VerifyEmail)
+		auth.POST("/resend-verification", h.ResendVerification)
+		auth.POST("/password-reset", h.RequestPasswordReset)
+		auth.POST("/password-reset/complete", h.CompletePasswordReset)
 	}
 }
 
-func (a *userAuthAdapter) Register(c *gin.Context) {
+// Register handles POST /auth/register.
+func (h *RegistrationHandler) Register(c *gin.Context) {
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required,min=8"`
@@ -45,7 +46,7 @@ func (a *userAuthAdapter) Register(c *gin.Context) {
 		return
 	}
 
-	u, err := a.domain.Register(c.Request.Context(), &user.RegisterInput{
+	u, err := h.domain.Register(c.Request.Context(), &user.RegisterInput{
 		Email:    req.Email,
 		Password: req.Password,
 		Name:     req.Name,
@@ -61,16 +62,17 @@ func (a *userAuthAdapter) Register(c *gin.Context) {
 	})
 }
 
-func (a *userAuthAdapter) Login(c *gin.Context) {
+// Login handles POST /auth/login.
+func (h *RegistrationHandler) Login(c *gin.Context) {
 	// Note: Login is typically handled by the auth module which manages JWT tokens
-	// This is a placeholder - actual login should be integrated with auth domain
 	c.JSON(http.StatusNotImplemented, model.ErrorResponse{
 		Code:    "not_implemented",
 		Message: "Login should be handled by auth module",
 	})
 }
 
-func (a *userAuthAdapter) VerifyEmail(c *gin.Context) {
+// VerifyEmail handles POST /auth/verify-email.
+func (h *RegistrationHandler) VerifyEmail(c *gin.Context) {
 	var req struct {
 		Token string `json:"token" binding:"required"`
 	}
@@ -82,7 +84,7 @@ func (a *userAuthAdapter) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	if err := a.domain.VerifyEmail(c.Request.Context(), req.Token); err != nil {
+	if err := h.domain.VerifyEmail(c.Request.Context(), req.Token); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -90,7 +92,8 @@ func (a *userAuthAdapter) VerifyEmail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "email verified successfully"})
 }
 
-func (a *userAuthAdapter) ResendVerification(c *gin.Context) {
+// ResendVerification handles POST /auth/resend-verification.
+func (h *RegistrationHandler) ResendVerification(c *gin.Context) {
 	var req struct {
 		Email string `json:"email" binding:"required,email"`
 	}
@@ -102,7 +105,7 @@ func (a *userAuthAdapter) ResendVerification(c *gin.Context) {
 		return
 	}
 
-	if err := a.domain.ResendVerification(c.Request.Context(), req.Email); err != nil {
+	if err := h.domain.ResendVerification(c.Request.Context(), req.Email); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -110,7 +113,8 @@ func (a *userAuthAdapter) ResendVerification(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "verification email sent if account exists"})
 }
 
-func (a *userAuthAdapter) RequestPasswordReset(c *gin.Context) {
+// RequestPasswordReset handles POST /auth/password-reset.
+func (h *RegistrationHandler) RequestPasswordReset(c *gin.Context) {
 	var req struct {
 		Email string `json:"email" binding:"required,email"`
 	}
@@ -122,7 +126,7 @@ func (a *userAuthAdapter) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
-	if err := a.domain.RequestPasswordReset(c.Request.Context(), req.Email); err != nil {
+	if err := h.domain.RequestPasswordReset(c.Request.Context(), req.Email); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -130,7 +134,8 @@ func (a *userAuthAdapter) RequestPasswordReset(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "password reset email sent if account exists"})
 }
 
-func (a *userAuthAdapter) CompletePasswordReset(c *gin.Context) {
+// CompletePasswordReset handles POST /auth/password-reset/complete.
+func (h *RegistrationHandler) CompletePasswordReset(c *gin.Context) {
 	var req struct {
 		Token       string `json:"token" binding:"required"`
 		NewPassword string `json:"new_password" binding:"required,min=8"`
@@ -143,7 +148,7 @@ func (a *userAuthAdapter) CompletePasswordReset(c *gin.Context) {
 		return
 	}
 
-	if err := a.domain.ResetPassword(c.Request.Context(), req.Token, req.NewPassword); err != nil {
+	if err := h.domain.ResetPassword(c.Request.Context(), req.Token, req.NewPassword); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -152,4 +157,4 @@ func (a *userAuthAdapter) CompletePasswordReset(c *gin.Context) {
 }
 
 // Compile-time check
-var _ inbound.UserAuthPort = (*userAuthAdapter)(nil)
+var _ inbound.UserAuthPort = (*RegistrationHandler)(nil)

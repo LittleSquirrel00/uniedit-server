@@ -1,15 +1,35 @@
-package gin
+package userhttp
 
 import (
 	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/uniedit/server/internal/domain/user"
 	"github.com/uniedit/server/internal/model"
+	"github.com/uniedit/server/internal/utils/middleware"
 )
 
-// handleError maps domain errors to HTTP responses.
+// getUserID returns the user ID from context.
+func getUserID(c *gin.Context) uuid.UUID {
+	return middleware.GetUserID(c)
+}
+
+// requireAuth checks if the user is authenticated and returns an error response if not.
+func requireAuth(c *gin.Context) (uuid.UUID, bool) {
+	userID := getUserID(c)
+	if userID == uuid.Nil {
+		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
+			Code:    "unauthorized",
+			Message: "User not authenticated",
+		})
+		return uuid.Nil, false
+	}
+	return userID, true
+}
+
+// handleError maps user domain errors to HTTP responses.
 func handleError(c *gin.Context, err error) {
 	var statusCode int
 	var errorCode string

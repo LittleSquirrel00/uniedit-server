@@ -23,6 +23,11 @@ import (
 
 	// Inbound adapters (HTTP handlers)
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
+	authhttp "github.com/uniedit/server/internal/adapter/inbound/http/auth"
+	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	orderhttp "github.com/uniedit/server/internal/adapter/inbound/http/order"
+	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
+	userhttp "github.com/uniedit/server/internal/adapter/inbound/http/user"
 
 	// Inbound ports
 	"github.com/uniedit/server/internal/port/inbound"
@@ -70,6 +75,31 @@ type App struct {
 	// HTTP handlers (inbound adapters)
 	aiChatHandler *aihttp.ChatHandler
 
+	// Auth HTTP handlers
+	oauthHandler        *authhttp.OAuthHandler
+	apiKeyHandler       *authhttp.APIKeyHandler
+	systemAPIKeyHandler *authhttp.SystemAPIKeyHandler
+
+	// User HTTP handlers
+	profileHandler      *userhttp.ProfileHandler
+	registrationHandler *userhttp.RegistrationHandler
+	userAdminHandler    *userhttp.AdminHandler
+
+	// Billing HTTP handlers
+	subscriptionHandler *billinghttp.SubscriptionHandler
+	quotaHandler        *billinghttp.QuotaHandler
+	creditsHandler      *billinghttp.CreditsHandler
+	usageHandler        *billinghttp.UsageHandler
+
+	// Order HTTP handlers
+	orderHandler   *orderhttp.OrderHandler
+	invoiceHandler *orderhttp.InvoiceHandler
+
+	// Payment HTTP handlers
+	paymentHandler *paymenthttp.PaymentHandler
+	refundHandler  *paymenthttp.RefundHandler
+	webhookHandler *paymenthttp.WebhookHandler
+
 	// Cleanup functions
 	cleanupFuncs []func()
 }
@@ -99,7 +129,23 @@ func New(cfg *config.Config) (*App, error) {
 		gitDomain:           deps.GitDomain,
 		collaborationDomain: deps.CollaborationDomain,
 		mediaDomain:         deps.MediaDomain,
+		// HTTP handlers
 		aiChatHandler:       deps.AIChatHandler,
+		oauthHandler:        deps.OAuthHandler,
+		apiKeyHandler:       deps.APIKeyHandler,
+		systemAPIKeyHandler: deps.SystemAPIKeyHandler,
+		profileHandler:      deps.ProfileHandler,
+		registrationHandler: deps.RegistrationHandler,
+		userAdminHandler:    deps.UserAdminHandler,
+		subscriptionHandler: deps.SubscriptionHandler,
+		quotaHandler:        deps.QuotaHandler,
+		creditsHandler:      deps.CreditsHandler,
+		usageHandler:        deps.UsageHandler,
+		orderHandler:        deps.OrderHandler,
+		invoiceHandler:      deps.InvoiceHandler,
+		paymentHandler:      deps.PaymentHandler,
+		refundHandler:       deps.RefundHandler,
+		webhookHandler:      deps.WebhookHandler,
 		cleanupFuncs:        []func(){cleanup},
 	}
 
@@ -164,6 +210,7 @@ func (a *App) setupRouter() *gin.Engine {
 func (a *App) registerRoutes() {
 	// Create JWT validator adapter for auth middleware
 	jwtValidator := middleware.NewAuthDomainValidator(a.authDomain.ValidateAccessToken)
+	authMiddleware := middleware.RequireAuth(jwtValidator)
 
 	// API v1 group
 	v1 := a.router.Group("/api/v1")
@@ -185,11 +232,33 @@ func (a *App) registerRoutes() {
 		}))
 	}
 
-	// Protected routes (requires auth)
-	protectedRouter := v1.Group("")
-	protectedRouter.Use(middleware.RequireAuth(jwtValidator))
+	// ===== Public Routes (no auth required) =====
 
-	// Register AI routes
+	// Auth routes (OAuth, refresh, logout)
+	if a.oauthHandler != nil {
+		a.oauthHandler.RegisterRoutes(v1)
+	}
+
+	// Registration routes
+	if a.registrationHandler != nil {
+		a.registrationHandler.RegisterRoutes(v1)
+	}
+
+	// Billing plans (read-only, public)
+	if a.subscriptionHandler != nil {
+		a.subscriptionHandler.RegisterRoutes(v1)
+	}
+
+	// Payment webhooks (no auth, verified by signature)
+	if a.webhookHandler != nil {
+		a.webhookHandler.RegisterRoutes(v1)
+	}
+
+	// ===== Protected Routes (requires auth) =====
+	protectedRouter := v1.Group("")
+	protectedRouter.Use(authMiddleware)
+
+	// AI routes
 	if a.aiChatHandler != nil {
 		aiGroup := protectedRouter.Group("/ai")
 		{
@@ -198,7 +267,66 @@ func (a *App) registerRoutes() {
 		}
 	}
 
-	// TODO: Register other domain routes as their handlers are migrated
+	// User profile routes
+	if a.profileHandler != nil {
+		a.profileHandler.RegisterRoutes(protectedRouter)
+	}
+
+	// API key routes
+	if a.apiKeyHandler != nil {
+		a.apiKeyHandler.RegisterRoutes(protectedRouter)
+	}
+
+	// Billing routes (subscription, quota, credits, usage)
+	if a.quotaHandler != nil {
+		a.quotaHandler.RegisterRoutes(protectedRouter)
+	}
+	if a.creditsHandler != nil {
+		a.creditsHandler.RegisterRoutes(protectedRouter)
+	}
+	if a.usageHandler != nil {
+		a.usageHandler.RegisterRoutes(protectedRouter)
+	}
+
+	// Order routes
+	if a.orderHandler != nil {
+		a.orderHandler.RegisterRoutes(protectedRouter)
+	}
+
+	// Invoice routes
+	if a.invoiceHandler != nil {
+		a.invoiceHandler.RegisterRoutes(protectedRouter)
+	}
+
+	// Payment routes
+	if a.paymentHandler != nil {
+		a.paymentHandler.RegisterRoutes(protectedRouter)
+	}
+
+	// ===== Admin Routes (requires admin auth) =====
+	// TODO: Add admin middleware when available
+	adminRouter := protectedRouter.Group("")
+	// adminRouter.Use(middleware.RequireAdmin())
+
+	// User admin routes
+	if a.userAdminHandler != nil {
+		a.userAdminHandler.RegisterRoutes(adminRouter)
+	}
+
+	// System API key routes (admin only)
+	if a.systemAPIKeyHandler != nil {
+		a.systemAPIKeyHandler.RegisterRoutes(adminRouter)
+	}
+
+	// Credits admin routes (add credits)
+	if a.creditsHandler != nil {
+		a.creditsHandler.RegisterAdminRoutes(adminRouter)
+	}
+
+	// Refund routes (admin only)
+	if a.refundHandler != nil {
+		a.refundHandler.RegisterRoutes(adminRouter)
+	}
 }
 
 // Router returns the HTTP router.

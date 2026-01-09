@@ -9,6 +9,11 @@ package app
 import (
 	"github.com/redis/go-redis/v9"
 	"github.com/uniedit/server/internal/adapter/inbound/http/ai"
+	"github.com/uniedit/server/internal/adapter/inbound/http/auth"
+	"github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	"github.com/uniedit/server/internal/adapter/inbound/http/order"
+	"github.com/uniedit/server/internal/adapter/inbound/http/payment"
+	"github.com/uniedit/server/internal/adapter/inbound/http/user"
 	"github.com/uniedit/server/internal/adapter/outbound/postgres"
 	ai2 "github.com/uniedit/server/internal/domain/ai"
 	"github.com/uniedit/server/internal/domain/auth"
@@ -102,6 +107,21 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 	mediaCryptoPort := ProvideMediaCryptoAdapter(cfg)
 	mediaDomain := ProvideMediaDomain(mediaProviderDBAdapter, mediaModelDBAdapter, mediaTaskDBAdapter, mediaProviderHealthCachePort, mediaVendorRegistryPort, mediaCryptoPort, logger)
 	chatHandler := ai.NewChatHandler(aiDomain)
+	oAuthHandler := authhttp.NewOAuthHandler(authDomain)
+	apiKeyHandler := authhttp.NewAPIKeyHandler(authDomain)
+	systemAPIKeyHandler := authhttp.NewSystemAPIKeyHandler(authDomain)
+	profileHandler := userhttp.NewProfileHandler(userDomain)
+	registrationHandler := userhttp.NewRegistrationHandler(userDomain)
+	adminHandler := userhttp.NewAdminHandler(userDomain)
+	subscriptionHandler := billinghttp.NewSubscriptionHandler(billingDomain)
+	quotaHandler := billinghttp.NewQuotaHandler(billingDomain)
+	creditsHandler := billinghttp.NewCreditsHandler(billingDomain)
+	usageHandler := billinghttp.NewUsageHandler(billingDomain)
+	orderHandler := orderhttp.NewOrderHandler(orderDomain)
+	invoiceHandler := orderhttp.NewInvoiceHandler(orderDomain)
+	paymentHandler := paymenthttp.NewPaymentHandler(paymentDomain)
+	refundHandler := paymenthttp.NewRefundHandler(paymentDomain)
+	webhookHandler := paymenthttp.NewWebhookHandler(paymentDomain)
 	dependencies := &Dependencies{
 		Config:              cfg,
 		DB:                  db,
@@ -121,6 +141,21 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 		CollaborationDomain: collaborationDomain,
 		MediaDomain:         mediaDomain,
 		AIChatHandler:       chatHandler,
+		OAuthHandler:        oAuthHandler,
+		APIKeyHandler:       apiKeyHandler,
+		SystemAPIKeyHandler: systemAPIKeyHandler,
+		ProfileHandler:      profileHandler,
+		RegistrationHandler: registrationHandler,
+		UserAdminHandler:    adminHandler,
+		SubscriptionHandler: subscriptionHandler,
+		QuotaHandler:        quotaHandler,
+		CreditsHandler:      creditsHandler,
+		UsageHandler:        usageHandler,
+		OrderHandler:        orderHandler,
+		InvoiceHandler:      invoiceHandler,
+		PaymentHandler:      paymentHandler,
+		RefundHandler:       refundHandler,
+		WebhookHandler:      webhookHandler,
 	}
 	return dependencies, func() {
 	}, nil
@@ -152,4 +187,29 @@ type Dependencies struct {
 
 	// HTTP Handlers
 	AIChatHandler *ai.ChatHandler
+
+	// Auth HTTP Handlers
+	OAuthHandler        *authhttp.OAuthHandler
+	APIKeyHandler       *authhttp.APIKeyHandler
+	SystemAPIKeyHandler *authhttp.SystemAPIKeyHandler
+
+	// User HTTP Handlers
+	ProfileHandler      *userhttp.ProfileHandler
+	RegistrationHandler *userhttp.RegistrationHandler
+	UserAdminHandler    *userhttp.AdminHandler
+
+	// Billing HTTP Handlers
+	SubscriptionHandler *billinghttp.SubscriptionHandler
+	QuotaHandler        *billinghttp.QuotaHandler
+	CreditsHandler      *billinghttp.CreditsHandler
+	UsageHandler        *billinghttp.UsageHandler
+
+	// Order HTTP Handlers
+	OrderHandler   *orderhttp.OrderHandler
+	InvoiceHandler *orderhttp.InvoiceHandler
+
+	// Payment HTTP Handlers
+	PaymentHandler *paymenthttp.PaymentHandler
+	RefundHandler  *paymenthttp.RefundHandler
+	WebhookHandler *paymenthttp.WebhookHandler
 }

@@ -1,4 +1,4 @@
-package gin
+package authhttp
 
 import (
 	"net/http"
@@ -10,36 +10,33 @@ import (
 	"github.com/uniedit/server/internal/port/inbound"
 )
 
-// systemAPIKeyAdapter implements inbound.SystemAPIKeyHttpPort.
-type systemAPIKeyAdapter struct {
+// SystemAPIKeyHandler handles system API key HTTP requests.
+type SystemAPIKeyHandler struct {
 	authDomain auth.AuthDomain
 }
 
-// NewSystemAPIKeyAdapter creates a new system API key HTTP adapter.
-func NewSystemAPIKeyAdapter(authDomain auth.AuthDomain) inbound.SystemAPIKeyHttpPort {
-	return &systemAPIKeyAdapter{authDomain: authDomain}
+// NewSystemAPIKeyHandler creates a new system API key handler.
+func NewSystemAPIKeyHandler(authDomain auth.AuthDomain) *SystemAPIKeyHandler {
+	return &SystemAPIKeyHandler{authDomain: authDomain}
 }
 
 // RegisterRoutes registers system API key routes.
-func (a *systemAPIKeyAdapter) RegisterRoutes(r *gin.RouterGroup) {
+func (h *SystemAPIKeyHandler) RegisterRoutes(r *gin.RouterGroup) {
 	keys := r.Group("/system-api-keys")
 	{
-		keys.POST("", a.CreateSystemAPIKey)
-		keys.GET("", a.ListSystemAPIKeys)
-		keys.GET("/:id", a.GetSystemAPIKey)
-		keys.PATCH("/:id", a.UpdateSystemAPIKey)
-		keys.DELETE("/:id", a.DeleteSystemAPIKey)
-		keys.POST("/:id/rotate", a.RotateSystemAPIKey)
+		keys.POST("", h.CreateSystemAPIKey)
+		keys.GET("", h.ListSystemAPIKeys)
+		keys.GET("/:id", h.GetSystemAPIKey)
+		keys.PATCH("/:id", h.UpdateSystemAPIKey)
+		keys.DELETE("/:id", h.DeleteSystemAPIKey)
+		keys.POST("/:id/rotate", h.RotateSystemAPIKey)
 	}
 }
 
-func (a *systemAPIKeyAdapter) CreateSystemAPIKey(c *gin.Context) {
-	userID := MustGetUserID(c)
-	if userID == uuid.Nil {
-		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
-			Code:    "unauthorized",
-			Message: "User not authenticated",
-		})
+// CreateSystemAPIKey handles POST /system-api-keys.
+func (h *SystemAPIKeyHandler) CreateSystemAPIKey(c *gin.Context) {
+	userID, ok := requireAuth(c)
+	if !ok {
 		return
 	}
 
@@ -66,9 +63,9 @@ func (a *systemAPIKeyAdapter) CreateSystemAPIKey(c *gin.Context) {
 		ExpiresInDays: req.ExpiresInDays,
 	}
 
-	result, err := a.authDomain.CreateSystemAPIKey(c.Request.Context(), userID, input)
+	result, err := h.authDomain.CreateSystemAPIKey(c.Request.Context(), userID, input)
 	if err != nil {
-		handleAuthError(c, err)
+		handleError(c, err)
 		return
 	}
 
@@ -78,19 +75,16 @@ func (a *systemAPIKeyAdapter) CreateSystemAPIKey(c *gin.Context) {
 	})
 }
 
-func (a *systemAPIKeyAdapter) ListSystemAPIKeys(c *gin.Context) {
-	userID := MustGetUserID(c)
-	if userID == uuid.Nil {
-		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
-			Code:    "unauthorized",
-			Message: "User not authenticated",
-		})
+// ListSystemAPIKeys handles GET /system-api-keys.
+func (h *SystemAPIKeyHandler) ListSystemAPIKeys(c *gin.Context) {
+	userID, ok := requireAuth(c)
+	if !ok {
 		return
 	}
 
-	keys, err := a.authDomain.ListSystemAPIKeys(c.Request.Context(), userID)
+	keys, err := h.authDomain.ListSystemAPIKeys(c.Request.Context(), userID)
 	if err != nil {
-		handleAuthError(c, err)
+		handleError(c, err)
 		return
 	}
 
@@ -102,13 +96,10 @@ func (a *systemAPIKeyAdapter) ListSystemAPIKeys(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"api_keys": response})
 }
 
-func (a *systemAPIKeyAdapter) GetSystemAPIKey(c *gin.Context) {
-	userID := MustGetUserID(c)
-	if userID == uuid.Nil {
-		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
-			Code:    "unauthorized",
-			Message: "User not authenticated",
-		})
+// GetSystemAPIKey handles GET /system-api-keys/:id.
+func (h *SystemAPIKeyHandler) GetSystemAPIKey(c *gin.Context) {
+	userID, ok := requireAuth(c)
+	if !ok {
 		return
 	}
 
@@ -122,22 +113,19 @@ func (a *systemAPIKeyAdapter) GetSystemAPIKey(c *gin.Context) {
 		return
 	}
 
-	key, err := a.authDomain.GetSystemAPIKey(c.Request.Context(), userID, keyID)
+	key, err := h.authDomain.GetSystemAPIKey(c.Request.Context(), userID, keyID)
 	if err != nil {
-		handleAuthError(c, err)
+		handleError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, key.ToResponse())
 }
 
-func (a *systemAPIKeyAdapter) UpdateSystemAPIKey(c *gin.Context) {
-	userID := MustGetUserID(c)
-	if userID == uuid.Nil {
-		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
-			Code:    "unauthorized",
-			Message: "User not authenticated",
-		})
+// UpdateSystemAPIKey handles PATCH /system-api-keys/:id.
+func (h *SystemAPIKeyHandler) UpdateSystemAPIKey(c *gin.Context) {
+	userID, ok := requireAuth(c)
+	if !ok {
 		return
 	}
 
@@ -174,22 +162,19 @@ func (a *systemAPIKeyAdapter) UpdateSystemAPIKey(c *gin.Context) {
 		IsActive:     req.IsActive,
 	}
 
-	key, err := a.authDomain.UpdateSystemAPIKey(c.Request.Context(), userID, keyID, input)
+	key, err := h.authDomain.UpdateSystemAPIKey(c.Request.Context(), userID, keyID, input)
 	if err != nil {
-		handleAuthError(c, err)
+		handleError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, key.ToResponse())
 }
 
-func (a *systemAPIKeyAdapter) DeleteSystemAPIKey(c *gin.Context) {
-	userID := MustGetUserID(c)
-	if userID == uuid.Nil {
-		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
-			Code:    "unauthorized",
-			Message: "User not authenticated",
-		})
+// DeleteSystemAPIKey handles DELETE /system-api-keys/:id.
+func (h *SystemAPIKeyHandler) DeleteSystemAPIKey(c *gin.Context) {
+	userID, ok := requireAuth(c)
+	if !ok {
 		return
 	}
 
@@ -203,21 +188,18 @@ func (a *systemAPIKeyAdapter) DeleteSystemAPIKey(c *gin.Context) {
 		return
 	}
 
-	if err := a.authDomain.DeleteSystemAPIKey(c.Request.Context(), userID, keyID); err != nil {
-		handleAuthError(c, err)
+	if err := h.authDomain.DeleteSystemAPIKey(c.Request.Context(), userID, keyID); err != nil {
+		handleError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "API key deleted"})
 }
 
-func (a *systemAPIKeyAdapter) RotateSystemAPIKey(c *gin.Context) {
-	userID := MustGetUserID(c)
-	if userID == uuid.Nil {
-		c.JSON(http.StatusUnauthorized, model.ErrorResponse{
-			Code:    "unauthorized",
-			Message: "User not authenticated",
-		})
+// RotateSystemAPIKey handles POST /system-api-keys/:id/rotate.
+func (h *SystemAPIKeyHandler) RotateSystemAPIKey(c *gin.Context) {
+	userID, ok := requireAuth(c)
+	if !ok {
 		return
 	}
 
@@ -231,9 +213,9 @@ func (a *systemAPIKeyAdapter) RotateSystemAPIKey(c *gin.Context) {
 		return
 	}
 
-	result, err := a.authDomain.RotateSystemAPIKey(c.Request.Context(), userID, keyID)
+	result, err := h.authDomain.RotateSystemAPIKey(c.Request.Context(), userID, keyID)
 	if err != nil {
-		handleAuthError(c, err)
+		handleError(c, err)
 		return
 	}
 
@@ -244,4 +226,4 @@ func (a *systemAPIKeyAdapter) RotateSystemAPIKey(c *gin.Context) {
 }
 
 // Compile-time check
-var _ inbound.SystemAPIKeyHttpPort = (*systemAPIKeyAdapter)(nil)
+var _ inbound.SystemAPIKeyHttpPort = (*SystemAPIKeyHandler)(nil)

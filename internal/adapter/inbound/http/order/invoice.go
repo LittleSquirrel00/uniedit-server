@@ -1,4 +1,4 @@
-package gin
+package orderhttp
 
 import (
 	"net/http"
@@ -9,18 +9,29 @@ import (
 	"github.com/uniedit/server/internal/port/inbound"
 )
 
-// invoiceHandler implements inbound.InvoiceHttpPort.
-type invoiceHandler struct {
+// InvoiceHandler handles invoice HTTP requests.
+type InvoiceHandler struct {
 	orderDomain order.OrderDomain
 }
 
-// NewInvoiceHandler creates a new invoice HTTP handler.
-func NewInvoiceHandler(orderDomain order.OrderDomain) inbound.InvoiceHttpPort {
-	return &invoiceHandler{orderDomain: orderDomain}
+// NewInvoiceHandler creates a new invoice handler.
+func NewInvoiceHandler(orderDomain order.OrderDomain) *InvoiceHandler {
+	return &InvoiceHandler{orderDomain: orderDomain}
 }
 
-func (h *invoiceHandler) GetInvoice(c *gin.Context) {
-	userID, ok := GetUserIDFromContext(c)
+// RegisterRoutes registers invoice routes.
+func (h *InvoiceHandler) RegisterRoutes(r *gin.RouterGroup) {
+	invoices := r.Group("/invoices")
+	{
+		invoices.GET("", h.ListInvoices)
+		invoices.GET("/:id", h.GetInvoice)
+		invoices.GET("/:id/download", h.DownloadInvoice)
+	}
+}
+
+// GetInvoice handles GET /invoices/:id.
+func (h *InvoiceHandler) GetInvoice(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
 	if !ok {
 		return
 	}
@@ -34,11 +45,7 @@ func (h *invoiceHandler) GetInvoice(c *gin.Context) {
 
 	invoice, err := h.orderDomain.GetInvoice(c.Request.Context(), invoiceID)
 	if err != nil {
-		if err == order.ErrInvoiceNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "invoice not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get invoice"})
+		handleError(c, err)
 		return
 	}
 
@@ -51,8 +58,9 @@ func (h *invoiceHandler) GetInvoice(c *gin.Context) {
 	c.JSON(http.StatusOK, invoice.ToResponse())
 }
 
-func (h *invoiceHandler) ListInvoices(c *gin.Context) {
-	userID, ok := GetUserIDFromContext(c)
+// ListInvoices handles GET /invoices.
+func (h *InvoiceHandler) ListInvoices(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
 	if !ok {
 		return
 	}
@@ -83,8 +91,9 @@ func (h *invoiceHandler) ListInvoices(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"invoices": responses})
 }
 
-func (h *invoiceHandler) DownloadInvoice(c *gin.Context) {
-	userID, ok := GetUserIDFromContext(c)
+// DownloadInvoice handles GET /invoices/:id/download.
+func (h *InvoiceHandler) DownloadInvoice(c *gin.Context) {
+	userID, ok := getUserIDFromContext(c)
 	if !ok {
 		return
 	}
@@ -98,11 +107,7 @@ func (h *invoiceHandler) DownloadInvoice(c *gin.Context) {
 
 	invoice, err := h.orderDomain.GetInvoice(c.Request.Context(), invoiceID)
 	if err != nil {
-		if err == order.ErrInvoiceNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "invoice not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get invoice"})
+		handleError(c, err)
 		return
 	}
 
@@ -121,4 +126,4 @@ func (h *invoiceHandler) DownloadInvoice(c *gin.Context) {
 }
 
 // Compile-time check
-var _ inbound.InvoiceHttpPort = (*invoiceHandler)(nil)
+var _ inbound.InvoiceHttpPort = (*InvoiceHandler)(nil)

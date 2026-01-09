@@ -21,6 +21,11 @@ import (
 
 	// Inbound adapters
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
+	authhttp "github.com/uniedit/server/internal/adapter/inbound/http/auth"
+	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	orderhttp "github.com/uniedit/server/internal/adapter/inbound/http/order"
+	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
+	userhttp "github.com/uniedit/server/internal/adapter/inbound/http/user"
 
 	// Ports
 	"github.com/uniedit/server/internal/port/inbound"
@@ -563,9 +568,49 @@ func ProvideMediaDomain(
 
 // ===== HTTP Handler Providers =====
 
-// HandlerSet provides HTTP handlers.
+// AuthHandlerSet provides auth HTTP handlers.
+var AuthHandlerSet = wire.NewSet(
+	authhttp.NewOAuthHandler,
+	authhttp.NewAPIKeyHandler,
+	authhttp.NewSystemAPIKeyHandler,
+)
+
+// UserHandlerSet provides user HTTP handlers.
+var UserHandlerSet = wire.NewSet(
+	userhttp.NewProfileHandler,
+	userhttp.NewRegistrationHandler,
+	userhttp.NewAdminHandler,
+)
+
+// BillingHandlerSet provides billing HTTP handlers.
+var BillingHandlerSet = wire.NewSet(
+	billinghttp.NewSubscriptionHandler,
+	billinghttp.NewQuotaHandler,
+	billinghttp.NewCreditsHandler,
+	billinghttp.NewUsageHandler,
+)
+
+// OrderHandlerSet provides order HTTP handlers.
+var OrderHandlerSet = wire.NewSet(
+	orderhttp.NewOrderHandler,
+	orderhttp.NewInvoiceHandler,
+)
+
+// PaymentHandlerSet provides payment HTTP handlers.
+var PaymentHandlerSet = wire.NewSet(
+	paymenthttp.NewPaymentHandler,
+	paymenthttp.NewRefundHandler,
+	paymenthttp.NewWebhookHandler,
+)
+
+// HandlerSet provides all HTTP handlers.
 var HandlerSet = wire.NewSet(
 	aihttp.NewChatHandler,
+	AuthHandlerSet,
+	UserHandlerSet,
+	BillingHandlerSet,
+	OrderHandlerSet,
+	PaymentHandlerSet,
 )
 
 // ===== Master Set =====

@@ -1,4 +1,4 @@
-package gin
+package userhttp
 
 import (
 	"net/http"
@@ -10,30 +10,31 @@ import (
 	"github.com/uniedit/server/internal/port/inbound"
 )
 
-// userAdminAdapter implements inbound.UserAdminPort.
-type userAdminAdapter struct {
+// AdminHandler handles user admin HTTP requests.
+type AdminHandler struct {
 	domain user.UserDomain
 }
 
-// NewUserAdminAdapter creates a new user admin HTTP adapter.
-func NewUserAdminAdapter(domain user.UserDomain) inbound.UserAdminPort {
-	return &userAdminAdapter{domain: domain}
+// NewAdminHandler creates a new user admin handler.
+func NewAdminHandler(domain user.UserDomain) *AdminHandler {
+	return &AdminHandler{domain: domain}
 }
 
 // RegisterRoutes registers admin user routes.
-func (a *userAdminAdapter) RegisterRoutes(r *gin.RouterGroup) {
-	admin := r.Group("/admin/users")
+func (h *AdminHandler) RegisterRoutes(r *gin.RouterGroup) {
+	admin := r.Group("/users")
 	{
-		admin.GET("", a.ListUsers)
-		admin.GET("/:id", a.GetUser)
-		admin.POST("/:id/suspend", a.SuspendUser)
-		admin.POST("/:id/reactivate", a.ReactivateUser)
-		admin.PUT("/:id/admin", a.SetAdminStatus)
-		admin.DELETE("/:id", a.DeleteUser)
+		admin.GET("", h.ListUsers)
+		admin.GET("/:id", h.GetUser)
+		admin.POST("/:id/suspend", h.SuspendUser)
+		admin.POST("/:id/reactivate", h.ReactivateUser)
+		admin.PUT("/:id/admin", h.SetAdminStatus)
+		admin.DELETE("/:id", h.DeleteUser)
 	}
 }
 
-func (a *userAdminAdapter) ListUsers(c *gin.Context) {
+// ListUsers handles GET /admin/users.
+func (h *AdminHandler) ListUsers(c *gin.Context) {
 	var filter model.UserFilter
 	if err := c.ShouldBindQuery(&filter); err != nil {
 		c.JSON(http.StatusBadRequest, model.ErrorResponse{
@@ -43,13 +44,12 @@ func (a *userAdminAdapter) ListUsers(c *gin.Context) {
 		return
 	}
 
-	users, total, err := a.domain.ListUsers(c.Request.Context(), filter)
+	users, total, err := h.domain.ListUsers(c.Request.Context(), filter)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
-	// Convert to response
 	responses := make([]*model.UserResponse, len(users))
 	for i, u := range users {
 		responses[i] = u.ToResponse()
@@ -59,7 +59,8 @@ func (a *userAdminAdapter) ListUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, model.NewPaginatedResponse(responses, total, filter.Page, filter.PageSize))
 }
 
-func (a *userAdminAdapter) GetUser(c *gin.Context) {
+// GetUser handles GET /admin/users/:id.
+func (h *AdminHandler) GetUser(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, model.ErrorResponse{
@@ -69,7 +70,7 @@ func (a *userAdminAdapter) GetUser(c *gin.Context) {
 		return
 	}
 
-	u, err := a.domain.GetUser(c.Request.Context(), id)
+	u, err := h.domain.GetUser(c.Request.Context(), id)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -78,7 +79,8 @@ func (a *userAdminAdapter) GetUser(c *gin.Context) {
 	c.JSON(http.StatusOK, u.ToResponse())
 }
 
-func (a *userAdminAdapter) SuspendUser(c *gin.Context) {
+// SuspendUser handles POST /admin/users/:id/suspend.
+func (h *AdminHandler) SuspendUser(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, model.ErrorResponse{
@@ -99,7 +101,7 @@ func (a *userAdminAdapter) SuspendUser(c *gin.Context) {
 		return
 	}
 
-	if err := a.domain.SuspendUser(c.Request.Context(), id, req.Reason); err != nil {
+	if err := h.domain.SuspendUser(c.Request.Context(), id, req.Reason); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -107,7 +109,8 @@ func (a *userAdminAdapter) SuspendUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "user suspended"})
 }
 
-func (a *userAdminAdapter) ReactivateUser(c *gin.Context) {
+// ReactivateUser handles POST /admin/users/:id/reactivate.
+func (h *AdminHandler) ReactivateUser(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, model.ErrorResponse{
@@ -117,7 +120,7 @@ func (a *userAdminAdapter) ReactivateUser(c *gin.Context) {
 		return
 	}
 
-	if err := a.domain.ReactivateUser(c.Request.Context(), id); err != nil {
+	if err := h.domain.ReactivateUser(c.Request.Context(), id); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -125,7 +128,8 @@ func (a *userAdminAdapter) ReactivateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "user reactivated"})
 }
 
-func (a *userAdminAdapter) SetAdminStatus(c *gin.Context) {
+// SetAdminStatus handles PUT /admin/users/:id/admin.
+func (h *AdminHandler) SetAdminStatus(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, model.ErrorResponse{
@@ -146,7 +150,7 @@ func (a *userAdminAdapter) SetAdminStatus(c *gin.Context) {
 		return
 	}
 
-	if err := a.domain.SetAdminStatus(c.Request.Context(), id, req.IsAdmin); err != nil {
+	if err := h.domain.SetAdminStatus(c.Request.Context(), id, req.IsAdmin); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -154,7 +158,8 @@ func (a *userAdminAdapter) SetAdminStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "admin status updated"})
 }
 
-func (a *userAdminAdapter) DeleteUser(c *gin.Context) {
+// DeleteUser handles DELETE /admin/users/:id.
+func (h *AdminHandler) DeleteUser(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, model.ErrorResponse{
@@ -164,7 +169,7 @@ func (a *userAdminAdapter) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if err := a.domain.AdminDeleteUser(c.Request.Context(), id); err != nil {
+	if err := h.domain.AdminDeleteUser(c.Request.Context(), id); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -173,4 +178,4 @@ func (a *userAdminAdapter) DeleteUser(c *gin.Context) {
 }
 
 // Compile-time check
-var _ inbound.UserAdminPort = (*userAdminAdapter)(nil)
+var _ inbound.UserAdminPort = (*AdminHandler)(nil)
