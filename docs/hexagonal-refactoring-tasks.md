@@ -1112,11 +1112,55 @@ rm -rf internal/module/
 | P5.7 | Domain Registry | ✅ | Claude | 添加 Payment Domain 到注册表 |
 | P5.8 | Payment Domain 测试 | ✅ | Claude | 17 个测试用例通过，覆盖率 29.0% |
 | P5.9 | 集成验证 | ✅ | Claude | 编译通过，测试通过，依赖方向正确 |
-| P6.x | AI 迁移 | ⬜ | | 复杂模块，需保留核心逻辑 |
-| P7.x | Git 迁移 | ⬜ | | |
-| P8.x | Media 迁移 | ⬜ | | |
-| P9.x | Collaboration 迁移 | ⬜ | | |
-| P10.x | 清理优化 | ⬜ | | |
+| P6.1 | AI Model | ⬜ | | Provider, Model, Account, Group |
+| P6.2 | AI Outbound Port | ⬜ | | ProviderDB, ModelDB, AccountDB, HealthCache, VendorAdapter |
+| P6.3 | AI Inbound Port | ⬜ | | ChatHttp, EmbeddingHttp, AdminHttp, PoolHttp |
+| P6.4 | AI Domain | ⬜ | | Chat, Embed, Route, HealthMonitor |
+| P6.5 | 迁移路由策略 | ⬜ | | 6个策略: UserPref, Health, Capability, Context, Cost, LoadBalance |
+| P6.6 | AI Postgres Adapter | ⬜ | | provider, model, account, group |
+| P6.7 | AI Redis Adapter | ⬜ | | health_cache, embedding_cache |
+| P6.8 | 迁移厂商适配器 | ⬜ | | OpenAI, Anthropic, Generic |
+| P6.9 | AI HTTP Adapter | ⬜ | | chat, embedding, admin, pool handlers |
+| P6.10 | AI Domain Registry | ⬜ | | 添加 AI Domain |
+| P6.11 | AI Domain 测试 | ⬜ | | 目标覆盖率 >80% |
+| P6.12 | AI 集成验证 | ⬜ | | 编译通过，测试通过 |
+| P7.1 | Git Model | ⬜ | | GitRepo, Collaborator, PullRequest, LFSObject, LFSLock |
+| P7.2 | Git Outbound Port | ⬜ | | RepoDB, CollabDB, PRDB, LFSDB, Storage, Authenticator |
+| P7.3 | Git Inbound Port | ⬜ | | RepoHttp, CollabHttp, PRHttp, ProtocolHttp, LFSHttp |
+| P7.4 | Git Domain | ⬜ | | 仓库管理, 访问控制, PR, 存储统计 |
+| P7.5 | 迁移 Git 协议 | ⬜ | | Smart HTTP: InfoRefs, UploadPack, ReceivePack |
+| P7.6 | LFS Domain | ⬜ | | Batch, Lock, Verify |
+| P7.7 | Git Postgres Adapter | ⬜ | | repo, collaborator, pull_request, lfs |
+| P7.8 | 迁移 R2 存储适配器 | ⬜ | | R2Client, BillyFilesystem |
+| P7.9 | Git REST HTTP Adapter | ⬜ | | repo, collab, pr handlers |
+| P7.10 | Git Protocol HTTP Adapter | ⬜ | | info_refs, upload_pack, receive_pack |
+| P7.11 | Git LFS HTTP Adapter | ⬜ | | batch, lock, verify handlers |
+| P7.12 | Git Domain Registry | ⬜ | | 添加 Git Domain |
+| P7.13 | Git Domain 测试 | ⬜ | | 目标覆盖率 >80% |
+| P7.14 | Git 集成验证 | ⬜ | | 编译通过，测试通过，Git协议兼容 |
+| P8.1 | Media Model | ⬜ | | Provider, Model, Task |
+| P8.2 | Media Outbound Port | ⬜ | | ProviderRegistry, HealthChecker, TaskManager, VendorAdapter |
+| P8.3 | Media Inbound Port | ⬜ | | ImageHttp, VideoHttp, TaskHttp |
+| P8.4 | Media Domain | ⬜ | | GenerateImage, GenerateVideo, GetStatus |
+| P8.5 | 迁移 Media 适配器 | ⬜ | | OpenAI media adapter |
+| P8.6 | Media HTTP Adapter | ⬜ | | image, video, task handlers |
+| P8.7 | Media Domain Registry | ⬜ | | 添加 Media Domain |
+| P8.8 | Media Domain 测试 | ⬜ | | 目标覆盖率 >80% |
+| P8.9 | Media 集成验证 | ⬜ | | 编译通过，测试通过 |
+| P9.1 | Collaboration Model | ⬜ | | Team, TeamMember, TeamInvitation |
+| P9.2 | Collaboration Outbound Port | ⬜ | | TeamDB, MemberDB, InvitationDB, UserReader |
+| P9.3 | Collaboration Inbound Port | ⬜ | | TeamHttp, MemberHttp, InvitationHttp |
+| P9.4 | Collaboration Domain | ⬜ | | 团队管理, 成员管理, 邀请流程 |
+| P9.5 | 迁移角色权限 | ⬜ | | Role, Permission 定义 |
+| P9.6 | Collaboration Postgres Adapter | ⬜ | | team, member, invitation |
+| P9.7 | Collaboration HTTP Adapter | ⬜ | | team, member, invitation handlers |
+| P9.8 | Collaboration Domain Registry | ⬜ | | 添加 Collaboration Domain |
+| P9.9 | Collaboration Domain 测试 | ⬜ | | 目标覆盖率 >80% |
+| P9.10 | Collaboration 集成验证 | ⬜ | | 编译通过，测试通过 |
+| P10.1 | 删除旧 module 代码 | ⬜ | | 删除 internal/module/ |
+| P10.2 | 更新 shared 目录 | ⬜ | | 迁移到对应 adapter |
+| P10.3 | 更新 app.go | ⬜ | | 重写应用组装层 |
+| P10.4 | 更新文档 | ⬜ | | README, CLAUDE.md, API文档 |
 
 ---
 
@@ -1174,3 +1218,5 @@ Phase 10: 清理优化       [░░░░░░░░░░░░░░░░�
 ```
 
 **下一步**: Phase 6 AI 迁移（复杂模块，包含 routing/provider/pool 等子模块）
+
+**详细方案**: 见 [Phase 6-10 详细迁移方案](./phase6-10-migration-plan.md)
