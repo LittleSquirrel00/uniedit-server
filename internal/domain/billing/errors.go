@@ -14,12 +14,12 @@ var (
 	ErrSubscriptionNotActive = errors.New("subscription is not active")
 
 	// Quota errors
-	ErrQuotaExceeded     = errors.New("quota exceeded")
-	ErrTokenLimitReached = errors.New("monthly token limit reached")
+	ErrQuotaExceeded       = errors.New("quota exceeded")
+	ErrTokenLimitReached   = errors.New("monthly token limit reached")
 	ErrRequestLimitReached = errors.New("daily request limit reached")
 
 	// Credits errors
-	ErrInsufficientCredits = errors.New("insufficient credits")
+	ErrInsufficientCredits  = errors.New("insufficient credits")
 	ErrInvalidCreditsAmount = errors.New("invalid credits amount")
 
 	// Stripe errors

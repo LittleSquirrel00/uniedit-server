@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -721,5 +722,259 @@ func TestOrderDomain_ListInvoices(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, result, 2)
 		mockInvoiceDB.AssertExpectations(t)
+	})
+}
+
+func TestOrderDomain_CreateSubscriptionOrder_EdgeCases(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("plan not found", func(t *testing.T) {
+		mockPlanDB := new(MockPlanDB)
+		domain := NewOrderDomain(nil, nil, nil, mockPlanDB, logger)
+
+		userID := uuid.New()
+		mockPlanDB.On("GetByID", mock.Anything, "nonexistent").Return(nil, nil)
+
+		order, err := domain.CreateSubscriptionOrder(context.Background(), userID, "nonexistent")
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "plan not found")
+		assert.Nil(t, order)
+	})
+
+	t.Run("plan not active", func(t *testing.T) {
+		mockPlanDB := new(MockPlanDB)
+		domain := NewOrderDomain(nil, nil, nil, mockPlanDB, logger)
+
+		userID := uuid.New()
+		plan := &model.Plan{
+			ID:       "inactive",
+			Name:     "Inactive Plan",
+			PriceUSD: 1999,
+			Active:   false,
+		}
+
+		mockPlanDB.On("GetByID", mock.Anything, "inactive").Return(plan, nil)
+
+		order, err := domain.CreateSubscriptionOrder(context.Background(), userID, "inactive")
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "plan is not active")
+		assert.Nil(t, order)
+	})
+
+	t.Run("plan db error", func(t *testing.T) {
+		mockPlanDB := new(MockPlanDB)
+		domain := NewOrderDomain(nil, nil, nil, mockPlanDB, logger)
+
+		userID := uuid.New()
+		mockPlanDB.On("GetByID", mock.Anything, "pro").Return(nil, errors.New("db error"))
+
+		order, err := domain.CreateSubscriptionOrder(context.Background(), userID, "pro")
+
+		assert.Error(t, err)
+		assert.Nil(t, order)
+	})
+}
+
+func TestOrderDomain_GetOrderByNo_NotFound(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("not found", func(t *testing.T) {
+		mockOrderDB := new(MockOrderDB)
+		domain := NewOrderDomain(mockOrderDB, nil, nil, nil, logger)
+
+		mockOrderDB.On("GetByOrderNo", mock.Anything, "ORD-NOTFOUND").Return(nil, nil)
+
+		result, err := domain.GetOrderByNo(context.Background(), "ORD-NOTFOUND")
+
+		assert.ErrorIs(t, err, ErrOrderNotFound)
+		assert.Nil(t, result)
+	})
+}
+
+func TestOrderDomain_GetOrderByPaymentIntentID_NotFound(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("not found", func(t *testing.T) {
+		mockOrderDB := new(MockOrderDB)
+		domain := NewOrderDomain(mockOrderDB, nil, nil, nil, logger)
+
+		mockOrderDB.On("GetByPaymentIntentID", mock.Anything, "pi_notfound").Return(nil, nil)
+
+		result, err := domain.GetOrderByPaymentIntentID(context.Background(), "pi_notfound")
+
+		assert.ErrorIs(t, err, ErrOrderNotFound)
+		assert.Nil(t, result)
+	})
+}
+
+func TestOrderDomain_MarkAsPaid_NotFound(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("not found", func(t *testing.T) {
+		mockOrderDB := new(MockOrderDB)
+		domain := NewOrderDomain(mockOrderDB, nil, nil, nil, logger)
+
+		orderID := uuid.New()
+		mockOrderDB.On("GetByID", mock.Anything, orderID).Return(nil, nil)
+
+		err := domain.MarkAsPaid(context.Background(), orderID)
+
+		assert.ErrorIs(t, err, ErrOrderNotFound)
+	})
+}
+
+func TestOrderDomain_MarkAsFailed_NotFound(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("not found", func(t *testing.T) {
+		mockOrderDB := new(MockOrderDB)
+		domain := NewOrderDomain(mockOrderDB, nil, nil, nil, logger)
+
+		orderID := uuid.New()
+		mockOrderDB.On("GetByID", mock.Anything, orderID).Return(nil, nil)
+
+		err := domain.MarkAsFailed(context.Background(), orderID)
+
+		assert.ErrorIs(t, err, ErrOrderNotFound)
+	})
+}
+
+func TestOrderDomain_CancelOrder_NotFound(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("not found", func(t *testing.T) {
+		mockOrderDB := new(MockOrderDB)
+		domain := NewOrderDomain(mockOrderDB, nil, nil, nil, logger)
+
+		orderID := uuid.New()
+		mockOrderDB.On("GetByID", mock.Anything, orderID).Return(nil, nil)
+
+		err := domain.CancelOrder(context.Background(), orderID, "test")
+
+		assert.ErrorIs(t, err, ErrOrderNotFound)
+	})
+}
+
+func TestOrderDomain_MarkAsRefunded_NotFound(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("not found", func(t *testing.T) {
+		mockOrderDB := new(MockOrderDB)
+		domain := NewOrderDomain(mockOrderDB, nil, nil, nil, logger)
+
+		orderID := uuid.New()
+		mockOrderDB.On("GetByID", mock.Anything, orderID).Return(nil, nil)
+
+		err := domain.MarkAsRefunded(context.Background(), orderID)
+
+		assert.ErrorIs(t, err, ErrOrderNotFound)
+	})
+}
+
+func TestOrderDomain_SetStripePaymentIntentID_NotFound(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("not found", func(t *testing.T) {
+		mockOrderDB := new(MockOrderDB)
+		domain := NewOrderDomain(mockOrderDB, nil, nil, nil, logger)
+
+		orderID := uuid.New()
+		mockOrderDB.On("GetByID", mock.Anything, orderID).Return(nil, nil)
+
+		err := domain.SetStripePaymentIntentID(context.Background(), orderID, "pi_test")
+
+		assert.ErrorIs(t, err, ErrOrderNotFound)
+	})
+}
+
+func TestOrderDomain_GenerateInvoice_NotFound(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("order not found", func(t *testing.T) {
+		mockOrderDB := new(MockOrderDB)
+		domain := NewOrderDomain(mockOrderDB, nil, nil, nil, logger)
+
+		orderID := uuid.New()
+		mockOrderDB.On("GetByID", mock.Anything, orderID).Return(nil, nil)
+
+		invoice, err := domain.GenerateInvoice(context.Background(), orderID)
+
+		assert.ErrorIs(t, err, ErrOrderNotFound)
+		assert.Nil(t, invoice)
+	})
+}
+
+func TestOrderDomain_GetInvoice_NotFound(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("not found", func(t *testing.T) {
+		mockInvoiceDB := new(MockInvoiceDB)
+		domain := NewOrderDomain(nil, nil, mockInvoiceDB, nil, logger)
+
+		invoiceID := uuid.New()
+		mockInvoiceDB.On("GetByID", mock.Anything, invoiceID).Return(nil, nil)
+
+		invoice, err := domain.GetInvoice(context.Background(), invoiceID)
+
+		assert.ErrorIs(t, err, ErrInvoiceNotFound)
+		assert.Nil(t, invoice)
+	})
+}
+
+func TestOrderDomain_ExpirePendingOrders_Errors(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("list error", func(t *testing.T) {
+		mockOrderDB := new(MockOrderDB)
+		domain := NewOrderDomain(mockOrderDB, nil, nil, nil, logger)
+
+		mockOrderDB.On("ListPendingExpired", mock.Anything).Return(nil, errors.New("db error"))
+
+		err := domain.ExpirePendingOrders(context.Background())
+
+		assert.Error(t, err)
+	})
+
+	t.Run("skip non-transitionable orders", func(t *testing.T) {
+		mockOrderDB := new(MockOrderDB)
+		domain := NewOrderDomain(mockOrderDB, nil, nil, nil, logger)
+
+		expiredOrders := []*model.Order{
+			{ID: uuid.New(), Status: model.OrderStatusPaid}, // Cannot transition to failed
+			{ID: uuid.New(), Status: model.OrderStatusPending},
+		}
+
+		mockOrderDB.On("ListPendingExpired", mock.Anything).Return(expiredOrders, nil)
+		mockOrderDB.On("Update", mock.Anything, mock.MatchedBy(func(o *model.Order) bool {
+			return o.Status == model.OrderStatusFailed
+		})).Return(nil).Once()
+
+		err := domain.ExpirePendingOrders(context.Background())
+
+		assert.NoError(t, err)
+		// First order should be skipped, only second order should be updated
+		mockOrderDB.AssertNumberOfCalls(t, "Update", 1)
+	})
+
+	t.Run("continue on update error", func(t *testing.T) {
+		mockOrderDB := new(MockOrderDB)
+		domain := NewOrderDomain(mockOrderDB, nil, nil, nil, logger)
+
+		expiredOrders := []*model.Order{
+			{ID: uuid.New(), Status: model.OrderStatusPending},
+			{ID: uuid.New(), Status: model.OrderStatusPending},
+		}
+
+		mockOrderDB.On("ListPendingExpired", mock.Anything).Return(expiredOrders, nil)
+		mockOrderDB.On("Update", mock.Anything, mock.Anything).Return(errors.New("db error")).Once()
+		mockOrderDB.On("Update", mock.Anything, mock.Anything).Return(nil).Once()
+
+		err := domain.ExpirePendingOrders(context.Background())
+
+		// Should not return error, continues processing
+		assert.NoError(t, err)
+		mockOrderDB.AssertNumberOfCalls(t, "Update", 2)
 	})
 }

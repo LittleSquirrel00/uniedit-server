@@ -82,16 +82,16 @@ type SystemAPIKeyCreateResult struct {
 
 // authDomain implements AuthDomain.
 type authDomain struct {
-	userDomain       user.UserDomain
-	tokenRepo        outbound.RefreshTokenDatabasePort
-	userAPIKeyRepo   outbound.UserAPIKeyDatabasePort
-	systemAPIKeyRepo outbound.SystemAPIKeyDatabasePort
-	oauthRegistry    outbound.OAuthRegistryPort
-	stateStore       outbound.OAuthStateStorePort
-	jwt              outbound.JWTPort
-	crypto           outbound.CryptoPort
+	userDomain        user.UserDomain
+	tokenRepo         outbound.RefreshTokenDatabasePort
+	userAPIKeyRepo    outbound.UserAPIKeyDatabasePort
+	systemAPIKeyRepo  outbound.SystemAPIKeyDatabasePort
+	oauthRegistry     outbound.OAuthRegistryPort
+	stateStore        outbound.OAuthStateStorePort
+	jwt               outbound.JWTPort
+	crypto            outbound.CryptoPort
 	maxAPIKeysPerUser int
-	logger           *zap.Logger
+	logger            *zap.Logger
 }
 
 // Config holds domain configuration.

@@ -98,7 +98,8 @@
       "Bash(tr:*)",
       "Bash(__NEW_LINE__ echo \"\")",
       "Bash(go list:*)",
-      "Bash(go tool cover:*)"
+      "Bash(go tool cover:*)",
+      "Bash(gofmt:*)"
     ]
   }
 }

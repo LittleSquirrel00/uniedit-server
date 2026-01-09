@@ -517,12 +517,12 @@ func TestPaymentDomain_HandlePaymentSucceeded(t *testing.T) {
 		userID := uuid.New()
 
 		order := &outbound.PaymentOrderInfo{
-			ID:       orderID,
-			UserID:   userID,
-			Type:     "topup",
-			Status:   "pending",
-			Total:    10000,
-			Currency: "usd",
+			ID:            orderID,
+			UserID:        userID,
+			Type:          "topup",
+			Status:        "pending",
+			Total:         10000,
+			Currency:      "usd",
 			CreditsAmount: 1000,
 		}
 
@@ -581,8 +581,8 @@ func TestPaymentDomain_HandlePaymentSucceeded(t *testing.T) {
 		}
 
 		payment := &model.Payment{
-			ID:      uuid.New(),
-			Status:  model.PaymentStatusSucceeded,
+			ID:     uuid.New(),
+			Status: model.PaymentStatusSucceeded,
 		}
 
 		mockOrderReader.On("GetOrderByPaymentIntentID", mock.Anything, paymentIntentID).Return(order, nil)
@@ -1650,6 +1650,264 @@ func TestPaymentDomain_HandleNativePaymentNotify(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "SUCCESS", resp)
 	})
+
+	t.Run("success - payment success flow", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+		mockNativeProvider := new(MockNativePaymentProviderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil, // No event publisher, use fallback
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentID := uuid.New()
+		orderID := uuid.New()
+		userID := uuid.New()
+
+		notifyResult := &model.ProviderNotifyResult{
+			TradeNo:     "TRADE123",
+			OutTradeNo:  paymentID.String(),
+			Status:      "success",
+			PayerID:     "payer123",
+			RawData:     `{"trade_no":"TRADE123"}`,
+			SuccessResp: "SUCCESS",
+		}
+
+		payment := &model.Payment{
+			ID:       paymentID,
+			OrderID:  orderID,
+			UserID:   userID,
+			Amount:   10000,
+			Currency: "CNY",
+			Status:   model.PaymentStatusPending,
+			Provider: "wechat",
+		}
+
+		order := &outbound.PaymentOrderInfo{
+			ID:            orderID,
+			UserID:        userID,
+			Type:          "topup",
+			Status:        "pending",
+			Total:         10000,
+			Currency:      "CNY",
+			CreditsAmount: 10000,
+		}
+
+		mockProviderReg.On("GetNative", "wechat").Return(mockNativeProvider, nil)
+		mockNativeProvider.On("ParseNotify", mock.Anything, mock.Anything, mock.Anything).Return(notifyResult, nil)
+		mockPaymentDB.On("FindByID", mock.Anything, paymentID).Return(payment, nil)
+		mockWebhookDB.On("Create", mock.Anything, mock.AnythingOfType("*model.WebhookEvent")).Return(nil)
+		mockPaymentDB.On("Update", mock.Anything, mock.AnythingOfType("*model.Payment")).Return(nil)
+		mockOrderReader.On("GetOrder", mock.Anything, orderID).Return(order, nil)
+		mockOrderReader.On("UpdateOrderStatus", mock.Anything, orderID, "paid").Return(nil)
+		mockBillingReader.On("AddCredits", mock.Anything, userID, int64(10000), "topup").Return(nil)
+		mockWebhookDB.On("MarkProcessed", mock.Anything, mock.AnythingOfType("uuid.UUID"), error(nil)).Return(nil)
+
+		resp, err := domain.HandleNativePaymentNotify(context.Background(), "wechat", []byte(`{}`), nil)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "SUCCESS", resp)
+		assert.Equal(t, model.PaymentStatusSucceeded, payment.Status)
+		mockPaymentDB.AssertExpectations(t)
+		mockWebhookDB.AssertExpectations(t)
+		mockOrderReader.AssertExpectations(t)
+	})
+
+	t.Run("success - payment closed flow", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+		mockNativeProvider := new(MockNativePaymentProviderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentID := uuid.New()
+		orderID := uuid.New()
+		userID := uuid.New()
+
+		notifyResult := &model.ProviderNotifyResult{
+			TradeNo:     "TRADE123",
+			OutTradeNo:  paymentID.String(),
+			Status:      "closed",
+			RawData:     `{"trade_no":"TRADE123","status":"closed"}`,
+			SuccessResp: "SUCCESS",
+		}
+
+		payment := &model.Payment{
+			ID:       paymentID,
+			OrderID:  orderID,
+			UserID:   userID,
+			Amount:   10000,
+			Currency: "CNY",
+			Status:   model.PaymentStatusPending,
+			Provider: "wechat",
+		}
+
+		mockProviderReg.On("GetNative", "wechat").Return(mockNativeProvider, nil)
+		mockNativeProvider.On("ParseNotify", mock.Anything, mock.Anything, mock.Anything).Return(notifyResult, nil)
+		mockPaymentDB.On("FindByID", mock.Anything, paymentID).Return(payment, nil)
+		mockWebhookDB.On("Create", mock.Anything, mock.AnythingOfType("*model.WebhookEvent")).Return(nil)
+		mockPaymentDB.On("Update", mock.Anything, mock.AnythingOfType("*model.Payment")).Return(nil)
+		mockWebhookDB.On("MarkProcessed", mock.Anything, mock.AnythingOfType("uuid.UUID"), error(nil)).Return(nil)
+
+		resp, err := domain.HandleNativePaymentNotify(context.Background(), "wechat", []byte(`{}`), nil)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "SUCCESS", resp)
+		assert.Equal(t, model.PaymentStatusCanceled, payment.Status)
+		mockPaymentDB.AssertExpectations(t)
+		mockWebhookDB.AssertExpectations(t)
+	})
+
+	t.Run("duplicate webhook event", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+		mockNativeProvider := new(MockNativePaymentProviderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentID := uuid.New()
+
+		notifyResult := &model.ProviderNotifyResult{
+			TradeNo:     "TRADE123",
+			OutTradeNo:  paymentID.String(),
+			Status:      "success",
+			RawData:     `{"trade_no":"TRADE123"}`,
+			SuccessResp: "SUCCESS",
+		}
+
+		payment := &model.Payment{
+			ID:     paymentID,
+			Status: model.PaymentStatusPending,
+		}
+
+		mockProviderReg.On("GetNative", "wechat").Return(mockNativeProvider, nil)
+		mockNativeProvider.On("ParseNotify", mock.Anything, mock.Anything, mock.Anything).Return(notifyResult, nil)
+		mockPaymentDB.On("FindByID", mock.Anything, paymentID).Return(payment, nil)
+		mockWebhookDB.On("Create", mock.Anything, mock.AnythingOfType("*model.WebhookEvent")).Return(errors.New("duplicate key"))
+
+		resp, err := domain.HandleNativePaymentNotify(context.Background(), "wechat", []byte(`{}`), nil)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "SUCCESS", resp)
+	})
+
+	t.Run("payment not found", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+		mockNativeProvider := new(MockNativePaymentProviderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentID := uuid.New()
+		notifyResult := &model.ProviderNotifyResult{
+			TradeNo:    "TRADE123",
+			OutTradeNo: paymentID.String(),
+			Status:     "success",
+		}
+
+		mockProviderReg.On("GetNative", "wechat").Return(mockNativeProvider, nil)
+		mockNativeProvider.On("ParseNotify", mock.Anything, mock.Anything, mock.Anything).Return(notifyResult, nil)
+		mockPaymentDB.On("FindByID", mock.Anything, paymentID).Return(nil, errors.New("not found"))
+
+		_, err := domain.HandleNativePaymentNotify(context.Background(), "wechat", []byte(`{}`), nil)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "get payment")
+	})
+
+	t.Run("unknown status ignored", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+		mockNativeProvider := new(MockNativePaymentProviderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentID := uuid.New()
+
+		notifyResult := &model.ProviderNotifyResult{
+			TradeNo:     "TRADE123",
+			OutTradeNo:  paymentID.String(),
+			Status:      "pending", // Unknown status
+			RawData:     `{"trade_no":"TRADE123"}`,
+			SuccessResp: "SUCCESS",
+		}
+
+		payment := &model.Payment{
+			ID:     paymentID,
+			Status: model.PaymentStatusPending,
+		}
+
+		mockProviderReg.On("GetNative", "wechat").Return(mockNativeProvider, nil)
+		mockNativeProvider.On("ParseNotify", mock.Anything, mock.Anything, mock.Anything).Return(notifyResult, nil)
+		mockPaymentDB.On("FindByID", mock.Anything, paymentID).Return(payment, nil)
+		mockWebhookDB.On("Create", mock.Anything, mock.AnythingOfType("*model.WebhookEvent")).Return(nil)
+		mockWebhookDB.On("MarkProcessed", mock.Anything, mock.AnythingOfType("uuid.UUID"), error(nil)).Return(nil)
+
+		resp, err := domain.HandleNativePaymentNotify(context.Background(), "wechat", []byte(`{}`), nil)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "SUCCESS", resp)
+		// Payment status should remain unchanged
+		assert.Equal(t, model.PaymentStatusPending, payment.Status)
+	})
 }
 
 func TestPaymentDomain_CreateRefund_PartialRefund(t *testing.T) {
@@ -1836,5 +2094,453 @@ func TestPaymentDomain_HandlePaymentSucceeded_SubscriptionOrder(t *testing.T) {
 		assert.NoError(t, err)
 		mockPaymentDB.AssertExpectations(t)
 		mockOrderReader.AssertExpectations(t)
+	})
+}
+
+func TestPaymentDomain_CreateRefund_NativeProvider(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("alipay refund", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+		mockNativeProvider := new(MockNativePaymentProviderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentID := uuid.New()
+		orderID := uuid.New()
+
+		payment := &model.Payment{
+			ID:             paymentID,
+			OrderID:        orderID,
+			Amount:         10000,
+			Status:         model.PaymentStatusSucceeded,
+			Provider:       "alipay",
+			TradeNo:        "ALIPAY_TRADE_123",
+			RefundedAmount: 0,
+		}
+
+		refund := &model.ProviderRefund{
+			ID:     "refund_123",
+			Amount: 10000,
+			Status: "succeeded",
+		}
+
+		mockPaymentDB.On("FindByID", mock.Anything, paymentID).Return(payment, nil)
+		mockProviderReg.On("GetNative", "alipay").Return(mockNativeProvider, nil)
+		mockNativeProvider.On("RefundPayment", mock.Anything, paymentID.String(), "ALIPAY_TRADE_123", mock.AnythingOfType("string"), int64(10000), int64(10000), "customer request").Return(refund, nil)
+		mockPaymentDB.On("Update", mock.Anything, mock.AnythingOfType("*model.Payment")).Return(nil)
+		mockOrderReader.On("UpdateOrderStatus", mock.Anything, orderID, "refunded").Return(nil)
+
+		err := domain.CreateRefund(context.Background(), paymentID, 0, "customer request")
+
+		assert.NoError(t, err)
+		mockPaymentDB.AssertExpectations(t)
+		mockProviderReg.AssertExpectations(t)
+		mockNativeProvider.AssertExpectations(t)
+	})
+
+	t.Run("wechat refund", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+		mockNativeProvider := new(MockNativePaymentProviderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentID := uuid.New()
+		orderID := uuid.New()
+
+		payment := &model.Payment{
+			ID:             paymentID,
+			OrderID:        orderID,
+			Amount:         10000,
+			Status:         model.PaymentStatusSucceeded,
+			Provider:       "wechat",
+			TradeNo:        "WECHAT_TRADE_123",
+			RefundedAmount: 0,
+		}
+
+		refund := &model.ProviderRefund{
+			ID:     "refund_123",
+			Amount: 10000,
+			Status: "succeeded",
+		}
+
+		mockPaymentDB.On("FindByID", mock.Anything, paymentID).Return(payment, nil)
+		mockProviderReg.On("GetNative", "wechat").Return(mockNativeProvider, nil)
+		mockNativeProvider.On("RefundPayment", mock.Anything, paymentID.String(), "WECHAT_TRADE_123", mock.AnythingOfType("string"), int64(10000), int64(10000), "customer request").Return(refund, nil)
+		mockPaymentDB.On("Update", mock.Anything, mock.AnythingOfType("*model.Payment")).Return(nil)
+		mockOrderReader.On("UpdateOrderStatus", mock.Anything, orderID, "refunded").Return(nil)
+
+		err := domain.CreateRefund(context.Background(), paymentID, 0, "customer request")
+
+		assert.NoError(t, err)
+		mockPaymentDB.AssertExpectations(t)
+		mockProviderReg.AssertExpectations(t)
+		mockNativeProvider.AssertExpectations(t)
+	})
+
+	t.Run("native provider not found", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentID := uuid.New()
+
+		payment := &model.Payment{
+			ID:       paymentID,
+			Amount:   10000,
+			Status:   model.PaymentStatusSucceeded,
+			Provider: "alipay",
+			TradeNo:  "ALIPAY_TRADE_123",
+		}
+
+		mockPaymentDB.On("FindByID", mock.Anything, paymentID).Return(payment, nil)
+		mockProviderReg.On("GetNative", "alipay").Return(nil, errors.New("not found"))
+
+		err := domain.CreateRefund(context.Background(), paymentID, 0, "customer request")
+
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrProviderNotAvailable)
+	})
+
+	t.Run("refund from already refunded payment", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+		mockStripeProvider := new(MockPaymentProviderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentID := uuid.New()
+		orderID := uuid.New()
+
+		// Payment was partially refunded before
+		payment := &model.Payment{
+			ID:             paymentID,
+			OrderID:        orderID,
+			Amount:         10000,
+			Status:         model.PaymentStatusRefunded, // Allow refund on already refunded
+			Provider:       "stripe",
+			StripeChargeID: "ch_test123",
+			RefundedAmount: 5000, // Already refunded 50%
+		}
+
+		refund := &model.ProviderRefund{
+			ID:       "re_test123",
+			ChargeID: "ch_test123",
+			Amount:   5000,
+			Status:   "succeeded",
+		}
+
+		mockPaymentDB.On("FindByID", mock.Anything, paymentID).Return(payment, nil)
+		mockProviderReg.On("Get", "stripe").Return(mockStripeProvider, nil)
+		mockStripeProvider.On("CreateRefund", mock.Anything, "ch_test123", int64(5000), "remaining refund").Return(refund, nil)
+		mockPaymentDB.On("Update", mock.Anything, mock.AnythingOfType("*model.Payment")).Return(nil)
+		// Full refund now, so order status should be updated
+		mockOrderReader.On("UpdateOrderStatus", mock.Anything, orderID, "refunded").Return(nil)
+
+		err := domain.CreateRefund(context.Background(), paymentID, 0, "remaining refund")
+
+		assert.NoError(t, err)
+		mockPaymentDB.AssertExpectations(t)
+	})
+
+	t.Run("payment not found", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentID := uuid.New()
+
+		mockPaymentDB.On("FindByID", mock.Anything, paymentID).Return(nil, errors.New("not found"))
+
+		err := domain.CreateRefund(context.Background(), paymentID, 0, "customer request")
+
+		assert.Error(t, err)
+	})
+}
+
+func TestPaymentDomain_HandlePaymentSucceeded_PaymentNotFound(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("creates new payment record when not found", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentIntentID := "pi_test123"
+		chargeID := "ch_test123"
+		orderID := uuid.New()
+		userID := uuid.New()
+
+		order := &outbound.PaymentOrderInfo{
+			ID:            orderID,
+			UserID:        userID,
+			Type:          "topup",
+			Status:        "pending",
+			Total:         10000,
+			Currency:      "usd",
+			CreditsAmount: 10000,
+		}
+
+		mockOrderReader.On("GetOrderByPaymentIntentID", mock.Anything, paymentIntentID).Return(order, nil)
+		mockPaymentDB.On("FindByPaymentIntentID", mock.Anything, paymentIntentID).Return(nil, errors.New("not found"))
+		mockPaymentDB.On("Update", mock.Anything, mock.AnythingOfType("*model.Payment")).Return(nil)
+		mockOrderReader.On("UpdateOrderStatus", mock.Anything, orderID, "paid").Return(nil)
+		mockBillingReader.On("AddCredits", mock.Anything, userID, int64(10000), "topup").Return(nil)
+
+		err := domain.HandlePaymentSucceeded(context.Background(), paymentIntentID, chargeID)
+
+		assert.NoError(t, err)
+		mockPaymentDB.AssertExpectations(t)
+		mockOrderReader.AssertExpectations(t)
+	})
+
+	t.Run("order not found", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentIntentID := "pi_test123"
+		chargeID := "ch_test123"
+
+		mockOrderReader.On("GetOrderByPaymentIntentID", mock.Anything, paymentIntentID).Return(nil, errors.New("not found"))
+
+		err := domain.HandlePaymentSucceeded(context.Background(), paymentIntentID, chargeID)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "get order")
+	})
+
+	t.Run("invalid status transition", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		paymentIntentID := "pi_test123"
+		chargeID := "ch_test123"
+		orderID := uuid.New()
+		userID := uuid.New()
+
+		order := &outbound.PaymentOrderInfo{
+			ID:     orderID,
+			UserID: userID,
+		}
+
+		payment := &model.Payment{
+			ID:     uuid.New(),
+			Status: model.PaymentStatusFailed, // Failed payments cannot transition to succeeded
+		}
+
+		mockOrderReader.On("GetOrderByPaymentIntentID", mock.Anything, paymentIntentID).Return(order, nil)
+		mockPaymentDB.On("FindByPaymentIntentID", mock.Anything, paymentIntentID).Return(payment, nil)
+
+		err := domain.HandlePaymentSucceeded(context.Background(), paymentIntentID, chargeID)
+
+		assert.ErrorIs(t, err, ErrInvalidStatusTransition)
+	})
+}
+
+func TestPaymentDomain_CreatePaymentIntent_ProviderNotAvailable(t *testing.T) {
+	logger := zap.NewNop()
+
+	t.Run("stripe provider not available", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		orderID := uuid.New()
+		userID := uuid.New()
+
+		order := &outbound.PaymentOrderInfo{
+			ID:       orderID,
+			UserID:   userID,
+			Type:     "topup",
+			Status:   "pending",
+			Total:    10000,
+			Currency: "usd",
+		}
+
+		mockOrderReader.On("GetOrder", mock.Anything, orderID).Return(order, nil)
+		mockBillingReader.On("GetSubscription", mock.Anything, userID).Return(nil, nil)
+		mockProviderReg.On("Get", "stripe").Return(nil, errors.New("not configured"))
+
+		_, err := domain.CreatePaymentIntent(context.Background(), orderID, userID)
+
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrProviderNotAvailable)
+	})
+
+	t.Run("with existing customer", func(t *testing.T) {
+		mockPaymentDB := new(MockPaymentDatabasePort)
+		mockWebhookDB := new(MockWebhookEventDatabasePort)
+		mockProviderReg := new(MockPaymentProviderRegistryPort)
+		mockOrderReader := new(MockOrderReaderPort)
+		mockBillingReader := new(MockBillingReaderPort)
+		mockStripeProvider := new(MockPaymentProviderPort)
+
+		domain := NewPaymentDomain(
+			mockPaymentDB,
+			mockWebhookDB,
+			mockProviderReg,
+			mockOrderReader,
+			mockBillingReader,
+			nil,
+			"https://api.example.com",
+			logger,
+		)
+
+		orderID := uuid.New()
+		userID := uuid.New()
+
+		order := &outbound.PaymentOrderInfo{
+			ID:       orderID,
+			UserID:   userID,
+			Type:     "topup",
+			Status:   "pending",
+			Total:    10000,
+			Currency: "usd",
+		}
+
+		subscription := &outbound.PaymentSubscriptionInfo{
+			UserID:           userID,
+			StripeCustomerID: "cus_existing123",
+		}
+
+		paymentIntent := &model.ProviderPaymentIntent{
+			ID:           "pi_test123",
+			ClientSecret: "pi_test123_secret",
+			Amount:       10000,
+			Currency:     "usd",
+		}
+
+		mockOrderReader.On("GetOrder", mock.Anything, orderID).Return(order, nil)
+		mockBillingReader.On("GetSubscription", mock.Anything, userID).Return(subscription, nil)
+		mockProviderReg.On("Get", "stripe").Return(mockStripeProvider, nil)
+		mockStripeProvider.On("Name").Return("stripe")
+		mockStripeProvider.On("CreatePaymentIntent", mock.Anything, int64(10000), "usd", "cus_existing123", mock.Anything).Return(paymentIntent, nil)
+		mockOrderReader.On("SetStripePaymentIntentID", mock.Anything, orderID, "pi_test123").Return(nil)
+		mockPaymentDB.On("Create", mock.Anything, mock.Anything).Return(nil)
+
+		resp, err := domain.CreatePaymentIntent(context.Background(), orderID, userID)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.Equal(t, "pi_test123", resp.PaymentIntentID)
+		mockBillingReader.AssertExpectations(t)
 	})
 }

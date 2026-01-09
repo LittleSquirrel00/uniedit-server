@@ -52,13 +52,13 @@ type OutboundPorts struct {
 	EmailSender    outbound.EmailSenderPort
 
 	// Auth ports
-	RefreshTokenDB   outbound.RefreshTokenDatabasePort
-	UserAPIKeyDB     outbound.UserAPIKeyDatabasePort
-	SystemAPIKeyDB   outbound.SystemAPIKeyDatabasePort
-	OAuthStateStore  outbound.OAuthStateStorePort
-	OAuthRegistry    outbound.OAuthRegistryPort
-	JWT              outbound.JWTPort
-	Crypto           outbound.CryptoPort
+	RefreshTokenDB  outbound.RefreshTokenDatabasePort
+	UserAPIKeyDB    outbound.UserAPIKeyDatabasePort
+	SystemAPIKeyDB  outbound.SystemAPIKeyDatabasePort
+	OAuthStateStore outbound.OAuthStateStorePort
+	OAuthRegistry   outbound.OAuthRegistryPort
+	JWT             outbound.JWTPort
+	Crypto          outbound.CryptoPort
 
 	// Billing ports
 	PlanDB         outbound.PlanDatabasePort
