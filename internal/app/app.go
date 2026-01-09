@@ -89,6 +89,7 @@ func New(cfg *config.Config) (*App, error) {
 		logger:              deps.Logger,
 		zapLogger:           deps.ZapLogger,
 		metrics:             deps.Metrics,
+		rateLimiter:         deps.RateLimiter,
 		userDomain:          deps.UserDomain,
 		authDomain:          deps.AuthDomain,
 		billingDomain:       deps.BillingDomain,
@@ -136,6 +137,15 @@ func (a *App) setupRouter() *gin.Engine {
 	r.Use(middleware.Metrics(a.metrics))
 	r.Use(middleware.CORS(middleware.DefaultCORSConfig()))
 
+	// Apply global rate limiting (if enabled)
+	if a.config.RateLimit.Enabled && a.rateLimiter != nil {
+		r.Use(middleware.RateLimitByIP(
+			a.rateLimiter,
+			a.config.RateLimit.GlobalLimit,
+			a.config.RateLimit.GlobalWindow,
+		))
+	}
+
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "version": "v2"})
@@ -152,11 +162,32 @@ func (a *App) setupRouter() *gin.Engine {
 
 // registerRoutes registers all HTTP routes.
 func (a *App) registerRoutes() {
+	// Create JWT validator adapter for auth middleware
+	jwtValidator := middleware.NewAuthDomainValidator(a.authDomain.ValidateAccessToken)
+
 	// API v1 group
 	v1 := a.router.Group("/api/v1")
 
-	// Protected routes (requires auth) - will add auth middleware later
+	// Apply API-level rate limiting (per user/IP)
+	if a.config.RateLimit.Enabled && a.rateLimiter != nil {
+		v1.Use(middleware.RateLimitByUser(
+			a.rateLimiter,
+			a.config.RateLimit.APILimit,
+			a.config.RateLimit.APIWindow,
+		))
+	}
+
+	// Apply idempotency middleware for mutation requests
+	if a.redis != nil {
+		v1.Use(middleware.Idempotency(a.redis, middleware.IdempotencyConfig{
+			TTL:     a.config.RateLimit.IdempotencyTTL,
+			Methods: []string{"POST", "PUT", "PATCH"},
+		}))
+	}
+
+	// Protected routes (requires auth)
 	protectedRouter := v1.Group("")
+	protectedRouter.Use(middleware.RequireAuth(jwtValidator))
 
 	// Register AI routes
 	if a.aiChatHandler != nil {

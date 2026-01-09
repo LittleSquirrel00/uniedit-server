@@ -18,6 +18,7 @@ import (
 	"github.com/uniedit/server/internal/domain/user"
 	"github.com/uniedit/server/internal/infra/config"
 	"github.com/uniedit/server/internal/port/inbound"
+	"github.com/uniedit/server/internal/port/outbound"
 	"github.com/uniedit/server/internal/utils/logger"
 	"github.com/uniedit/server/internal/utils/metrics"
 	"go.uber.org/zap"
@@ -43,6 +44,7 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 	}
 	universalClient := ProvideRedisClient(cfg, logger)
 	client := ProvideHTTPClient(cfg)
+	rateLimiterPort := ProvideRateLimiter(universalClient)
 	loggerLogger := ProvideLogger(cfg)
 	metrics := ProvideMetrics()
 	userDatabasePort := postgres.NewUserAdapter(db)
@@ -105,6 +107,7 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 		DB:                  db,
 		Redis:               universalClient,
 		HTTPClient:          client,
+		RateLimiter:         rateLimiterPort,
 		Logger:              loggerLogger,
 		ZapLogger:           logger,
 		Metrics:             metrics,
@@ -127,13 +130,14 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 
 // Dependencies holds all injected dependencies.
 type Dependencies struct {
-	Config     *config.Config
-	DB         *gorm.DB
-	Redis      redis.UniversalClient
-	HTTPClient *http.Client
-	Logger     *logger.Logger
-	ZapLogger  *zap.Logger
-	Metrics    *metrics.Metrics
+	Config      *config.Config
+	DB          *gorm.DB
+	Redis       redis.UniversalClient
+	HTTPClient  *http.Client
+	RateLimiter outbound.RateLimiterPort
+	Logger      *logger.Logger
+	ZapLogger   *zap.Logger
+	Metrics     *metrics.Metrics
 
 	// Domains
 	UserDomain          user.UserDomain
