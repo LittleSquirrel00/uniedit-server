@@ -1,4 +1,4 @@
-package mediavendor
+package mediaprovider
 
 import (
 	"fmt"

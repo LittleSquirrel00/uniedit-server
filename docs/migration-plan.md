@@ -70,7 +70,7 @@ internal/
 - ✅ `adapter/inbound/gin/` - 用户/认证/计费等 Gin 处理器
 - ✅ `adapter/outbound/postgres/` - 数据库适配器
 - ✅ `adapter/outbound/redis/` - 缓存适配器
-- ✅ `adapter/outbound/vendor/` - AI 供应商适配器
+- ✅ `adapter/outbound/aiprovider/` - AI 供应商适配器
 
 ## 2. 迁移策略
 
@@ -145,7 +145,7 @@ import (
 
     "github.com/uniedit/server/internal/adapter/outbound/postgres"
     "github.com/uniedit/server/internal/adapter/outbound/redis"
-    "github.com/uniedit/server/internal/adapter/outbound/vendor"
+    "github.com/uniedit/server/internal/adapter/outbound/aiprovider"
 )
 
 type AppV2 struct {
@@ -218,7 +218,7 @@ func NewV2(cfg *config.Config) (*AppV2, error) {
 #### AI 模块
 - [ ] 确认 `domain/ai/domain.go` 实现完整
 - [ ] 确认 `adapter/inbound/http/ai/*.go` 处理器
-- [ ] 确认 `adapter/outbound/vendor/*.go` 适配器
+- [ ] 确认 `adapter/outbound/aiprovider/*.go` 适配器
 - [ ] 确认 `adapter/outbound/postgres/ai*.go` 适配器
 - [ ] 确认 `adapter/outbound/redis/ai*.go` 适配器
 - [ ] 更新 app_v2.go
@@ -243,7 +243,7 @@ func NewV2(cfg *config.Config) (*AppV2, error) {
 - [ ] 确认 `domain/media/domain.go` 实现完整
 - [ ] 确认 `adapter/http/media_handler.go`
 - [ ] 确认 `adapter/outbound/postgres/media.go`
-- [ ] 确认 `adapter/outbound/mediavendor/*.go`
+- [ ] 确认 `adapter/outbound/mediaprovider/*.go`
 - [ ] 确认 `adapter/outbound/redis/media_health.go`
 - [ ] 更新 app_v2.go
 - [ ] 验证测试通过

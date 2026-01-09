@@ -877,7 +877,7 @@ internal/
 | P8.2 | 定义 Media Outbound Port | `internal/port/outbound/media.go` | ⬜ |
 | P8.3 | 定义 Media Inbound Port | `internal/port/inbound/media.go` | ⬜ |
 | P8.4 | 创建 Media Domain | `internal/domain/media/domain.go` | ⬜ |
-| P8.5 | 迁移 Media 适配器 | `internal/adapter/outbound/mediavendor/*.go` | ⬜ |
+| P8.5 | 迁移 Media 适配器 | `internal/adapter/outbound/mediaprovider/*.go` | ⬜ |
 | P8.6 | 创建 HTTP 适配器 | `internal/adapter/inbound/gin/media.go` | ⬜ |
 | P8.7 | 更新 Domain Registry | `internal/domain/registry.go` | ⬜ |
 | P8.8 | 编写 Media Domain 测试 | `internal/domain/media/domain_test.go` | ⬜ |

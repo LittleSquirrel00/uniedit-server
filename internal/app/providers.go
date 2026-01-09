@@ -27,11 +27,11 @@ import (
 	"github.com/uniedit/server/internal/port/outbound"
 
 	// Outbound adapters
-	"github.com/uniedit/server/internal/adapter/outbound/mediavendor"
+	"github.com/uniedit/server/internal/adapter/outbound/aiprovider"
+	"github.com/uniedit/server/internal/adapter/outbound/mediaprovider"
 	"github.com/uniedit/server/internal/adapter/outbound/oauth"
 	"github.com/uniedit/server/internal/adapter/outbound/postgres"
 	redisadapter "github.com/uniedit/server/internal/adapter/outbound/redis"
-	"github.com/uniedit/server/internal/adapter/outbound/vendor"
 
 	// Infrastructure
 	"github.com/uniedit/server/internal/infra/cache"
@@ -381,12 +381,12 @@ func ProvideAIEmbeddingCache(redis goredis.UniversalClient) outbound.AIEmbedding
 
 // ProvideVendorRegistry creates the vendor registry with shared HTTP client.
 func ProvideVendorRegistry(client *http.Client) outbound.AIVendorRegistryPort {
-	return vendor.NewDefaultRegistry(client)
+	return aiprovider.NewDefaultRegistry(client)
 }
 
 // ProvideAICryptoAdapter creates the crypto adapter for AI.
 func ProvideAICryptoAdapter(cfg *config.Config) outbound.AICryptoPort {
-	return vendor.NewCryptoAdapter(cfg.Auth.MasterKey)
+	return aiprovider.NewCryptoAdapter(cfg.Auth.MasterKey)
 }
 
 // ProvideAIDomain creates the AI domain.
@@ -529,13 +529,13 @@ func ProvideMediaHealthCache(redis goredis.UniversalClient) outbound.MediaProvid
 
 // ProvideMediaCryptoAdapter creates the crypto adapter for media.
 func ProvideMediaCryptoAdapter(cfg *config.Config) outbound.MediaCryptoPort {
-	return vendor.NewCryptoAdapter(cfg.Auth.MasterKey)
+	return aiprovider.NewCryptoAdapter(cfg.Auth.MasterKey)
 }
 
 // ProvideMediaVendorRegistry creates the media vendor registry with shared HTTP client.
 func ProvideMediaVendorRegistry(client *http.Client) outbound.MediaVendorRegistryPort {
-	registry := mediavendor.NewRegistry()
-	registry.Register(mediavendor.NewOpenAIAdapter(client))
+	registry := mediaprovider.NewRegistry()
+	registry.Register(mediaprovider.NewOpenAIAdapter(client))
 	return registry
 }
 
