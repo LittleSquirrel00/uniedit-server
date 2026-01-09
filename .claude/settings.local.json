@@ -100,7 +100,12 @@
       "Bash(go list:*)",
       "Bash(go tool cover:*)",
       "Bash(gofmt:*)",
-      "Bash(sort:*)"
+      "Bash(sort:*)",
+      "Bash(deadcode:*)",
+      "Bash(goimports:*)",
+      "Bash(golangci-lint run:*)",
+      "Bash(for dir in /Users/zhangfeng144/Git/uniedit-server/internal/shared/*/)",
+      "Bash(git checkout:*)"
     ]
   }
 }

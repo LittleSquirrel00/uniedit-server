@@ -51,5 +51,27 @@ func (r *registry) List() []string {
 	return names
 }
 
+// RegisterGitHub registers a GitHub OAuth provider.
+func (r *registry) RegisterGitHub(clientID, clientSecret, redirectURL string) {
+	provider := NewGitHubProvider(&Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RedirectURL:  redirectURL,
+		Scopes:       []string{"user:email", "read:user"},
+	})
+	r.Register("github", provider)
+}
+
+// RegisterGoogle registers a Google OAuth provider.
+func (r *registry) RegisterGoogle(clientID, clientSecret, redirectURL string) {
+	provider := NewGoogleProvider(&Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RedirectURL:  redirectURL,
+		Scopes:       []string{"openid", "email", "profile"},
+	})
+	r.Register("google", provider)
+}
+
 // Compile-time check
 var _ outbound.OAuthRegistryPort = (*registry)(nil)

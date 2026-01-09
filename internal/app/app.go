@@ -37,6 +37,18 @@ import (
 	"gorm.io/gorm"
 )
 
+// Application is the interface for both App (v1) and AppV2.
+type Application interface {
+	Router() *gin.Engine
+	Stop()
+}
+
+// Ensure both App and AppV2 implement Application interface.
+var (
+	_ Application = (*App)(nil)
+	_ Application = (*AppV2)(nil)
+)
+
 // App represents the application.
 type App struct {
 	config    *config.Config

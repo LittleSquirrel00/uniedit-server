@@ -22,6 +22,12 @@ type Config struct {
 	Alipay   AlipayConfig   `mapstructure:"alipay"`
 	Wechat   WechatConfig   `mapstructure:"wechat"`
 	Email    EmailConfig    `mapstructure:"email"`
+	Features FeaturesConfig `mapstructure:"features"`
+}
+
+// FeaturesConfig holds feature flags for gradual rollout.
+type FeaturesConfig struct {
+	UseNewArchitecture bool `mapstructure:"use_new_architecture"` // Use hexagonal architecture (app_v2)
 }
 
 // ServerConfig holds HTTP server configuration.
@@ -326,4 +332,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("git.lfs_prefix", "lfs/")
 	v.SetDefault("git.lfs_url_expiry", time.Hour)
 	v.SetDefault("git.lfs_max_file_size", 100*1024*1024*1024) // 100GB
+
+	// Feature flags defaults
+	v.SetDefault("features.use_new_architecture", false)
 }

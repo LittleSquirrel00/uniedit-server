@@ -19,8 +19,15 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Initialize application
-	application, err := app.New(cfg)
+	// Initialize application based on feature flag
+	var application app.Application
+	if cfg.Features.UseNewArchitecture {
+		log.Println("Using new hexagonal architecture (app_v2)")
+		application, err = app.NewV2(cfg)
+	} else {
+		log.Println("Using legacy architecture (app)")
+		application, err = app.New(cfg)
+	}
 	if err != nil {
 		log.Fatalf("Failed to initialize application: %v", err)
 	}
