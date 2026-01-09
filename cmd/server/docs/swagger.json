@@ -1225,6 +1225,117 @@
                 }
             }
         },
+        "/admin/media/models": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media Admin"
+                ],
+                "summary": "List models (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by capability",
+                        "name": "capability",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_uniedit_server_internal_model.MediaModel"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/media/models/capability/{capability}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media Admin"
+                ],
+                "summary": "Get models by capability (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Capability",
+                        "name": "capability",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_uniedit_server_internal_model.MediaModel"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/media/providers": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media Admin"
+                ],
+                "summary": "List providers (admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_uniedit_server_internal_model.MediaProvider"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/media/providers/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media Admin"
+                ],
+                "summary": "Get provider (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_model.MediaProvider"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/providers/{provider_id}/accounts": {
             "get": {
                 "security": [
@@ -4043,6 +4154,186 @@
                 }
             }
         },
+        "/media/images/generations": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media"
+                ],
+                "summary": "Generate images",
+                "parameters": [
+                    {
+                        "description": "Image generation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_port_inbound.MediaImageGenerationInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_port_inbound.MediaImageGenerationOutput"
+                        }
+                    }
+                }
+            }
+        },
+        "/media/tasks": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media"
+                ],
+                "summary": "List tasks",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_uniedit_server_internal_port_inbound.MediaTaskOutput"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/media/tasks/{task_id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media"
+                ],
+                "summary": "Get task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Task ID",
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_port_inbound.MediaTaskOutput"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Media"
+                ],
+                "summary": "Cancel task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Task ID",
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/media/videos/generations": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media"
+                ],
+                "summary": "Generate videos",
+                "parameters": [
+                    {
+                        "description": "Video generation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_port_inbound.MediaVideoGenerationInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_port_inbound.MediaVideoGenerationOutput"
+                        }
+                    }
+                }
+            }
+        },
+        "/media/videos/generations/{task_id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Media"
+                ],
+                "summary": "Get video generation status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Task ID",
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_port_inbound.MediaVideoGenerationOutput"
+                        }
+                    }
+                }
+            }
+        },
         "/orders": {
             "get": {
                 "security": [
@@ -6808,6 +7099,213 @@
         }
     },
     "definitions": {
+        "github_com_uniedit_server_internal_model.GeneratedImage": {
+            "type": "object",
+            "properties": {
+                "b64_json": {
+                    "type": "string"
+                },
+                "revised_prompt": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_model.GeneratedVideo": {
+            "type": "object",
+            "properties": {
+                "duration": {
+                    "type": "integer"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "format": {
+                    "type": "string"
+                },
+                "fps": {
+                    "type": "integer"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_model.ImageUsage": {
+            "type": "object",
+            "properties": {
+                "cost_usd": {
+                    "type": "number"
+                },
+                "total_images": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_model.InvitationStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "accepted",
+                "rejected",
+                "revoked",
+                "expired"
+            ],
+            "x-enum-varnames": [
+                "InvitationStatusPending",
+                "InvitationStatusAccepted",
+                "InvitationStatusRejected",
+                "InvitationStatusRevoked",
+                "InvitationStatusExpired"
+            ]
+        },
+        "github_com_uniedit_server_internal_model.MediaCapability": {
+            "type": "string",
+            "enum": [
+                "image",
+                "video",
+                "audio"
+            ],
+            "x-enum-varnames": [
+                "MediaCapabilityImage",
+                "MediaCapabilityVideo",
+                "MediaCapabilityAudio"
+            ]
+        },
+        "github_com_uniedit_server_internal_model.MediaModel": {
+            "type": "object",
+            "properties": {
+                "capabilities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_uniedit_server_internal_model.MediaCapability"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "provider_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_model.MediaProvider": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_model.MediaProviderType"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_model.MediaProviderType": {
+            "type": "string",
+            "enum": [
+                "openai",
+                "anthropic",
+                "generic"
+            ],
+            "x-enum-varnames": [
+                "MediaProviderTypeOpenAI",
+                "MediaProviderTypeAnthropic",
+                "MediaProviderTypeGeneric"
+            ]
+        },
+        "github_com_uniedit_server_internal_model.MediaTaskStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "running",
+                "completed",
+                "failed",
+                "cancelled"
+            ],
+            "x-enum-varnames": [
+                "MediaTaskStatusPending",
+                "MediaTaskStatusRunning",
+                "MediaTaskStatusCompleted",
+                "MediaTaskStatusFailed",
+                "MediaTaskStatusCancelled"
+            ]
+        },
+        "github_com_uniedit_server_internal_model.TeamRole": {
+            "type": "string",
+            "enum": [
+                "owner",
+                "admin",
+                "member",
+                "guest"
+            ],
+            "x-enum-varnames": [
+                "TeamRoleOwner",
+                "TeamRoleAdmin",
+                "TeamRoleMember",
+                "TeamRoleGuest"
+            ]
+        },
+        "github_com_uniedit_server_internal_model.TeamVisibility": {
+            "type": "string",
+            "enum": [
+                "public",
+                "private"
+            ],
+            "x-enum-varnames": [
+                "TeamVisibilityPublic",
+                "TeamVisibilityPrivate"
+            ]
+        },
+        "github_com_uniedit_server_internal_model.VideoState": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "processing",
+                "completed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "VideoStatePending",
+                "VideoStateProcessing",
+                "VideoStateCompleted",
+                "VideoStateFailed"
+            ]
+        },
         "github_com_uniedit_server_internal_module_ai_adapter.Function": {
             "type": "object",
             "properties": {
@@ -7453,6 +7951,36 @@
                 "VideoStateFailed"
             ]
         },
+        "github_com_uniedit_server_internal_module_order_domain.OrderStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "paid",
+                "canceled",
+                "refunded",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusPaid",
+                "StatusCanceled",
+                "StatusRefunded",
+                "StatusFailed"
+            ]
+        },
+        "github_com_uniedit_server_internal_module_order_domain.OrderType": {
+            "type": "string",
+            "enum": [
+                "subscription",
+                "topup",
+                "upgrade"
+            ],
+            "x-enum-varnames": [
+                "TypeSubscription",
+                "TypeTopup",
+                "TypeUpgrade"
+            ]
+        },
         "github_com_uniedit_server_internal_module_payment_provider.PaymentScene": {
             "type": "string",
             "enum": [
@@ -7483,6 +8011,321 @@
                 "PaymentSceneNative",
                 "PaymentSceneMini"
             ]
+        },
+        "github_com_uniedit_server_internal_port_inbound.CreateTeamInput": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "visibility": {
+                    "enum": [
+                        "public",
+                        "private"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_model.TeamVisibility"
+                        }
+                    ]
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_port_inbound.InvitationOutput": {
+            "type": "object",
+            "properties": {
+                "accept_url": {
+                    "type": "string"
+                },
+                "accepted_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "invitee_email": {
+                    "type": "string"
+                },
+                "inviter_id": {
+                    "type": "string"
+                },
+                "inviter_name": {
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_model.TeamRole"
+                },
+                "status": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_model.InvitationStatus"
+                },
+                "team_id": {
+                    "type": "string"
+                },
+                "team_name": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_port_inbound.InviteInput": {
+            "type": "object",
+            "required": [
+                "email",
+                "role"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "role": {
+                    "enum": [
+                        "admin",
+                        "member",
+                        "guest"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_model.TeamRole"
+                        }
+                    ]
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_port_inbound.MediaImageGenerationInput": {
+            "type": "object",
+            "required": [
+                "prompt"
+            ],
+            "properties": {
+                "model": {
+                    "type": "string"
+                },
+                "n": {
+                    "type": "integer"
+                },
+                "negative_prompt": {
+                    "type": "string"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "quality": {
+                    "type": "string"
+                },
+                "response_format": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "string"
+                },
+                "style": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_port_inbound.MediaImageGenerationOutput": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "integer"
+                },
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_uniedit_server_internal_model.GeneratedImage"
+                    }
+                },
+                "model": {
+                    "type": "string"
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "usage": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_model.ImageUsage"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_port_inbound.MediaTaskOutput": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "owner_id": {
+                    "type": "string"
+                },
+                "progress": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_model.MediaTaskStatus"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_port_inbound.MediaVideoGenerationInput": {
+            "type": "object",
+            "properties": {
+                "aspect_ratio": {
+                    "type": "string"
+                },
+                "duration": {
+                    "type": "integer"
+                },
+                "fps": {
+                    "type": "integer"
+                },
+                "input_image": {
+                    "type": "string"
+                },
+                "input_video": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "resolution": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_port_inbound.MediaVideoGenerationOutput": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "progress": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_model.VideoState"
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "video": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_model.GeneratedVideo"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_port_inbound.TeamOutput": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "member_count": {
+                    "type": "integer"
+                },
+                "member_limit": {
+                    "type": "integer"
+                },
+                "my_role": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_model.TeamRole"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_id": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "visibility": {
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_model.TeamVisibility"
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_port_inbound.UpdateMemberRoleInput": {
+            "type": "object",
+            "required": [
+                "role"
+            ],
+            "properties": {
+                "role": {
+                    "enum": [
+                        "admin",
+                        "member",
+                        "guest"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_model.TeamRole"
+                        }
+                    ]
+                }
+            }
+        },
+        "github_com_uniedit_server_internal_port_inbound.UpdateTeamInput": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "visibility": {
+                    "enum": [
+                        "public",
+                        "private"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_uniedit_server_internal_model.TeamVisibility"
+                        }
+                    ]
+                }
+            }
         },
         "github_com_uniedit_server_internal_shared_task.Error": {
             "type": "object",
@@ -9326,7 +10169,7 @@
                     "type": "string"
                 },
                 "status": {
-                    "$ref": "#/definitions/internal_module_order.OrderStatus"
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_module_order_domain.OrderStatus"
                 },
                 "subtotal": {
                     "type": "integer"
@@ -9338,39 +10181,9 @@
                     "type": "integer"
                 },
                 "type": {
-                    "$ref": "#/definitions/internal_module_order.OrderType"
+                    "$ref": "#/definitions/github_com_uniedit_server_internal_module_order_domain.OrderType"
                 }
             }
-        },
-        "internal_module_order.OrderStatus": {
-            "type": "string",
-            "enum": [
-                "pending",
-                "paid",
-                "canceled",
-                "refunded",
-                "failed"
-            ],
-            "x-enum-varnames": [
-                "OrderStatusPending",
-                "OrderStatusPaid",
-                "OrderStatusCanceled",
-                "OrderStatusRefunded",
-                "OrderStatusFailed"
-            ]
-        },
-        "internal_module_order.OrderType": {
-            "type": "string",
-            "enum": [
-                "subscription",
-                "topup",
-                "upgrade"
-            ],
-            "x-enum-varnames": [
-                "OrderTypeSubscription",
-                "OrderTypeTopup",
-                "OrderTypeUpgrade"
-            ]
         },
         "internal_module_payment.CreateNativePaymentRequest": {
             "type": "object",
@@ -9493,6 +10306,9 @@
             "enum": [
                 "card",
                 "alipay",
+                "wechat",
+                "card",
+                "alipay",
                 "wechat"
             ],
             "x-enum-varnames": [
@@ -9548,6 +10364,12 @@
         "internal_module_payment.PaymentStatus": {
             "type": "string",
             "enum": [
+                "pending",
+                "processing",
+                "succeeded",
+                "failed",
+                "canceled",
+                "refunded",
                 "pending",
                 "processing",
                 "succeeded",

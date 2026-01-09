@@ -6,92 +6,81 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
+	goredis "github.com/redis/go-redis/v9"
 	swaggerfiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	_ "github.com/uniedit/server/cmd/server/docs" // swagger docs
-	"github.com/uniedit/server/internal/module/ai"
-	"github.com/uniedit/server/internal/module/ai/cache"
-	"github.com/uniedit/server/internal/module/ai/provider"
-	"github.com/uniedit/server/internal/module/ai/provider/pool"
-	sharedtask "github.com/uniedit/server/internal/shared/task"
-	"github.com/uniedit/server/internal/module/auth"
-	"github.com/uniedit/server/internal/module/billing"
-	billingquota "github.com/uniedit/server/internal/module/billing/quota"
-	billingusage "github.com/uniedit/server/internal/module/billing/usage"
-	"github.com/uniedit/server/internal/module/collaboration"
-	"github.com/uniedit/server/internal/module/git"
-	"github.com/uniedit/server/internal/module/git/lfs"
-	gitstorage "github.com/uniedit/server/internal/module/git/storage"
-	"github.com/uniedit/server/internal/module/order"
-	"github.com/uniedit/server/internal/module/payment"
-	paymentprovider "github.com/uniedit/server/internal/module/payment/provider"
-	"github.com/uniedit/server/internal/module/user"
-	sharedcache "github.com/uniedit/server/internal/shared/cache"
-	"github.com/uniedit/server/internal/shared/config"
-	"github.com/uniedit/server/internal/shared/database"
-	"github.com/uniedit/server/internal/shared/events"
-	"github.com/uniedit/server/internal/shared/logger"
-	"github.com/uniedit/server/internal/shared/middleware"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+
+	// Domains
+	"github.com/uniedit/server/internal/domain/ai"
+	"github.com/uniedit/server/internal/domain/auth"
+	"github.com/uniedit/server/internal/domain/billing"
+	"github.com/uniedit/server/internal/domain/collaboration"
+	"github.com/uniedit/server/internal/domain/git"
+	"github.com/uniedit/server/internal/domain/media"
+	"github.com/uniedit/server/internal/domain/order"
+	"github.com/uniedit/server/internal/domain/payment"
+	"github.com/uniedit/server/internal/domain/user"
+
+	// Inbound adapters (HTTP handlers)
+	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
+
+	// Inbound ports
+	"github.com/uniedit/server/internal/port/inbound"
+	"github.com/uniedit/server/internal/port/outbound"
+
+	// Outbound adapters
+	"github.com/uniedit/server/internal/adapter/outbound/oauth"
+	"github.com/uniedit/server/internal/adapter/outbound/postgres"
+	redisadapter "github.com/uniedit/server/internal/adapter/outbound/redis"
+	"github.com/uniedit/server/internal/adapter/outbound/vendor"
+
+	// Infrastructure
+	_ "github.com/uniedit/server/cmd/server/docs" // swagger docs
+	"github.com/uniedit/server/internal/infra/cache"
+	"github.com/uniedit/server/internal/infra/config"
+	"github.com/uniedit/server/internal/infra/database"
+
+	// Utils
+	"github.com/uniedit/server/internal/utils/logger"
+	"github.com/uniedit/server/internal/utils/middleware"
 )
 
-// Application is the interface for both App (v1) and AppV2.
+// Application is the interface for the application.
 type Application interface {
 	Router() *gin.Engine
 	Stop()
 }
 
-// Ensure both App and AppV2 implement Application interface.
-var (
-	_ Application = (*App)(nil)
-	_ Application = (*AppV2)(nil)
-)
-
-// App represents the application.
+// App represents the application using hexagonal architecture.
 type App struct {
 	config    *config.Config
 	db        *gorm.DB
-	redis     redis.UniversalClient
+	redis     goredis.UniversalClient
 	router    *gin.Engine
 	logger    *logger.Logger
 	zapLogger *zap.Logger
 
-	// Event infrastructure
-	eventBus *events.Bus
+	// Domain services
+	userDomain          user.UserDomain
+	authDomain          auth.AuthDomain
+	billingDomain       billing.BillingDomain
+	orderDomain         order.OrderDomain
+	paymentDomain       payment.PaymentDomain
+	aiDomain            ai.AIDomain
+	gitDomain           inbound.GitDomain
+	collaborationDomain inbound.CollaborationDomain
+	mediaDomain         inbound.MediaDomain
 
-	// Modules
-	aiModule           *ai.Module
-	authHandler        *auth.Handler
-	authService        *auth.Service
-	rateLimiter        *auth.RateLimiter
-	userHandler        *user.Handler
-	userAdmin          *user.AdminHandler
-	billingHandler     *billing.Handler
-	orderHandler       *order.Handler
-	paymentHandler     *payment.Handler
-	webhookHandler     *payment.WebhookHandler
-	gitHandler         *git.Handler
-	gitHTTPHandler     *git.GitHandler
-	lfsHandler         *lfs.BatchHandler
-	collabHandler      *collaboration.Handler
-	accountPoolHandler *pool.Handler
+	// HTTP handlers (inbound adapters)
+	aiChatHandler *aihttp.ChatHandler
 
-	// Services (for cross-module dependencies)
-	billingService billing.ServiceInterface
-	billingRepo    billing.Repository
-	orderRepo      order.Repository
-	orderService   *order.Service
-	paymentService *payment.Service
-	usageRecorder  *billingusage.Recorder
-	quotaChecker   *billingquota.Checker
-	gitService     *git.Service
-	r2Client       *gitstorage.R2Client
-	accountPool    *pool.Manager
+	// Cleanup functions
+	cleanupFuncs []func()
 }
 
-// New creates a new application instance.
+// New creates a new application instance using hexagonal architecture.
 func New(cfg *config.Config) (*App, error) {
 	// Initialize logger
 	log := logger.New(&logger.Config{
@@ -99,7 +88,6 @@ func New(cfg *config.Config) (*App, error) {
 		Format: cfg.Log.Format,
 	})
 
-	// Initialize zap logger for modules that use zap
 	zapLog, err := logger.NewZapLogger(&logger.Config{
 		Level:  cfg.Log.Level,
 		Format: cfg.Log.Format,
@@ -109,44 +97,418 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	app := &App{
-		config:    cfg,
-		logger:    log,
-		zapLogger: zapLog,
+		config:       cfg,
+		logger:       log,
+		zapLogger:    zapLog,
+		cleanupFuncs: make([]func(), 0),
 	}
 
-	// Initialize database
-	db, err := database.New(&cfg.Database)
-	if err != nil {
-		return nil, fmt.Errorf("init database: %w", err)
-	}
-	app.db = db
-
-	// Initialize Redis (optional)
-	if cfg.Redis.Address != "" {
-		redisClient, err := sharedcache.NewRedisClient(&cfg.Redis)
-		if err != nil {
-			// Redis is optional, log warning but continue
-			fmt.Printf("Warning: Redis connection failed: %v\n", err)
-		} else {
-			app.redis = redisClient
-		}
+	// Initialize infrastructure
+	if err := app.initInfrastructure(); err != nil {
+		return nil, fmt.Errorf("init infrastructure: %w", err)
 	}
 
 	// Initialize router
 	app.router = app.setupRouter()
 
-	// Initialize modules
-	if err := app.initModules(); err != nil {
-		return nil, fmt.Errorf("init modules: %w", err)
+	// Initialize domains with adapters
+	if err := app.initDomains(); err != nil {
+		return nil, fmt.Errorf("init domains: %w", err)
 	}
 
-	// Start modules
-	ctx := context.Background()
-	if err := app.startModules(ctx); err != nil {
-		return nil, fmt.Errorf("start modules: %w", err)
-	}
+	// Register routes
+	app.registerRoutes()
 
 	return app, nil
+}
+
+// initInfrastructure initializes database and cache connections.
+func (a *App) initInfrastructure() error {
+	// Initialize database
+	db, err := database.New(&a.config.Database)
+	if err != nil {
+		return fmt.Errorf("init database: %w", err)
+	}
+	a.db = db
+
+	// Initialize Redis (optional)
+	if a.config.Redis.Address != "" {
+		redisClient, err := cache.NewRedisClient(&a.config.Redis)
+		if err != nil {
+			a.zapLogger.Warn("Redis connection failed, continuing without cache", zap.Error(err))
+		} else {
+			a.redis = redisClient
+		}
+	}
+
+	return nil
+}
+
+// getRedisClient returns a *redis.Client from UniversalClient if possible.
+func (a *App) getRedisClient() *goredis.Client {
+	if a.redis == nil {
+		return nil
+	}
+	if client, ok := a.redis.(*goredis.Client); ok {
+		return client
+	}
+	return nil
+}
+
+// initDomains initializes all domain services with their adapters.
+func (a *App) initDomains() error {
+	// Initialize domains in dependency order
+	if err := a.initUserDomain(); err != nil {
+		return fmt.Errorf("init user domain: %w", err)
+	}
+
+	if err := a.initAuthDomain(); err != nil {
+		return fmt.Errorf("init auth domain: %w", err)
+	}
+
+	if err := a.initBillingDomain(); err != nil {
+		return fmt.Errorf("init billing domain: %w", err)
+	}
+
+	if err := a.initOrderDomain(); err != nil {
+		return fmt.Errorf("init order domain: %w", err)
+	}
+
+	if err := a.initPaymentDomain(); err != nil {
+		return fmt.Errorf("init payment domain: %w", err)
+	}
+
+	if err := a.initAIDomain(); err != nil {
+		return fmt.Errorf("init ai domain: %w", err)
+	}
+
+	if err := a.initGitDomain(); err != nil {
+		return fmt.Errorf("init git domain: %w", err)
+	}
+
+	if err := a.initCollaborationDomain(); err != nil {
+		return fmt.Errorf("init collaboration domain: %w", err)
+	}
+
+	if err := a.initMediaDomain(); err != nil {
+		return fmt.Errorf("init media domain: %w", err)
+	}
+
+	return nil
+}
+
+// initUserDomain initializes the user domain with its adapters.
+func (a *App) initUserDomain() error {
+	// Create outbound adapters
+	userDB := postgres.NewUserAdapter(a.db)
+	verificationDB := postgres.NewVerificationAdapter(a.db)
+
+	// Create domain
+	a.userDomain = user.NewUserDomain(
+		userDB,
+		verificationDB,
+		nil, // profileDB - optional
+		nil, // prefsDB - optional
+		nil, // avatarStorage - optional
+		nil, // emailSender - optional
+		a.zapLogger,
+	)
+
+	return nil
+}
+
+// initAuthDomain initializes the auth domain with its adapters.
+func (a *App) initAuthDomain() error {
+	// Create outbound adapters
+	tokenRepo := postgres.NewRefreshTokenAdapter(a.db)
+	userAPIKeyRepo := postgres.NewUserAPIKeyAdapter(a.db)
+	systemAPIKeyRepo := postgres.NewSystemAPIKeyAdapter(a.db)
+
+	// Create OAuth registry
+	oauthRegistry := oauth.NewRegistry()
+	if a.config.Auth.OAuth.GitHub.ClientID != "" {
+		oauthRegistry.RegisterGitHub(
+			a.config.Auth.OAuth.GitHub.ClientID,
+			a.config.Auth.OAuth.GitHub.ClientSecret,
+			a.config.Auth.OAuth.GitHub.RedirectURL,
+		)
+	}
+	if a.config.Auth.OAuth.Google.ClientID != "" {
+		oauthRegistry.RegisterGoogle(
+			a.config.Auth.OAuth.Google.ClientID,
+			a.config.Auth.OAuth.Google.ClientSecret,
+			a.config.Auth.OAuth.Google.RedirectURL,
+		)
+	}
+
+	// Create state store
+	var stateStore outbound.OAuthStateStorePort
+	if redisClient := a.getRedisClient(); redisClient != nil {
+		stateStore = redisadapter.NewOAuthStateStore(redisClient)
+	} else {
+		stateStore = oauth.NewInMemoryStateStore()
+	}
+
+	// Create JWT manager
+	jwtManager := oauth.NewJWTManager(&oauth.JWTConfig{
+		Secret:             a.config.Auth.JWTSecret,
+		AccessTokenExpiry:  a.config.Auth.AccessTokenExpiry,
+		RefreshTokenExpiry: a.config.Auth.RefreshTokenExpiry,
+	})
+
+	// Create crypto adapter
+	cryptoAdapter := oauth.NewCryptoAdapter(a.config.Auth.MasterKey)
+
+	// Create domain
+	a.authDomain = auth.NewAuthDomain(
+		a.userDomain,
+		tokenRepo,
+		userAPIKeyRepo,
+		systemAPIKeyRepo,
+		oauthRegistry,
+		stateStore,
+		jwtManager,
+		cryptoAdapter,
+		&auth.Config{MaxAPIKeysPerUser: 10},
+		a.zapLogger,
+	)
+
+	return nil
+}
+
+// initBillingDomain initializes the billing domain with its adapters.
+func (a *App) initBillingDomain() error {
+	// Create outbound adapters
+	planDB := postgres.NewPlanAdapter(a.db)
+	subscriptionDB := postgres.NewSubscriptionAdapter(a.db)
+	usageDB := postgres.NewUsageRecordAdapter(a.db)
+
+	// Create quota cache if Redis available
+	var quotaCache outbound.QuotaCachePort
+	if redisClient := a.getRedisClient(); redisClient != nil {
+		quotaCache = redisadapter.NewQuotaCache(redisClient)
+	}
+
+	// Create domain
+	a.billingDomain = billing.NewBillingDomain(
+		planDB,
+		subscriptionDB,
+		usageDB,
+		quotaCache,
+		a.zapLogger,
+	)
+
+	return nil
+}
+
+// initOrderDomain initializes the order domain with its adapters.
+func (a *App) initOrderDomain() error {
+	// Create outbound adapters
+	orderDB := postgres.NewOrderAdapter(a.db)
+	orderItemDB := postgres.NewOrderItemAdapter(a.db)
+	invoiceDB := postgres.NewInvoiceAdapter(a.db)
+	planDB := postgres.NewPlanAdapter(a.db)
+
+	// Create domain
+	a.orderDomain = order.NewOrderDomain(
+		orderDB,
+		orderItemDB,
+		invoiceDB,
+		planDB,
+		a.zapLogger,
+	)
+
+	return nil
+}
+
+// initPaymentDomain initializes the payment domain with its adapters.
+func (a *App) initPaymentDomain() error {
+	// Create outbound adapters
+	paymentDB := postgres.NewPaymentAdapter(a.db)
+	webhookDB := postgres.NewWebhookEventAdapter(a.db)
+
+	// Create order reader adapter
+	orderReader := newOrderReaderAdapter(a.orderDomain)
+
+	// Create billing reader adapter
+	billingReader := newBillingReaderAdapter(a.billingDomain)
+
+	// Create event publisher adapter (no-op for now)
+	eventPublisher := newNoOpEventPublisher()
+
+	// Determine notify base URL
+	notifyBaseURL := a.config.Server.Address
+	if a.config.Email.BaseURL != "" {
+		notifyBaseURL = a.config.Email.BaseURL
+	}
+
+	// Create domain
+	a.paymentDomain = payment.NewPaymentDomain(
+		paymentDB,
+		webhookDB,
+		nil, // providerRegistry - will be implemented
+		orderReader,
+		billingReader,
+		eventPublisher,
+		notifyBaseURL,
+		a.zapLogger,
+	)
+
+	return nil
+}
+
+// initAIDomain initializes the AI domain with its adapters.
+func (a *App) initAIDomain() error {
+	// Create outbound adapters
+	providerDB := postgres.NewAIProviderAdapter(a.db)
+	modelDB := postgres.NewAIModelAdapter(a.db)
+	accountDB := postgres.NewAIProviderAccountAdapter(a.db)
+	groupDB := postgres.NewAIModelGroupAdapter(a.db)
+
+	// Create cache adapters
+	var healthCache outbound.AIProviderHealthCachePort
+	var embeddingCache outbound.AIEmbeddingCachePort
+	if redisClient := a.getRedisClient(); redisClient != nil {
+		healthCache = redisadapter.NewAIProviderHealthCacheAdapter(redisClient)
+		embeddingCache = redisadapter.NewAIEmbeddingCacheAdapter(redisClient)
+	}
+
+	// Create vendor registry
+	vendorRegistry := vendor.NewRegistry()
+	vendorRegistry.RegisterDefaults()
+
+	// Create crypto adapter
+	cryptoAdapter := vendor.NewCryptoAdapter(a.config.Auth.MasterKey)
+
+	// Create domain
+	a.aiDomain = ai.NewAIDomain(
+		providerDB,
+		modelDB,
+		accountDB,
+		groupDB,
+		healthCache,
+		embeddingCache,
+		vendorRegistry,
+		cryptoAdapter,
+		nil, // usageRecorder
+		nil, // config
+		a.zapLogger,
+	)
+
+	// Start health monitoring
+	ctx := context.Background()
+	a.aiDomain.StartHealthMonitor(ctx)
+	a.cleanupFuncs = append(a.cleanupFuncs, func() {
+		a.aiDomain.StopHealthMonitor()
+	})
+
+	// Create HTTP handlers
+	a.aiChatHandler = aihttp.NewChatHandler(a.aiDomain)
+
+	return nil
+}
+
+// initGitDomain initializes the Git domain with its adapters.
+func (a *App) initGitDomain() error {
+	// Create outbound adapters (database)
+	repoDB := postgres.NewGitRepoDatabaseAdapter(a.db)
+	collabDB := postgres.NewGitCollaboratorDatabaseAdapter(a.db)
+	prDB := postgres.NewGitPullRequestDatabaseAdapter(a.db)
+	lfsObjDB := postgres.NewGitLFSObjectDatabaseAdapter(a.db)
+	lfsLockDB := postgres.NewGitLFSLockDatabaseAdapter(a.db)
+
+	// Create storage adapters (requires S3 client - optional for now)
+	// TODO: Initialize S3 client from config when available
+	var storage outbound.GitStoragePort
+	var lfsStorage outbound.GitLFSStoragePort
+
+	// Create Git config
+	gitCfg := git.DefaultConfig()
+	if a.config.Git.RepoPrefix != "" {
+		gitCfg.RepoPrefix = a.config.Git.RepoPrefix
+	}
+
+	// Create domain
+	a.gitDomain = git.NewDomain(
+		repoDB,
+		collabDB,
+		prDB,
+		lfsObjDB,
+		lfsLockDB,
+		storage,
+		lfsStorage,
+		nil, // quotaChecker - optional for now
+		gitCfg,
+		a.zapLogger,
+	)
+
+	return nil
+}
+
+// initCollaborationDomain initializes the collaboration domain with its adapters.
+func (a *App) initCollaborationDomain() error {
+	// Create outbound adapters
+	teamDB := postgres.NewTeamAdapter(a.db)
+	memberDB := postgres.NewTeamMemberAdapter(a.db)
+	invitationDB := postgres.NewTeamInvitationAdapter(a.db)
+	userLookup := postgres.NewCollaborationUserLookupAdapter(a.db)
+	txAdapter := postgres.NewCollaborationTransactionAdapter(a.db)
+
+	// Create config
+	collabCfg := collaboration.DefaultConfig()
+	if a.config.Email.BaseURL != "" {
+		collabCfg.BaseURL = a.config.Email.BaseURL
+	}
+
+	// Create domain
+	a.collaborationDomain = collaboration.NewDomain(
+		teamDB,
+		memberDB,
+		invitationDB,
+		userLookup,
+		txAdapter,
+		collabCfg,
+		a.zapLogger,
+	)
+
+	return nil
+}
+
+// initMediaDomain initializes the media domain with its adapters.
+func (a *App) initMediaDomain() error {
+	// Create outbound adapters
+	providerDB := postgres.NewMediaProviderDBAdapter(a.db)
+	modelDB := postgres.NewMediaModelDBAdapter(a.db)
+	taskDB := postgres.NewMediaTaskDBAdapter(a.db)
+
+	// Create health cache (optional)
+	var healthCache outbound.MediaProviderHealthCachePort
+	if a.redis != nil {
+		healthCache = redisadapter.NewMediaHealthCacheAdapter(a.redis)
+	}
+
+	// Create crypto adapter
+	cryptoAdapter := vendor.NewCryptoAdapter(a.config.Auth.MasterKey)
+
+	// Create vendor registry
+	// TODO: Initialize media vendor registry when available
+
+	// Create config
+	mediaCfg := media.DefaultConfig()
+
+	// Create domain
+	a.mediaDomain = media.NewDomain(
+		providerDB,
+		modelDB,
+		taskDB,
+		healthCache,
+		nil, // vendorRegistry - TODO: implement when available
+		cryptoAdapter,
+		mediaCfg,
+		a.zapLogger,
+	)
+
+	return nil
 }
 
 // setupRouter creates and configures the Gin router.
@@ -168,7 +530,7 @@ func (a *App) setupRouter() *gin.Engine {
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+		c.JSON(200, gin.H{"status": "ok", "version": "v2"})
 	})
 
 	// Swagger documentation endpoint
@@ -177,580 +539,24 @@ func (a *App) setupRouter() *gin.Engine {
 	return r
 }
 
-// initModules initializes all application modules.
-func (a *App) initModules() error {
-	// Initialize event bus for domain events
-	a.eventBus = events.NewBus(a.zapLogger)
-
-	// Initialize AI module
-	aiConfig := &ai.Config{
-		DB:    a.db,
-		Redis: a.redis,
-		HealthCheckConfig: &provider.HealthMonitorConfig{
-			CheckInterval:       a.config.AI.HealthCheckInterval,
-			FailureThreshold:    a.config.AI.FailureThreshold,
-			SuccessThreshold:    a.config.AI.SuccessThreshold,
-			Timeout:             a.config.AI.CircuitTimeout,
-			MaxHalfOpenRequests: 1,
-		},
-		TaskManagerConfig: &sharedtask.Config{
-			MaxConcurrent: a.config.AI.MaxConcurrentTasks,
-		},
-		EmbeddingCacheConfig: &cache.EmbeddingCacheConfig{
-			TTL: a.config.AI.EmbeddingCacheTTL,
-		},
-	}
-
-	aiModule, err := ai.NewModule(aiConfig)
-	if err != nil {
-		return fmt.Errorf("create ai module: %w", err)
-	}
-	a.aiModule = aiModule
-
-	// Initialize auth module (for System API Keys)
-	if err := a.initAuthModule(); err != nil {
-		return fmt.Errorf("init auth module: %w", err)
-	}
-
-	// Initialize user module
-	if err := a.initUserModule(); err != nil {
-		return fmt.Errorf("init user module: %w", err)
-	}
-
-	// Initialize billing module
-	if err := a.initBillingModule(); err != nil {
-		return fmt.Errorf("init billing module: %w", err)
-	}
-
-	// Initialize order module
-	if err := a.initOrderModule(); err != nil {
-		return fmt.Errorf("init order module: %w", err)
-	}
-
-	// Initialize payment module
-	if err := a.initPaymentModule(); err != nil {
-		return fmt.Errorf("init payment module: %w", err)
-	}
-
-	// Register event handlers after all modules are initialized
-	a.registerEventHandlers()
-
-	// Initialize git module
-	if err := a.initGitModule(); err != nil {
-		return fmt.Errorf("init git module: %w", err)
-	}
-
-	// Initialize collaboration module
-	if err := a.initCollaborationModule(); err != nil {
-		return fmt.Errorf("init collaboration module: %w", err)
-	}
-
-	// Initialize account pool module
-	if err := a.initAccountPoolModule(); err != nil {
-		return fmt.Errorf("init account pool module: %w", err)
-	}
-
-	return nil
-}
-
-// registerEventHandlers registers all domain event handlers.
-func (a *App) registerEventHandlers() {
-	// Order module handles PaymentSucceeded and PaymentFailed events
-	orderEventHandler := order.NewEventHandler(a.orderRepo, a.zapLogger)
-	a.eventBus.Register(orderEventHandler)
-
-	// Billing module handles PaymentSucceeded for topup orders
-	billingEventHandler := billing.NewEventHandler(a.billingService, a.zapLogger)
-	a.eventBus.Register(billingEventHandler)
-}
-
-// initAuthModule initializes the auth module for System API Key management.
-func (a *App) initAuthModule() error {
-	// Create repositories
-	userRepo := auth.NewUserRepository(a.db)
-	tokenRepo := auth.NewRefreshTokenRepository(a.db)
-	apiKeyRepo := auth.NewAPIKeyRepository(a.db)
-	systemAPIKeyRepo := auth.NewSystemAPIKeyRepository(a.db)
-
-	// Create state store (Redis-based for OAuth state)
-	var stateStore auth.StateStore
-	if a.redis != nil {
-		stateStore = auth.NewRedisStateStore(a.redis)
-	} else {
-		stateStore = auth.NewInMemoryStateStore()
-	}
-
-	// Create auth service
-	authService, err := auth.NewService(
-		userRepo,
-		tokenRepo,
-		apiKeyRepo,
-		systemAPIKeyRepo,
-		nil, // OAuth registry (optional, user module handles OAuth)
-		stateStore,
-		&auth.ServiceConfig{
-			JWTConfig: &auth.JWTConfig{
-				Secret:             a.config.Auth.JWTSecret,
-				AccessTokenExpiry:  a.config.Auth.AccessTokenExpiry,
-				RefreshTokenExpiry: a.config.Auth.RefreshTokenExpiry,
-			},
-			MasterKey:         a.config.Auth.MasterKey,
-			MaxAPIKeysPerUser: 10,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("create auth service: %w", err)
-	}
-	a.authService = authService
-
-	// Create rate limiter (only if Redis is available)
-	if a.redis != nil {
-		a.rateLimiter = auth.NewRateLimiter(a.redis)
-	}
-
-	// Create handler
-	a.authHandler = auth.NewHandler(authService)
-
-	return nil
-}
-
-// initUserModule initializes the user module.
-func (a *App) initUserModule() error {
-	// Create email sender
-	var emailSender user.EmailSender
-	if a.config.Email.Provider == "smtp" {
-		smtpConfig := &user.SMTPConfig{
-			Host:        a.config.Email.SMTP.Host,
-			Port:        a.config.Email.SMTP.Port,
-			User:        a.config.Email.SMTP.User,
-			Password:    a.config.Email.SMTP.Password,
-			FromAddress: a.config.Email.FromAddress,
-			FromName:    a.config.Email.FromName,
-			BaseURL:     a.config.Email.BaseURL,
-		}
-		emailSender = user.NewSMTPEmailSender(smtpConfig, a.zapLogger)
-	} else {
-		emailSender = user.NewNoOpEmailSender(a.zapLogger)
-	}
-
-	// Create repositories
-	userRepo := user.NewRepository(a.db)
-	tokenRepo := auth.NewRefreshTokenRepository(a.db)
-
-	// Create JWT manager
-	jwtManager := auth.NewJWTManager(&auth.JWTConfig{
-		Secret:             a.config.Auth.JWTSecret,
-		AccessTokenExpiry:  a.config.Auth.AccessTokenExpiry,
-		RefreshTokenExpiry: a.config.Auth.RefreshTokenExpiry,
-	})
-
-	// Create user service
-	userService := user.NewService(
-		userRepo,
-		tokenRepo,
-		jwtManager,
-		emailSender,
-		a.zapLogger,
-	)
-
-	// Create handlers
-	a.userHandler = user.NewHandler(userService)
-	a.userAdmin = user.NewAdminHandler(userService)
-
-	return nil
-}
-
-// initBillingModule initializes the billing module.
-func (a *App) initBillingModule() error {
-	// Create billing repository
-	a.billingRepo = billing.NewRepository(a.db)
-
-	// Create quota manager (only if Redis is available)
-	var quotaManager *billingquota.Manager
-	if redisClient, ok := a.redis.(*redis.Client); ok && redisClient != nil {
-		quotaManager = billingquota.NewManager(redisClient, a.zapLogger)
-	}
-
-	// Create billing service
-	a.billingService = billing.NewService(
-		a.billingRepo,
-		quotaManager,
-		a.zapLogger,
-	)
-
-	// Create quota checker middleware
-	a.quotaChecker = billingquota.NewChecker(a.billingService, a.zapLogger)
-
-	// Create usage recorder
-	a.usageRecorder = billingusage.NewRecorder(a.billingRepo, a.zapLogger, 1000)
-
-	// Create handler
-	a.billingHandler = billing.NewHandler(a.billingService)
-
-	return nil
-}
-
-// initOrderModule initializes the order module.
-func (a *App) initOrderModule() error {
-	// Create order repository
-	a.orderRepo = order.NewRepository(a.db)
-
-	// Create order service (needs billing.Repository)
-	a.orderService = order.NewService(
-		a.orderRepo,
-		a.billingRepo,
-		a.zapLogger,
-	)
-
-	// Create handler
-	a.orderHandler = order.NewHandler(a.orderService)
-
-	return nil
-}
-
-// initPaymentModule initializes the payment module.
-func (a *App) initPaymentModule() error {
-	// Create provider registry
-	providerRegistry := payment.NewProviderRegistry()
-
-	// Create and register Stripe provider
-	if a.config.Stripe.SecretKey != "" {
-		stripeProvider := paymentprovider.NewStripeProvider(&paymentprovider.StripeConfig{
-			APIKey:        a.config.Stripe.SecretKey,
-			WebhookSecret: a.config.Stripe.WebhookSecret,
-		})
-		providerRegistry.Register(stripeProvider)
-	}
-
-	// Create and register Alipay provider
-	if a.config.Alipay.AppID != "" && a.config.Alipay.PrivateKey != "" {
-		alipayProvider, err := paymentprovider.NewAlipayProvider(&paymentprovider.AlipayConfig{
-			AppID:           a.config.Alipay.AppID,
-			PrivateKey:      a.config.Alipay.PrivateKey,
-			AlipayPublicKey: a.config.Alipay.AlipayPublicKey,
-			IsProd:          a.config.Alipay.IsProd,
-			NotifyURL:       a.config.Alipay.NotifyURL,
-			ReturnURL:       a.config.Alipay.ReturnURL,
-		})
-		if err != nil {
-			return fmt.Errorf("create alipay provider: %w", err)
-		}
-		providerRegistry.Register(alipayProvider)
-	}
-
-	// Create and register WeChat provider
-	if a.config.Wechat.AppID != "" && a.config.Wechat.MchID != "" {
-		wechatProvider, err := paymentprovider.NewWechatProvider(&paymentprovider.WechatConfig{
-			AppID:                 a.config.Wechat.AppID,
-			MchID:                 a.config.Wechat.MchID,
-			APIKeyV3:              a.config.Wechat.APIKeyV3,
-			SerialNo:              a.config.Wechat.SerialNo,
-			PrivateKey:            a.config.Wechat.PrivateKey,
-			WechatPublicKeySerial: a.config.Wechat.WechatPublicKeySerial,
-			WechatPublicKey:       a.config.Wechat.WechatPublicKey,
-			IsProd:                a.config.Wechat.IsProd,
-			NotifyURL:             a.config.Wechat.NotifyURL,
-		})
-		if err != nil {
-			return fmt.Errorf("create wechat provider: %w", err)
-		}
-		providerRegistry.Register(wechatProvider)
-	}
-
-	// Create payment repository
-	paymentRepo := payment.NewRepository(a.db)
-
-	// Create adapters for cross-module dependencies (Dependency Inversion Principle)
-	orderReader := newPaymentOrderAdapter(a.orderRepo)
-	billingReader := newPaymentBillingAdapter(a.billingService)
-
-	// Create event bus adapter for payment module
-	eventBusAdapter := newEventBusAdapter(a.eventBus)
-
-	// Determine notify base URL
-	notifyBaseURL := a.config.Server.Address
-	if a.config.Email.BaseURL != "" {
-		notifyBaseURL = a.config.Email.BaseURL
-	}
-
-	// Create payment service with interface dependencies (not concrete Service)
-	a.paymentService = payment.NewService(
-		paymentRepo,
-		orderReader,     // payment.OrderReader interface
-		billingReader,   // payment.BillingReader interface
-		eventBusAdapter, // payment.EventPublisher interface
-		providerRegistry,
-		notifyBaseURL,
-		a.zapLogger,
-	)
-
-	// Create handlers
-	a.paymentHandler = payment.NewHandler(a.paymentService)
-	a.webhookHandler = payment.NewWebhookHandler(
-		a.paymentService,
-		a.billingService,
-		a.zapLogger,
-	)
-
-	return nil
-}
-
-// initGitModule initializes the git module.
-func (a *App) initGitModule() error {
-	// Skip if storage is not configured
-	if a.config.Storage.Endpoint == "" || a.config.Storage.Bucket == "" {
-		fmt.Println("Warning: Git module disabled - storage not configured")
-		return nil
-	}
-
-	// Create R2 client
-	r2Client, err := gitstorage.NewR2Client(&gitstorage.R2Config{
-		Endpoint:        a.config.Storage.Endpoint,
-		Region:          a.config.Storage.Region,
-		AccessKeyID:     a.config.Storage.AccessKeyID,
-		SecretAccessKey: a.config.Storage.SecretAccessKey,
-		Bucket:          a.config.Storage.Bucket,
-	})
-	if err != nil {
-		return fmt.Errorf("create R2 client: %w", err)
-	}
-	a.r2Client = r2Client
-
-	// Create git repository
-	gitRepo := git.NewRepository(a.db)
-
-	// Create git service
-	a.gitService = git.NewService(
-		gitRepo,
-		r2Client,
-		nil, // No quota checker for now
-		&a.config.Git,
-		a.zapLogger,
-	)
-
-	// Determine base URL for clone URLs
-	baseURL := a.config.Email.BaseURL
-	if baseURL == "" {
-		baseURL = "http://localhost" + a.config.Server.Address
-	}
-
-	// Create REST API handler
-	a.gitHandler = git.NewHandler(a.gitService, baseURL)
-
-	// Create Git HTTP handler
-	a.gitHTTPHandler = git.NewGitHandler(
-		a.gitService,
-		r2Client,
-		nil, // No authenticator for now
-		a.zapLogger,
-	)
-
-	// Create LFS storage manager
-	lfsStorage := lfs.NewStorageManager(r2Client, &a.config.Git)
-
-	// Create LFS batch handler with a simple resolver
-	lfsResolver := &gitLFSResolver{
-		service: a.gitService,
-		repo:    gitRepo,
-	}
-	a.lfsHandler = lfs.NewBatchHandler(
-		lfsStorage,
-		lfsResolver,
-		baseURL,
-		a.zapLogger,
-	)
-
-	return nil
-}
-
-// initCollaborationModule initializes the collaboration module.
-func (a *App) initCollaborationModule() error {
-	// Create repositories
-	collabRepo := collaboration.NewRepository(a.db)
-	userRepo := collaboration.NewUserRepository(a.db)
-
-	// Create service
-	collabService := collaboration.NewService(
-		collabRepo,
-		userRepo,
-		a.zapLogger,
-	)
-
-	// Determine base URL
-	baseURL := a.config.Email.BaseURL
-	if baseURL == "" {
-		baseURL = "http://localhost" + a.config.Server.Address
-	}
-
-	// Create handler
-	a.collabHandler = collaboration.NewHandler(collabService, baseURL)
-
-	return nil
-}
-
-// initAccountPoolModule initializes the account pool module.
-func (a *App) initAccountPoolModule() error {
-	// Create repository
-	repo := pool.NewRepository(a.db)
-
-	// Determine scheduler type
-	schedulerType := pool.SchedulerRoundRobin
-	switch a.config.AI.AccountPoolScheduler {
-	case "weighted", "weighted_random":
-		schedulerType = pool.SchedulerWeightedRandom
-	case "priority":
-		schedulerType = pool.SchedulerPriority
-	}
-
-	// Create manager config
-	cfg := &pool.ManagerConfig{
-		SchedulerType: schedulerType,
-		CacheTTL:      a.config.AI.AccountPoolCacheTTL,
-		EncryptionKey: a.config.AI.AccountPoolEncryptionKey,
-	}
-
-	// Create manager
-	manager, err := pool.NewManager(repo, a.zapLogger, cfg)
-	if err != nil {
-		return fmt.Errorf("create account pool manager: %w", err)
-	}
-	a.accountPool = manager
-
-	// Create handler
-	a.accountPoolHandler = pool.NewHandler(manager, a.zapLogger)
-
-	// Wire to AI module's routing manager
-	if a.aiModule != nil {
-		a.aiModule.SetAccountPool(manager)
-	}
-
-	return nil
-}
-
-// gitLFSResolver implements lfs.RepoResolver interface.
-type gitLFSResolver struct {
-	service *git.Service
-	repo    git.Repository
-}
-
-func (r *gitLFSResolver) GetRepoByOwnerAndSlug(ctx context.Context, ownerID uuid.UUID, slug string) (repoID uuid.UUID, lfsEnabled bool, ownerUserID uuid.UUID, err error) {
-	repo, err := r.service.GetRepoByOwnerAndSlug(ctx, ownerID, slug)
-	if err != nil {
-		return uuid.Nil, false, uuid.Nil, err
-	}
-	return repo.ID, repo.LFSEnabled, repo.OwnerID, nil
-}
-
-func (r *gitLFSResolver) CanAccess(ctx context.Context, repoID uuid.UUID, userID *uuid.UUID, write bool) (bool, error) {
-	perm := git.PermissionRead
-	if write {
-		perm = git.PermissionWrite
-	}
-	return r.service.CanAccess(ctx, repoID, userID, perm)
-}
-
-func (r *gitLFSResolver) LinkLFSObject(ctx context.Context, repoID uuid.UUID, oid string, size int64, storageKey string) error {
-	// Create LFS object record if not exists
-	lfsObj := &git.LFSObject{
-		OID:        oid,
-		Size:       size,
-		StorageKey: storageKey,
-	}
-	if err := r.repo.CreateLFSObject(ctx, lfsObj); err != nil {
-		// Ignore duplicate key errors
-	}
-	// Link to repo
-	return r.repo.LinkLFSObject(ctx, repoID, oid)
-}
-
-func (r *gitLFSResolver) GetLFSObject(ctx context.Context, oid string) (size int64, exists bool, err error) {
-	obj, err := r.repo.GetLFSObject(ctx, oid)
-	if err != nil {
-		if err == git.ErrLFSObjectNotFound {
-			return 0, false, nil
-		}
-		return 0, false, err
-	}
-	return obj.Size, true, nil
-}
-
-// startModules starts all application modules.
-func (a *App) startModules(ctx context.Context) error {
-	// Start AI module
-	if err := a.aiModule.Start(ctx); err != nil {
-		return fmt.Errorf("start ai module: %w", err)
-	}
-
-	// Register module routes
-	a.registerRoutes()
-
-	return nil
-}
-
-// registerRoutes registers routes for all modules.
+// registerRoutes registers all HTTP routes.
 func (a *App) registerRoutes() {
 	// API v1 group
 	v1 := a.router.Group("/api/v1")
 
-	// Public routes (no auth required)
-	publicRouter := v1.Group("")
-
-	// Protected routes (requires auth)
+	// Protected routes (requires auth) - will add auth middleware later
 	protectedRouter := v1.Group("")
-	if a.authHandler != nil {
-		protectedRouter.Use(a.authHandler.AuthMiddleware())
+
+	// Register AI routes
+	if a.aiChatHandler != nil {
+		aiGroup := protectedRouter.Group("/ai")
+		{
+			aiGroup.POST("/chat", a.aiChatHandler.Chat)
+			aiGroup.POST("/chat/stream", a.aiChatHandler.ChatStream)
+		}
 	}
 
-	// Admin routes (requires admin auth)
-	adminRouter := v1.Group("/admin")
-
-	// Webhook routes (no auth required, uses signature verification)
-	webhookRouter := a.router.Group("/webhooks")
-
-	// Register AI module routes
-	a.aiModule.RegisterRoutes(publicRouter, adminRouter)
-
-	// Register auth module routes (for System API Key management)
-	if a.authHandler != nil {
-		a.authHandler.RegisterRoutes(publicRouter)
-	}
-
-	// Register public module routes
-	a.userHandler.RegisterRoutes(publicRouter)
-	a.userAdmin.RegisterRoutes(adminRouter)
-	a.billingHandler.RegisterRoutes(publicRouter)
-	a.orderHandler.RegisterRoutes(publicRouter)
-	a.paymentHandler.RegisterRoutes(publicRouter)
-	a.webhookHandler.RegisterRoutes(webhookRouter)
-
-	// Register protected module routes
-	a.userHandler.RegisterProtectedRoutes(protectedRouter)
-	a.billingHandler.RegisterProtectedRoutes(protectedRouter)
-	a.orderHandler.RegisterProtectedRoutes(protectedRouter)
-	a.paymentHandler.RegisterProtectedRoutes(protectedRouter)
-
-	// Register git module routes (if initialized)
-	if a.gitHandler != nil {
-		a.gitHandler.RegisterRoutes(publicRouter)
-		a.gitHandler.RegisterProtectedRoutes(protectedRouter)
-	}
-	if a.gitHTTPHandler != nil {
-		a.gitHTTPHandler.RegisterGitRoutes(v1)
-	}
-	if a.lfsHandler != nil {
-		a.lfsHandler.RegisterRoutes(v1)
-	}
-
-	// Register collaboration module routes
-	if a.collabHandler != nil {
-		a.collabHandler.RegisterRoutes(publicRouter)
-		a.collabHandler.RegisterProtectedRoutes(protectedRouter)
-	}
-
-	// Register account pool admin routes
-	if a.accountPoolHandler != nil {
-		a.accountPoolHandler.RegisterRoutes(adminRouter)
-	}
+	// TODO: Register other domain routes as their handlers are migrated
 }
 
 // Router returns the HTTP router.
@@ -760,14 +566,9 @@ func (a *App) Router() *gin.Engine {
 
 // Stop stops the application and releases resources.
 func (a *App) Stop() {
-	// Stop modules
-	if a.aiModule != nil {
-		a.aiModule.Stop()
-	}
-
-	// Close usage recorder
-	if a.usageRecorder != nil {
-		a.usageRecorder.Close()
+	// Run cleanup functions
+	for _, cleanup := range a.cleanupFuncs {
+		cleanup()
 	}
 
 	// Sync zap logger
@@ -784,4 +585,117 @@ func (a *App) Stop() {
 	if a.db != nil {
 		_ = database.Close(a.db)
 	}
+}
+
+// ===== Adapter Implementations =====
+
+// orderReaderAdapter adapts OrderDomain to outbound.OrderReaderPort.
+type orderReaderAdapter struct {
+	domain order.OrderDomain
+}
+
+func newOrderReaderAdapter(domain order.OrderDomain) outbound.OrderReaderPort {
+	return &orderReaderAdapter{domain: domain}
+}
+
+func (a *orderReaderAdapter) GetOrder(ctx context.Context, id uuid.UUID) (*outbound.PaymentOrderInfo, error) {
+	ord, err := a.domain.GetOrder(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	planID := ""
+	if ord.PlanID != nil {
+		planID = *ord.PlanID
+	}
+	return &outbound.PaymentOrderInfo{
+		ID:            ord.ID,
+		UserID:        ord.UserID,
+		Type:          string(ord.Type),
+		Status:        string(ord.Status),
+		Total:         ord.Total,
+		Currency:      ord.Currency,
+		CreditsAmount: ord.CreditsAmount,
+		PlanID:        planID,
+	}, nil
+}
+
+func (a *orderReaderAdapter) GetOrderByPaymentIntentID(ctx context.Context, paymentIntentID string) (*outbound.PaymentOrderInfo, error) {
+	ord, err := a.domain.GetOrderByPaymentIntentID(ctx, paymentIntentID)
+	if err != nil {
+		return nil, err
+	}
+	planID := ""
+	if ord.PlanID != nil {
+		planID = *ord.PlanID
+	}
+	return &outbound.PaymentOrderInfo{
+		ID:            ord.ID,
+		UserID:        ord.UserID,
+		Type:          string(ord.Type),
+		Status:        string(ord.Status),
+		Total:         ord.Total,
+		Currency:      ord.Currency,
+		CreditsAmount: ord.CreditsAmount,
+		PlanID:        planID,
+	}, nil
+}
+
+func (a *orderReaderAdapter) UpdateOrderStatus(ctx context.Context, id uuid.UUID, status string) error {
+	// Map status string to appropriate domain method
+	switch status {
+	case "paid":
+		return a.domain.MarkAsPaid(ctx, id)
+	case "failed":
+		return a.domain.MarkAsFailed(ctx, id)
+	case "canceled":
+		return a.domain.CancelOrder(ctx, id, "")
+	case "refunded":
+		return a.domain.MarkAsRefunded(ctx, id)
+	default:
+		return fmt.Errorf("unsupported status: %s", status)
+	}
+}
+
+func (a *orderReaderAdapter) SetStripePaymentIntentID(ctx context.Context, orderID uuid.UUID, paymentIntentID string) error {
+	return a.domain.SetStripePaymentIntentID(ctx, orderID, paymentIntentID)
+}
+
+// billingReaderAdapter adapts BillingDomain to outbound.BillingReaderPort.
+type billingReaderAdapter struct {
+	domain billing.BillingDomain
+}
+
+func newBillingReaderAdapter(domain billing.BillingDomain) outbound.BillingReaderPort {
+	return &billingReaderAdapter{domain: domain}
+}
+
+func (a *billingReaderAdapter) GetSubscription(ctx context.Context, userID uuid.UUID) (*outbound.PaymentSubscriptionInfo, error) {
+	sub, err := a.domain.GetSubscription(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if sub == nil {
+		return nil, nil
+	}
+	return &outbound.PaymentSubscriptionInfo{
+		UserID:           sub.UserID,
+		PlanID:           sub.PlanID,
+		Status:           string(sub.Status),
+		StripeCustomerID: sub.StripeCustomerID,
+	}, nil
+}
+
+func (a *billingReaderAdapter) AddCredits(ctx context.Context, userID uuid.UUID, amount int64, source string) error {
+	return a.domain.AddCredits(ctx, userID, amount, source)
+}
+
+// noOpEventPublisher is a no-op implementation of outbound.EventPublisherPort.
+type noOpEventPublisher struct{}
+
+func newNoOpEventPublisher() outbound.EventPublisherPort {
+	return &noOpEventPublisher{}
+}
+
+func (p *noOpEventPublisher) Publish(ctx context.Context, event interface{}) error {
+	return nil
 }

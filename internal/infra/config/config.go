@@ -73,19 +73,19 @@ type RedisConfig struct {
 
 // AIConfig holds AI module configuration.
 type AIConfig struct {
-	HealthCheckInterval time.Duration `mapstructure:"health_check_interval"`
-	FailureThreshold    uint32        `mapstructure:"failure_threshold"`
-	SuccessThreshold    uint32        `mapstructure:"success_threshold"`
-	CircuitTimeout      time.Duration `mapstructure:"circuit_timeout"`
-	TaskCleanupInterval time.Duration `mapstructure:"task_cleanup_interval"`
-	TaskRetentionPeriod time.Duration `mapstructure:"task_retention_period"`
-	MaxConcurrentTasks  int           `mapstructure:"max_concurrent_tasks"`
-	EmbeddingCacheTTL   time.Duration `mapstructure:"embedding_cache_ttl"`
+	HealthCheckInterval  time.Duration `mapstructure:"health_check_interval"`
+	FailureThreshold     uint32        `mapstructure:"failure_threshold"`
+	SuccessThreshold     uint32        `mapstructure:"success_threshold"`
+	CircuitTimeout       time.Duration `mapstructure:"circuit_timeout"`
+	TaskCleanupInterval  time.Duration `mapstructure:"task_cleanup_interval"`
+	TaskRetentionPeriod  time.Duration `mapstructure:"task_retention_period"`
+	MaxConcurrentTasks   int           `mapstructure:"max_concurrent_tasks"`
+	EmbeddingCacheTTL    time.Duration `mapstructure:"embedding_cache_ttl"`
 
 	// Account pool configuration
-	AccountPoolScheduler    string        `mapstructure:"account_pool_scheduler"`     // round_robin, weighted, priority
-	AccountPoolCacheTTL     time.Duration `mapstructure:"account_pool_cache_ttl"`
-	AccountPoolEncryptionKey string       `mapstructure:"account_pool_encryption_key"` // Base64 encoded 32-byte key
+	AccountPoolScheduler     string        `mapstructure:"account_pool_scheduler"`      // round_robin, weighted, priority
+	AccountPoolCacheTTL      time.Duration `mapstructure:"account_pool_cache_ttl"`
+	AccountPoolEncryptionKey string        `mapstructure:"account_pool_encryption_key"` // Base64 encoded 32-byte key
 }
 
 // AuthConfig holds authentication configuration.
@@ -121,9 +121,9 @@ type StorageConfig struct {
 
 // GitConfig holds Git module configuration.
 type GitConfig struct {
-	RepoPrefix     string        `mapstructure:"repo_prefix"`      // R2 prefix for repos (default: "repos/")
-	LFSPrefix      string        `mapstructure:"lfs_prefix"`       // R2 prefix for LFS objects (default: "lfs/")
-	LFSURLExpiry   time.Duration `mapstructure:"lfs_url_expiry"`   // Presigned URL expiry (default: 1h)
+	RepoPrefix     string        `mapstructure:"repo_prefix"`       // R2 prefix for repos (default: "repos/")
+	LFSPrefix      string        `mapstructure:"lfs_prefix"`        // R2 prefix for LFS objects (default: "lfs/")
+	LFSURLExpiry   time.Duration `mapstructure:"lfs_url_expiry"`    // Presigned URL expiry (default: 1h)
 	LFSMaxFileSize int64         `mapstructure:"lfs_max_file_size"` // Max LFS file size in bytes (default: 100GB)
 }
 

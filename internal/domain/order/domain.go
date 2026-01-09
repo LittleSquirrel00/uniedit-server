@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/outbound"
-	"github.com/uniedit/server/internal/shared/random"
+	"github.com/uniedit/server/internal/utils/random"
 	"go.uber.org/zap"
 )
 

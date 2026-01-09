@@ -1,5 +1,154 @@
 basePath: /api/v1
 definitions:
+  github_com_uniedit_server_internal_model.GeneratedImage:
+    properties:
+      b64_json:
+        type: string
+      revised_prompt:
+        type: string
+      url:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_model.GeneratedVideo:
+    properties:
+      duration:
+        type: integer
+      file_size:
+        type: integer
+      format:
+        type: string
+      fps:
+        type: integer
+      height:
+        type: integer
+      url:
+        type: string
+      width:
+        type: integer
+    type: object
+  github_com_uniedit_server_internal_model.ImageUsage:
+    properties:
+      cost_usd:
+        type: number
+      total_images:
+        type: integer
+    type: object
+  github_com_uniedit_server_internal_model.InvitationStatus:
+    enum:
+    - pending
+    - accepted
+    - rejected
+    - revoked
+    - expired
+    type: string
+    x-enum-varnames:
+    - InvitationStatusPending
+    - InvitationStatusAccepted
+    - InvitationStatusRejected
+    - InvitationStatusRevoked
+    - InvitationStatusExpired
+  github_com_uniedit_server_internal_model.MediaCapability:
+    enum:
+    - image
+    - video
+    - audio
+    type: string
+    x-enum-varnames:
+    - MediaCapabilityImage
+    - MediaCapabilityVideo
+    - MediaCapabilityAudio
+  github_com_uniedit_server_internal_model.MediaModel:
+    properties:
+      capabilities:
+        items:
+          $ref: '#/definitions/github_com_uniedit_server_internal_model.MediaCapability'
+        type: array
+      created_at:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      provider_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_model.MediaProvider:
+    properties:
+      base_url:
+        type: string
+      created_at:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        $ref: '#/definitions/github_com_uniedit_server_internal_model.MediaProviderType'
+      updated_at:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_model.MediaProviderType:
+    enum:
+    - openai
+    - anthropic
+    - generic
+    type: string
+    x-enum-varnames:
+    - MediaProviderTypeOpenAI
+    - MediaProviderTypeAnthropic
+    - MediaProviderTypeGeneric
+  github_com_uniedit_server_internal_model.MediaTaskStatus:
+    enum:
+    - pending
+    - running
+    - completed
+    - failed
+    - cancelled
+    type: string
+    x-enum-varnames:
+    - MediaTaskStatusPending
+    - MediaTaskStatusRunning
+    - MediaTaskStatusCompleted
+    - MediaTaskStatusFailed
+    - MediaTaskStatusCancelled
+  github_com_uniedit_server_internal_model.TeamRole:
+    enum:
+    - owner
+    - admin
+    - member
+    - guest
+    type: string
+    x-enum-varnames:
+    - TeamRoleOwner
+    - TeamRoleAdmin
+    - TeamRoleMember
+    - TeamRoleGuest
+  github_com_uniedit_server_internal_model.TeamVisibility:
+    enum:
+    - public
+    - private
+    type: string
+    x-enum-varnames:
+    - TeamVisibilityPublic
+    - TeamVisibilityPrivate
+  github_com_uniedit_server_internal_model.VideoState:
+    enum:
+    - pending
+    - processing
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - VideoStatePending
+    - VideoStateProcessing
+    - VideoStateCompleted
+    - VideoStateFailed
   github_com_uniedit_server_internal_module_ai_adapter.Function:
     properties:
       description:
@@ -443,6 +592,30 @@ definitions:
     - VideoStateProcessing
     - VideoStateCompleted
     - VideoStateFailed
+  github_com_uniedit_server_internal_module_order_domain.OrderStatus:
+    enum:
+    - pending
+    - paid
+    - canceled
+    - refunded
+    - failed
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusPaid
+    - StatusCanceled
+    - StatusRefunded
+    - StatusFailed
+  github_com_uniedit_server_internal_module_order_domain.OrderType:
+    enum:
+    - subscription
+    - topup
+    - upgrade
+    type: string
+    x-enum-varnames:
+    - TypeSubscription
+    - TypeTopup
+    - TypeUpgrade
   github_com_uniedit_server_internal_module_payment_provider.PaymentScene:
     enum:
     - web
@@ -469,6 +642,210 @@ definitions:
     - PaymentSceneApp
     - PaymentSceneNative
     - PaymentSceneMini
+  github_com_uniedit_server_internal_port_inbound.CreateTeamInput:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      visibility:
+        allOf:
+        - $ref: '#/definitions/github_com_uniedit_server_internal_model.TeamVisibility'
+        enum:
+        - public
+        - private
+    required:
+    - name
+    type: object
+  github_com_uniedit_server_internal_port_inbound.InvitationOutput:
+    properties:
+      accept_url:
+        type: string
+      accepted_at:
+        type: string
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      invitee_email:
+        type: string
+      inviter_id:
+        type: string
+      inviter_name:
+        type: string
+      role:
+        $ref: '#/definitions/github_com_uniedit_server_internal_model.TeamRole'
+      status:
+        $ref: '#/definitions/github_com_uniedit_server_internal_model.InvitationStatus'
+      team_id:
+        type: string
+      team_name:
+        type: string
+      token:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_port_inbound.InviteInput:
+    properties:
+      email:
+        type: string
+      role:
+        allOf:
+        - $ref: '#/definitions/github_com_uniedit_server_internal_model.TeamRole'
+        enum:
+        - admin
+        - member
+        - guest
+    required:
+    - email
+    - role
+    type: object
+  github_com_uniedit_server_internal_port_inbound.MediaImageGenerationInput:
+    properties:
+      model:
+        type: string
+      "n":
+        type: integer
+      negative_prompt:
+        type: string
+      prompt:
+        type: string
+      quality:
+        type: string
+      response_format:
+        type: string
+      size:
+        type: string
+      style:
+        type: string
+    required:
+    - prompt
+    type: object
+  github_com_uniedit_server_internal_port_inbound.MediaImageGenerationOutput:
+    properties:
+      created_at:
+        type: integer
+      images:
+        items:
+          $ref: '#/definitions/github_com_uniedit_server_internal_model.GeneratedImage'
+        type: array
+      model:
+        type: string
+      task_id:
+        type: string
+      usage:
+        $ref: '#/definitions/github_com_uniedit_server_internal_model.ImageUsage'
+    type: object
+  github_com_uniedit_server_internal_port_inbound.MediaTaskOutput:
+    properties:
+      created_at:
+        type: integer
+      error:
+        type: string
+      id:
+        type: string
+      owner_id:
+        type: string
+      progress:
+        type: integer
+      status:
+        $ref: '#/definitions/github_com_uniedit_server_internal_model.MediaTaskStatus'
+      type:
+        type: string
+      updated_at:
+        type: integer
+    type: object
+  github_com_uniedit_server_internal_port_inbound.MediaVideoGenerationInput:
+    properties:
+      aspect_ratio:
+        type: string
+      duration:
+        type: integer
+      fps:
+        type: integer
+      input_image:
+        type: string
+      input_video:
+        type: string
+      model:
+        type: string
+      prompt:
+        type: string
+      resolution:
+        type: string
+    type: object
+  github_com_uniedit_server_internal_port_inbound.MediaVideoGenerationOutput:
+    properties:
+      created_at:
+        type: integer
+      error:
+        type: string
+      progress:
+        type: integer
+      status:
+        $ref: '#/definitions/github_com_uniedit_server_internal_model.VideoState'
+      task_id:
+        type: string
+      video:
+        $ref: '#/definitions/github_com_uniedit_server_internal_model.GeneratedVideo'
+    type: object
+  github_com_uniedit_server_internal_port_inbound.TeamOutput:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      member_count:
+        type: integer
+      member_limit:
+        type: integer
+      my_role:
+        $ref: '#/definitions/github_com_uniedit_server_internal_model.TeamRole'
+      name:
+        type: string
+      owner_id:
+        type: string
+      slug:
+        type: string
+      updated_at:
+        type: string
+      visibility:
+        $ref: '#/definitions/github_com_uniedit_server_internal_model.TeamVisibility'
+    type: object
+  github_com_uniedit_server_internal_port_inbound.UpdateMemberRoleInput:
+    properties:
+      role:
+        allOf:
+        - $ref: '#/definitions/github_com_uniedit_server_internal_model.TeamRole'
+        enum:
+        - admin
+        - member
+        - guest
+    required:
+    - role
+    type: object
+  github_com_uniedit_server_internal_port_inbound.UpdateTeamInput:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      visibility:
+        allOf:
+        - $ref: '#/definitions/github_com_uniedit_server_internal_model.TeamVisibility'
+        enum:
+        - public
+        - private
+    type: object
   github_com_uniedit_server_internal_shared_task.Error:
     properties:
       code:
@@ -1696,7 +2073,7 @@ definitions:
       refunded_at:
         type: string
       status:
-        $ref: '#/definitions/internal_module_order.OrderStatus'
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_order_domain.OrderStatus'
       subtotal:
         type: integer
       tax:
@@ -1704,32 +2081,8 @@ definitions:
       total:
         type: integer
       type:
-        $ref: '#/definitions/internal_module_order.OrderType'
+        $ref: '#/definitions/github_com_uniedit_server_internal_module_order_domain.OrderType'
     type: object
-  internal_module_order.OrderStatus:
-    enum:
-    - pending
-    - paid
-    - canceled
-    - refunded
-    - failed
-    type: string
-    x-enum-varnames:
-    - OrderStatusPending
-    - OrderStatusPaid
-    - OrderStatusCanceled
-    - OrderStatusRefunded
-    - OrderStatusFailed
-  internal_module_order.OrderType:
-    enum:
-    - subscription
-    - topup
-    - upgrade
-    type: string
-    x-enum-varnames:
-    - OrderTypeSubscription
-    - OrderTypeTopup
-    - OrderTypeUpgrade
   internal_module_payment.CreateNativePaymentRequest:
     properties:
       method:
@@ -1812,6 +2165,9 @@ definitions:
     - card
     - alipay
     - wechat
+    - card
+    - alipay
+    - wechat
     type: string
     x-enum-varnames:
     - PaymentMethodCard
@@ -1848,6 +2204,12 @@ definitions:
     type: object
   internal_module_payment.PaymentStatus:
     enum:
+    - pending
+    - processing
+    - succeeded
+    - failed
+    - canceled
+    - refunded
     - pending
     - processing
     - succeeded
@@ -2790,6 +3152,77 @@ paths:
       summary: Refresh AI registry
       tags:
       - AI Admin - System
+  /admin/media/models:
+    get:
+      parameters:
+      - description: Filter by capability
+        in: query
+        name: capability
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_uniedit_server_internal_model.MediaModel'
+            type: array
+      summary: List models (admin)
+      tags:
+      - Media Admin
+  /admin/media/models/capability/{capability}:
+    get:
+      parameters:
+      - description: Capability
+        in: path
+        name: capability
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_uniedit_server_internal_model.MediaModel'
+            type: array
+      summary: Get models by capability (admin)
+      tags:
+      - Media Admin
+  /admin/media/providers:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_uniedit_server_internal_model.MediaProvider'
+            type: array
+      summary: List providers (admin)
+      tags:
+      - Media Admin
+  /admin/media/providers/{id}:
+    get:
+      parameters:
+      - description: Provider ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_model.MediaProvider'
+      summary: Get provider (admin)
+      tags:
+      - Media Admin
   /admin/providers/{provider_id}/accounts:
     get:
       description: Get all accounts for an AI provider
@@ -4605,6 +5038,122 @@ paths:
       summary: Rotate provider API key
       tags:
       - Auth
+  /media/images/generations:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Image generation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_uniedit_server_internal_port_inbound.MediaImageGenerationInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_port_inbound.MediaImageGenerationOutput'
+      summary: Generate images
+      tags:
+      - Media
+  /media/tasks:
+    get:
+      parameters:
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_uniedit_server_internal_port_inbound.MediaTaskOutput'
+            type: array
+      summary: List tasks
+      tags:
+      - Media
+  /media/tasks/{task_id}:
+    delete:
+      parameters:
+      - description: Task ID
+        in: path
+        name: task_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Cancel task
+      tags:
+      - Media
+    get:
+      parameters:
+      - description: Task ID
+        in: path
+        name: task_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_port_inbound.MediaTaskOutput'
+      summary: Get task
+      tags:
+      - Media
+  /media/videos/generations:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Video generation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_uniedit_server_internal_port_inbound.MediaVideoGenerationInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_port_inbound.MediaVideoGenerationOutput'
+      summary: Generate videos
+      tags:
+      - Media
+  /media/videos/generations/{task_id}:
+    get:
+      parameters:
+      - description: Task ID
+        in: path
+        name: task_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_uniedit_server_internal_port_inbound.MediaVideoGenerationOutput'
+      summary: Get video generation status
+      tags:
+      - Media
   /orders:
     get:
       description: Get all orders for the current user

@@ -1,7 +1,7 @@
 package app
 
 import (
-	"github.com/uniedit/server/internal/shared/config"
+	"github.com/uniedit/server/internal/infra/config"
 )
 
 // LoadConfig loads application configuration.

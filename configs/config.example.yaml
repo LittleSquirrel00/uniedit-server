@@ -62,4 +62,4 @@ log:
 
 # Feature flags for gradual rollout
 features:
-  use_new_architecture: false  # Set to true to use hexagonal architecture (app_v2)
+  use_new_architecture: true  # Uses hexagonal architecture (app_v2)
