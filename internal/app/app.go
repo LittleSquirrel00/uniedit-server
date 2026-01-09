@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	goredis "github.com/redis/go-redis/v9"
 	swaggerfiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -16,9 +17,6 @@ import (
 	"github.com/uniedit/server/internal/domain/ai"
 	"github.com/uniedit/server/internal/domain/auth"
 	"github.com/uniedit/server/internal/domain/billing"
-	"github.com/uniedit/server/internal/domain/collaboration"
-	"github.com/uniedit/server/internal/domain/git"
-	"github.com/uniedit/server/internal/domain/media"
 	"github.com/uniedit/server/internal/domain/order"
 	"github.com/uniedit/server/internal/domain/payment"
 	"github.com/uniedit/server/internal/domain/user"
@@ -30,20 +28,14 @@ import (
 	"github.com/uniedit/server/internal/port/inbound"
 	"github.com/uniedit/server/internal/port/outbound"
 
-	// Outbound adapters
-	"github.com/uniedit/server/internal/adapter/outbound/oauth"
-	"github.com/uniedit/server/internal/adapter/outbound/postgres"
-	redisadapter "github.com/uniedit/server/internal/adapter/outbound/redis"
-	"github.com/uniedit/server/internal/adapter/outbound/vendor"
-
 	// Infrastructure
 	_ "github.com/uniedit/server/cmd/server/docs" // swagger docs
-	"github.com/uniedit/server/internal/infra/cache"
 	"github.com/uniedit/server/internal/infra/config"
 	"github.com/uniedit/server/internal/infra/database"
 
 	// Utils
 	"github.com/uniedit/server/internal/utils/logger"
+	"github.com/uniedit/server/internal/utils/metrics"
 	"github.com/uniedit/server/internal/utils/middleware"
 )
 
@@ -61,6 +53,7 @@ type App struct {
 	router    *gin.Engine
 	logger    *logger.Logger
 	zapLogger *zap.Logger
+	metrics   *metrics.Metrics
 
 	// Domain services
 	userDomain          user.UserDomain
@@ -80,435 +73,48 @@ type App struct {
 	cleanupFuncs []func()
 }
 
-// New creates a new application instance using hexagonal architecture.
+// New creates a new application instance using Wire for dependency injection.
 func New(cfg *config.Config) (*App, error) {
-	// Initialize logger
-	log := logger.New(&logger.Config{
-		Level:  cfg.Log.Level,
-		Format: cfg.Log.Format,
-	})
-
-	zapLog, err := logger.NewZapLogger(&logger.Config{
-		Level:  cfg.Log.Level,
-		Format: cfg.Log.Format,
-	})
+	// Use Wire to initialize all dependencies
+	deps, cleanup, err := InitializeDependencies(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("init zap logger: %w", err)
+		return nil, fmt.Errorf("initialize dependencies: %w", err)
 	}
 
 	app := &App{
-		config:       cfg,
-		logger:       log,
-		zapLogger:    zapLog,
-		cleanupFuncs: make([]func(), 0),
-	}
-
-	// Initialize infrastructure
-	if err := app.initInfrastructure(); err != nil {
-		return nil, fmt.Errorf("init infrastructure: %w", err)
+		config:              deps.Config,
+		db:                  deps.DB,
+		redis:               deps.Redis,
+		logger:              deps.Logger,
+		zapLogger:           deps.ZapLogger,
+		metrics:             deps.Metrics,
+		userDomain:          deps.UserDomain,
+		authDomain:          deps.AuthDomain,
+		billingDomain:       deps.BillingDomain,
+		orderDomain:         deps.OrderDomain,
+		paymentDomain:       deps.PaymentDomain,
+		aiDomain:            deps.AIDomain,
+		gitDomain:           deps.GitDomain,
+		collaborationDomain: deps.CollaborationDomain,
+		mediaDomain:         deps.MediaDomain,
+		aiChatHandler:       deps.AIChatHandler,
+		cleanupFuncs:        []func(){cleanup},
 	}
 
 	// Initialize router
 	app.router = app.setupRouter()
 
-	// Initialize domains with adapters
-	if err := app.initDomains(); err != nil {
-		return nil, fmt.Errorf("init domains: %w", err)
-	}
+	// Start health monitoring for AI domain
+	ctx := context.Background()
+	app.aiDomain.StartHealthMonitor(ctx)
+	app.cleanupFuncs = append(app.cleanupFuncs, func() {
+		app.aiDomain.StopHealthMonitor()
+	})
 
 	// Register routes
 	app.registerRoutes()
 
 	return app, nil
-}
-
-// initInfrastructure initializes database and cache connections.
-func (a *App) initInfrastructure() error {
-	// Initialize database
-	db, err := database.New(&a.config.Database)
-	if err != nil {
-		return fmt.Errorf("init database: %w", err)
-	}
-	a.db = db
-
-	// Initialize Redis (optional)
-	if a.config.Redis.Address != "" {
-		redisClient, err := cache.NewRedisClient(&a.config.Redis)
-		if err != nil {
-			a.zapLogger.Warn("Redis connection failed, continuing without cache", zap.Error(err))
-		} else {
-			a.redis = redisClient
-		}
-	}
-
-	return nil
-}
-
-// getRedisClient returns a *redis.Client from UniversalClient if possible.
-func (a *App) getRedisClient() *goredis.Client {
-	if a.redis == nil {
-		return nil
-	}
-	if client, ok := a.redis.(*goredis.Client); ok {
-		return client
-	}
-	return nil
-}
-
-// initDomains initializes all domain services with their adapters.
-func (a *App) initDomains() error {
-	// Initialize domains in dependency order
-	if err := a.initUserDomain(); err != nil {
-		return fmt.Errorf("init user domain: %w", err)
-	}
-
-	if err := a.initAuthDomain(); err != nil {
-		return fmt.Errorf("init auth domain: %w", err)
-	}
-
-	if err := a.initBillingDomain(); err != nil {
-		return fmt.Errorf("init billing domain: %w", err)
-	}
-
-	if err := a.initOrderDomain(); err != nil {
-		return fmt.Errorf("init order domain: %w", err)
-	}
-
-	if err := a.initPaymentDomain(); err != nil {
-		return fmt.Errorf("init payment domain: %w", err)
-	}
-
-	if err := a.initAIDomain(); err != nil {
-		return fmt.Errorf("init ai domain: %w", err)
-	}
-
-	if err := a.initGitDomain(); err != nil {
-		return fmt.Errorf("init git domain: %w", err)
-	}
-
-	if err := a.initCollaborationDomain(); err != nil {
-		return fmt.Errorf("init collaboration domain: %w", err)
-	}
-
-	if err := a.initMediaDomain(); err != nil {
-		return fmt.Errorf("init media domain: %w", err)
-	}
-
-	return nil
-}
-
-// initUserDomain initializes the user domain with its adapters.
-func (a *App) initUserDomain() error {
-	// Create outbound adapters
-	userDB := postgres.NewUserAdapter(a.db)
-	verificationDB := postgres.NewVerificationAdapter(a.db)
-
-	// Create domain
-	a.userDomain = user.NewUserDomain(
-		userDB,
-		verificationDB,
-		nil, // profileDB - optional
-		nil, // prefsDB - optional
-		nil, // avatarStorage - optional
-		nil, // emailSender - optional
-		a.zapLogger,
-	)
-
-	return nil
-}
-
-// initAuthDomain initializes the auth domain with its adapters.
-func (a *App) initAuthDomain() error {
-	// Create outbound adapters
-	tokenRepo := postgres.NewRefreshTokenAdapter(a.db)
-	userAPIKeyRepo := postgres.NewUserAPIKeyAdapter(a.db)
-	systemAPIKeyRepo := postgres.NewSystemAPIKeyAdapter(a.db)
-
-	// Create OAuth registry
-	oauthRegistry := oauth.NewRegistry()
-	if a.config.Auth.OAuth.GitHub.ClientID != "" {
-		oauthRegistry.RegisterGitHub(
-			a.config.Auth.OAuth.GitHub.ClientID,
-			a.config.Auth.OAuth.GitHub.ClientSecret,
-			a.config.Auth.OAuth.GitHub.RedirectURL,
-		)
-	}
-	if a.config.Auth.OAuth.Google.ClientID != "" {
-		oauthRegistry.RegisterGoogle(
-			a.config.Auth.OAuth.Google.ClientID,
-			a.config.Auth.OAuth.Google.ClientSecret,
-			a.config.Auth.OAuth.Google.RedirectURL,
-		)
-	}
-
-	// Create state store
-	var stateStore outbound.OAuthStateStorePort
-	if redisClient := a.getRedisClient(); redisClient != nil {
-		stateStore = redisadapter.NewOAuthStateStore(redisClient)
-	} else {
-		stateStore = oauth.NewInMemoryStateStore()
-	}
-
-	// Create JWT manager
-	jwtManager := oauth.NewJWTManager(&oauth.JWTConfig{
-		Secret:             a.config.Auth.JWTSecret,
-		AccessTokenExpiry:  a.config.Auth.AccessTokenExpiry,
-		RefreshTokenExpiry: a.config.Auth.RefreshTokenExpiry,
-	})
-
-	// Create crypto adapter
-	cryptoAdapter := oauth.NewCryptoAdapter(a.config.Auth.MasterKey)
-
-	// Create domain
-	a.authDomain = auth.NewAuthDomain(
-		a.userDomain,
-		tokenRepo,
-		userAPIKeyRepo,
-		systemAPIKeyRepo,
-		oauthRegistry,
-		stateStore,
-		jwtManager,
-		cryptoAdapter,
-		&auth.Config{MaxAPIKeysPerUser: 10},
-		a.zapLogger,
-	)
-
-	return nil
-}
-
-// initBillingDomain initializes the billing domain with its adapters.
-func (a *App) initBillingDomain() error {
-	// Create outbound adapters
-	planDB := postgres.NewPlanAdapter(a.db)
-	subscriptionDB := postgres.NewSubscriptionAdapter(a.db)
-	usageDB := postgres.NewUsageRecordAdapter(a.db)
-
-	// Create quota cache if Redis available
-	var quotaCache outbound.QuotaCachePort
-	if redisClient := a.getRedisClient(); redisClient != nil {
-		quotaCache = redisadapter.NewQuotaCache(redisClient)
-	}
-
-	// Create domain
-	a.billingDomain = billing.NewBillingDomain(
-		planDB,
-		subscriptionDB,
-		usageDB,
-		quotaCache,
-		a.zapLogger,
-	)
-
-	return nil
-}
-
-// initOrderDomain initializes the order domain with its adapters.
-func (a *App) initOrderDomain() error {
-	// Create outbound adapters
-	orderDB := postgres.NewOrderAdapter(a.db)
-	orderItemDB := postgres.NewOrderItemAdapter(a.db)
-	invoiceDB := postgres.NewInvoiceAdapter(a.db)
-	planDB := postgres.NewPlanAdapter(a.db)
-
-	// Create domain
-	a.orderDomain = order.NewOrderDomain(
-		orderDB,
-		orderItemDB,
-		invoiceDB,
-		planDB,
-		a.zapLogger,
-	)
-
-	return nil
-}
-
-// initPaymentDomain initializes the payment domain with its adapters.
-func (a *App) initPaymentDomain() error {
-	// Create outbound adapters
-	paymentDB := postgres.NewPaymentAdapter(a.db)
-	webhookDB := postgres.NewWebhookEventAdapter(a.db)
-
-	// Create order reader adapter
-	orderReader := newOrderReaderAdapter(a.orderDomain)
-
-	// Create billing reader adapter
-	billingReader := newBillingReaderAdapter(a.billingDomain)
-
-	// Create event publisher adapter (no-op for now)
-	eventPublisher := newNoOpEventPublisher()
-
-	// Determine notify base URL
-	notifyBaseURL := a.config.Server.Address
-	if a.config.Email.BaseURL != "" {
-		notifyBaseURL = a.config.Email.BaseURL
-	}
-
-	// Create domain
-	a.paymentDomain = payment.NewPaymentDomain(
-		paymentDB,
-		webhookDB,
-		nil, // providerRegistry - will be implemented
-		orderReader,
-		billingReader,
-		eventPublisher,
-		notifyBaseURL,
-		a.zapLogger,
-	)
-
-	return nil
-}
-
-// initAIDomain initializes the AI domain with its adapters.
-func (a *App) initAIDomain() error {
-	// Create outbound adapters
-	providerDB := postgres.NewAIProviderAdapter(a.db)
-	modelDB := postgres.NewAIModelAdapter(a.db)
-	accountDB := postgres.NewAIProviderAccountAdapter(a.db)
-	groupDB := postgres.NewAIModelGroupAdapter(a.db)
-
-	// Create cache adapters
-	var healthCache outbound.AIProviderHealthCachePort
-	var embeddingCache outbound.AIEmbeddingCachePort
-	if redisClient := a.getRedisClient(); redisClient != nil {
-		healthCache = redisadapter.NewAIProviderHealthCacheAdapter(redisClient)
-		embeddingCache = redisadapter.NewAIEmbeddingCacheAdapter(redisClient)
-	}
-
-	// Create vendor registry
-	vendorRegistry := vendor.NewRegistry()
-	vendorRegistry.RegisterDefaults()
-
-	// Create crypto adapter
-	cryptoAdapter := vendor.NewCryptoAdapter(a.config.Auth.MasterKey)
-
-	// Create domain
-	a.aiDomain = ai.NewAIDomain(
-		providerDB,
-		modelDB,
-		accountDB,
-		groupDB,
-		healthCache,
-		embeddingCache,
-		vendorRegistry,
-		cryptoAdapter,
-		nil, // usageRecorder
-		nil, // config
-		a.zapLogger,
-	)
-
-	// Start health monitoring
-	ctx := context.Background()
-	a.aiDomain.StartHealthMonitor(ctx)
-	a.cleanupFuncs = append(a.cleanupFuncs, func() {
-		a.aiDomain.StopHealthMonitor()
-	})
-
-	// Create HTTP handlers
-	a.aiChatHandler = aihttp.NewChatHandler(a.aiDomain)
-
-	return nil
-}
-
-// initGitDomain initializes the Git domain with its adapters.
-func (a *App) initGitDomain() error {
-	// Create outbound adapters (database)
-	repoDB := postgres.NewGitRepoDatabaseAdapter(a.db)
-	collabDB := postgres.NewGitCollaboratorDatabaseAdapter(a.db)
-	prDB := postgres.NewGitPullRequestDatabaseAdapter(a.db)
-	lfsObjDB := postgres.NewGitLFSObjectDatabaseAdapter(a.db)
-	lfsLockDB := postgres.NewGitLFSLockDatabaseAdapter(a.db)
-
-	// Create storage adapters (requires S3 client - optional for now)
-	// TODO: Initialize S3 client from config when available
-	var storage outbound.GitStoragePort
-	var lfsStorage outbound.GitLFSStoragePort
-
-	// Create Git config
-	gitCfg := git.DefaultConfig()
-	if a.config.Git.RepoPrefix != "" {
-		gitCfg.RepoPrefix = a.config.Git.RepoPrefix
-	}
-
-	// Create domain
-	a.gitDomain = git.NewDomain(
-		repoDB,
-		collabDB,
-		prDB,
-		lfsObjDB,
-		lfsLockDB,
-		storage,
-		lfsStorage,
-		nil, // quotaChecker - optional for now
-		gitCfg,
-		a.zapLogger,
-	)
-
-	return nil
-}
-
-// initCollaborationDomain initializes the collaboration domain with its adapters.
-func (a *App) initCollaborationDomain() error {
-	// Create outbound adapters
-	teamDB := postgres.NewTeamAdapter(a.db)
-	memberDB := postgres.NewTeamMemberAdapter(a.db)
-	invitationDB := postgres.NewTeamInvitationAdapter(a.db)
-	userLookup := postgres.NewCollaborationUserLookupAdapter(a.db)
-	txAdapter := postgres.NewCollaborationTransactionAdapter(a.db)
-
-	// Create config
-	collabCfg := collaboration.DefaultConfig()
-	if a.config.Email.BaseURL != "" {
-		collabCfg.BaseURL = a.config.Email.BaseURL
-	}
-
-	// Create domain
-	a.collaborationDomain = collaboration.NewDomain(
-		teamDB,
-		memberDB,
-		invitationDB,
-		userLookup,
-		txAdapter,
-		collabCfg,
-		a.zapLogger,
-	)
-
-	return nil
-}
-
-// initMediaDomain initializes the media domain with its adapters.
-func (a *App) initMediaDomain() error {
-	// Create outbound adapters
-	providerDB := postgres.NewMediaProviderDBAdapter(a.db)
-	modelDB := postgres.NewMediaModelDBAdapter(a.db)
-	taskDB := postgres.NewMediaTaskDBAdapter(a.db)
-
-	// Create health cache (optional)
-	var healthCache outbound.MediaProviderHealthCachePort
-	if a.redis != nil {
-		healthCache = redisadapter.NewMediaHealthCacheAdapter(a.redis)
-	}
-
-	// Create crypto adapter
-	cryptoAdapter := vendor.NewCryptoAdapter(a.config.Auth.MasterKey)
-
-	// Create vendor registry
-	// TODO: Initialize media vendor registry when available
-
-	// Create config
-	mediaCfg := media.DefaultConfig()
-
-	// Create domain
-	a.mediaDomain = media.NewDomain(
-		providerDB,
-		modelDB,
-		taskDB,
-		healthCache,
-		nil, // vendorRegistry - TODO: implement when available
-		cryptoAdapter,
-		mediaCfg,
-		a.zapLogger,
-	)
-
-	return nil
 }
 
 // setupRouter creates and configures the Gin router.
@@ -526,12 +132,16 @@ func (a *App) setupRouter() *gin.Engine {
 	r.Use(middleware.Recovery(a.logger))
 	r.Use(middleware.RequestID())
 	r.Use(middleware.Logging(a.logger))
+	r.Use(middleware.Metrics(a.metrics))
 	r.Use(middleware.CORS(middleware.DefaultCORSConfig()))
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "version": "v2"})
 	})
+
+	// Prometheus metrics endpoint
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// Swagger documentation endpoint
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
@@ -587,7 +197,7 @@ func (a *App) Stop() {
 	}
 }
 
-// ===== Adapter Implementations =====
+// ===== Cross-Domain Adapter Implementations =====
 
 // orderReaderAdapter adapts OrderDomain to outbound.OrderReaderPort.
 type orderReaderAdapter struct {

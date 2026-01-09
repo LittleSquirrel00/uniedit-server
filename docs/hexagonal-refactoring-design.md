@@ -114,21 +114,20 @@ uniedit-server/
 │   │   ├── user/
 │   │   ├── media/
 │   │   └── collaboration/
-│   ├── shared/                 # 共享基础设施
-│   │   ├── port/               # 共享端口定义
-│   │   │   ├── cache.go
-│   │   │   ├── database.go
-│   │   │   ├── event.go
-│   │   │   └── storage.go
-│   │   ├── adapter/            # 共享适配器实现
-│   │   │   ├── redis/
-│   │   │   ├── postgres/
-│   │   │   └── r2/
-│   │   └── ... (现有 shared 包)
-│   └── infra/                  # 基础设施（外部客户端）
-│       ├── stripe/
-│       ├── openai/
-│       └── anthropic/
+│   ├── infra/                  # 基础设施层（外部依赖）
+│   │   ├── config/             # 配置管理
+│   │   ├── database/           # 数据库连接
+│   │   ├── cache/              # Redis 缓存
+│   │   ├── events/             # 领域事件总线
+│   │   └── task/               # 任务队列
+│   └── utils/                  # 工具层（纯函数/无状态）
+│       ├── errors/             # 错误处理
+│       ├── logger/             # 日志工具
+│       ├── metrics/            # 指标采集
+│       ├── middleware/         # HTTP 中间件
+│       ├── pagination/         # 分页工具
+│       ├── random/             # 随机数生成
+│       └── response/           # 响应格式化
 ├── api/                        # API 定义
 │   ├── openapi/
 │   └── proto/
