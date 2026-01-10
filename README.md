@@ -59,46 +59,21 @@ UniEdit 视频编辑器的后端服务，提供用户认证、AI 代理、计费
 
 ```
 uniedit-server/
-├── cmd/server/              # 程序入口
+├── cmd/server/            # 程序入口
 ├── internal/
-│   ├── app/                 # 应用组装、路由
-│   ├── module/              # 业务模块
-│   │   ├── ai/              # AI 代理模块
-│   │   │   ├── adapter/     # LLM 适配器 (OpenAI/Anthropic)
-│   │   │   ├── provider/    # 提供商管理 (Registry/Health/Pool)
-│   │   │   ├── routing/     # 智能路由 (Strategy Chain)
-│   │   │   ├── group/       # 模型分组
-│   │   │   ├── task/        # 异步任务管理
-│   │   │   ├── llm/         # LLM 服务
-│   │   │   ├── media/       # 媒体生成服务
-│   │   │   ├── cache/       # Embedding 缓存
-│   │   │   └── handler/     # HTTP 处理器
-│   │   ├── auth/            # 认证模块 (OAuth/JWT/API Key)
-│   │   ├── user/            # 用户模块 (注册/登录/验证)
-│   │   ├── billing/         # 计费模块 (订阅/配额/用量)
-│   │   ├── order/           # 订单模块 (订单/发票)
-│   │   ├── payment/         # 支付模块 (Stripe/Alipay/WeChat)
-│   │   ├── git/             # Git 托管模块 (仓库/LFS/PR)
-│   │   └── collaboration/   # 协作模块 (团队/邀请)
-│   ├── infra/               # 基础设施层（外部依赖）
-│   │   ├── config/          # 配置管理 (Viper)
-│   │   ├── database/        # 数据库连接 (GORM)
-│   │   ├── cache/           # Redis 缓存
-│   │   ├── events/          # 领域事件总线
-│   │   └── task/            # 任务队列
-│   └── utils/               # 工具层（纯函数/无状态）
-│       ├── errors/          # 错误定义
-│       ├── logger/          # 日志工具
-│       ├── metrics/         # 指标采集
-│       ├── middleware/      # HTTP 中间件
-│       ├── pagination/      # 分页工具
-│       ├── random/          # 随机数生成
-│       └── response/        # 响应格式化
-├── configs/                 # 配置文件模板
-├── migrations/              # 数据库迁移
-├── docker-compose.yaml      # 本地开发环境
-├── docs/                    # 设计文档
-└── openspec/                # OpenSpec 规范
+│   ├── app/               # Wire 依赖注入、应用组装
+│   ├── adapter/           # 适配层：
+│   │   ├── inbound/http   # HTTP 路由与 Handler
+│   │   └── outbound       # Postgres/Redis/OAuth/第三方 Provider 适配器
+│   ├── domain/            # 领域层 (ai/auth/billing/order/payment/git/collaboration/media/user)
+│   ├── infra/             # 基础设施封装 (config/database/cache/httpclient)
+│   ├── port/              # 端口定义 (inbound/outbound 接口)
+│   ├── model/             # 领域模型与枚举
+│   └── utils/             # 通用工具 (logger/metrics/middleware 等)
+├── configs/               # 配置文件模板
+├── migrations/            # 数据库迁移
+├── docs/                  # 设计文档
+└── openspec/              # OpenSpec 规范
 ```
 
 ## 快速开始
@@ -222,6 +197,15 @@ mage swaggermodule ai      # 仅生成 AI 模块文档
 | **media** | 图片/视频生成服务 | - |
 | **group** | 模型分组、选择策略、降级配置 | - |
 
+#### 域服务要点（internal/domain/ai）
+
+- Chat / ChatStream / Embed 三类入口，自动从请求推断能力需求（流式、工具调用、视觉、JSON 格式）并构建 `AIRoutingContext`。
+- 默认策略链顺序：UserPreference (100) → HealthFilter (90) → CapabilityFilter (80) → ContextWindow (70) → CostOptimization (50，可选) → LoadBalancing (10)。策略按得分汇总后择优，并在所有候选被滤空时返回清晰错误。
+- 账户池优先：可从 `accountDB.FindAvailableByProvider` 选择高优先级账号，若存在加密密钥则通过 `AICryptoPort` 解密；否则回退 Provider 主密钥。
+- 健康监控：`StartHealthMonitor` 后以配置的 `HealthCheckInterval`（默认 30s）轮询 Provider，并将状态写入内存及可选 Redis 缓存，路由前会注入最新健康度。
+- 失败恢复：按账户连续失败阈值（2 次降级，5 次标记不可用）与成功恢复计数驱动健康状态；成功/失败都会更新统计与用量计费（若配置了 `AIUsageRecorderPort`）。
+- 成本核算：基于模型配置的 `InputCostPer1K`/`OutputCostPer1K` 计算请求成本并回填到响应的 `RoutingInfo`。
+
 #### 路由策略
 
 ```
@@ -236,6 +220,20 @@ mage swaggermodule ai      # 仅生成 AI 模块文档
   6. LoadBalancing (10)     → 负载均衡随机
     ↓
 选择最高分模型 → 返回路由结果
+```
+
+### AI 配置关键项（configs/config.example.yaml）
+
+```yaml
+ai:
+  health_check_interval: 30s   # Provider 健康轮询间隔
+  failure_threshold: 5         # 熔断失败阈值（账户层）
+  success_threshold: 2         # 连续成功恢复阈值
+  circuit_timeout: 60s         # 熔断冷却时间
+  task_cleanup_interval: 5m    # 异步任务清理周期
+  task_retention_period: 24h   # 任务保留时间
+  max_concurrent_tasks: 100    # 并发任务上限
+  embedding_cache_ttl: 24h     # Embedding 缓存时间
 ```
 
 #### 支持的 AI 提供商
