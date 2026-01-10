@@ -234,6 +234,7 @@ func Install() error {
 	fmt.Println("Installing development tools...")
 
 	tools := []string{
+		"google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0",
 		"github.com/google/wire/cmd/wire@latest",
 		"github.com/golangci/golangci-lint/cmd/golangci-lint@latest",
 		"github.com/swaggo/swag/cmd/swag@latest",
@@ -246,5 +247,42 @@ func Install() error {
 		}
 	}
 
+	return nil
+}
+
+// Proto builds protoc plugins and generates Go/HTTP (Gin) code from *.proto.
+func Proto() error {
+	mg.Deps(ProtoTools)
+	fmt.Println("Generating proto REST stubs (Gin)...")
+
+	files, err := filepath.Glob("api/*/protobuf_spec/*.proto")
+	if err != nil {
+		return fmt.Errorf("finding proto files: %w", err)
+	}
+	if len(files) == 0 {
+		fmt.Println("  No proto files found under api/*/protobuf_spec/")
+		return nil
+	}
+
+	env := map[string]string{
+		"PATH": filepath.Join(".", "bin") + string(os.PathListSeparator) + os.Getenv("PATH"),
+	}
+	args := []string{
+		"--proto_path=.",
+		"--proto_path=third_party",
+		"--go_out=paths=import,module=github.com/uniedit/server:.",
+		"--go-gin_out=paths=import,module=github.com/uniedit/server:.",
+	}
+	args = append(args, files...)
+
+	return sh.RunWith(env, "protoc", args...)
+}
+
+// ProtoTools builds local protoc plugins used by Proto().
+func ProtoTools() error {
+	fmt.Println("Building protoc plugins...")
+	if err := sh.Run("go", "build", "-o", "bin/protoc-gen-go-gin", "./cmd/protoc-gen-go-gin"); err != nil {
+		return fmt.Errorf("build protoc-gen-go-gin: %w", err)
+	}
 	return nil
 }
