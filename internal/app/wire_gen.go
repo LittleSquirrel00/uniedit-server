@@ -7,16 +7,18 @@
 package app
 
 import (
+	"net/http"
+
 	"github.com/redis/go-redis/v9"
 	"github.com/uniedit/server/internal/adapter/inbound/http/ai"
-	"github.com/uniedit/server/internal/adapter/inbound/http/auth"
-	"github.com/uniedit/server/internal/adapter/inbound/http/billing"
-	"github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
-	"github.com/uniedit/server/internal/adapter/inbound/http/git"
-	"github.com/uniedit/server/internal/adapter/inbound/http/media"
-	"github.com/uniedit/server/internal/adapter/inbound/http/order"
-	"github.com/uniedit/server/internal/adapter/inbound/http/payment"
-	"github.com/uniedit/server/internal/adapter/inbound/http/user"
+	authhttp "github.com/uniedit/server/internal/adapter/inbound/http/auth"
+	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	collabhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
+	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
+	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
+	orderhttp "github.com/uniedit/server/internal/adapter/inbound/http/order"
+	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
+	userhttp "github.com/uniedit/server/internal/adapter/inbound/http/user"
 	"github.com/uniedit/server/internal/adapter/outbound/postgres"
 	ai2 "github.com/uniedit/server/internal/domain/ai"
 	"github.com/uniedit/server/internal/domain/auth"
@@ -31,11 +33,6 @@ import (
 	"github.com/uniedit/server/internal/utils/metrics"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
-	"net/http"
-)
-
-import (
-	_ "github.com/uniedit/server/cmd/server/docs"
 )
 
 // Injectors from wire.go:

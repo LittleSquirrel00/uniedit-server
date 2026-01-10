@@ -155,8 +155,20 @@ mage clean         # 清理构建产物
 mage dev           # 构建并运行开发服务器
 mage all           # 完整构建流程 (tidy → generate → vet → lint → test → build)
 mage ci            # CI 流程 (tidy → generate → vet → testCover)
-mage install       # 安装开发工具 (wire, golangci-lint, swag)
+mage install       # 安装开发工具 (wire, golangci-lint, swag, protoc-gen-go)
+mage proto         # 从 proto 规范生成 Go + Gin 接口代码
 ```
+
+**Proto 生成：**
+
+```bash
+mage proto                                  # 默认扫描 api/**/protobuf_spec/**/*.proto
+PROTO_DIR=api/ping/protobuf_spec mage proto # 指定读取 proto 目录
+PROTO_PATHS=.:third_party:api/ping/protobuf_spec mage proto # 指定 import 搜索路径
+PROTO_VERBOSE=1 mage proto                  # 打印实际配置与文件列表
+```
+
+说明：生成文件的落盘目录由每个 `.proto` 的 `option go_package` 决定；`PROTO_OUT` 只影响输出根目录，`PROTO_MODULE` 用于剥离模块前缀（默认从 `go.mod` 读取）。
 
 **分模块生成 Swagger 文档：**
 

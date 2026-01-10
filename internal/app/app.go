@@ -8,8 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	goredis "github.com/redis/go-redis/v9"
-	swaggerfiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
@@ -37,7 +35,6 @@ import (
 	"github.com/uniedit/server/internal/port/outbound"
 
 	// Infrastructure
-	_ "github.com/uniedit/server/cmd/server/docs" // swagger docs
 	"github.com/uniedit/server/internal/infra/config"
 	"github.com/uniedit/server/internal/infra/database"
 
@@ -221,9 +218,6 @@ func (a *App) setupRouter() *gin.Engine {
 
 	// Prometheus metrics endpoint
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
-
-	// Swagger documentation endpoint
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
 	return r
 }
