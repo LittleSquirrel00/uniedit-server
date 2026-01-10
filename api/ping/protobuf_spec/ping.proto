@@ -5,6 +5,18 @@ package uniedit.ping.v1;
 option go_package = "github.com/uniedit/server/api/ping/pb/v1;pingv1";
 
 import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  host: "localhost:8080"
+  base_path: "/api/v1"
+  schemes: [HTTP]
+  info: {
+    title: "UniEdit API"
+    version: "v1"
+    description: "UniEdit 后端 API（由 proto 自动生成 OpenAPI）"
+  }
+};
 
 service Ping {
   rpc Ping(PingRequest) returns (PingReply) {

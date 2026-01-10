@@ -275,7 +275,10 @@ func Proto() error {
 	}
 	args = append(args, files...)
 
-	return sh.RunWith(env, "protoc", args...)
+	if err := sh.RunWith(env, "protoc", args...); err != nil {
+		return err
+	}
+	return ProtoOpenAPI()
 }
 
 // ProtoTools builds local protoc plugins used by Proto().
@@ -284,5 +287,77 @@ func ProtoTools() error {
 	if err := sh.Run("go", "build", "-o", "bin/protoc-gen-go-gin", "./cmd/protoc-gen-go-gin"); err != nil {
 		return fmt.Errorf("build protoc-gen-go-gin: %w", err)
 	}
+
+	binDir, err := filepath.Abs("bin")
+	if err != nil {
+		return fmt.Errorf("abs bin dir: %w", err)
+	}
+	env := map[string]string{
+		"GOBIN": binDir,
+	}
+	if err := sh.RunWith(env, "go", "install", "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v2.27.4"); err != nil {
+		return fmt.Errorf("install protoc-gen-openapiv2: %w", err)
+	}
+	return nil
+}
+
+// ProtoOpenAPI generates Swagger/OpenAPI specs from proto (google.api.http) mappings.
+//
+// Output: api/<module>/openapi_spec/<module>.swagger.json (merged per module).
+func ProtoOpenAPI() error {
+	mg.Deps(ProtoTools)
+	fmt.Println("Generating OpenAPI from proto (google.api.http)...")
+
+	protoDirs, err := filepath.Glob("api/*/protobuf_spec")
+	if err != nil {
+		return fmt.Errorf("finding proto directories: %w", err)
+	}
+	if len(protoDirs) == 0 {
+		fmt.Println("  No proto directories found under api/*/protobuf_spec/")
+		return nil
+	}
+
+	env := map[string]string{
+		"PATH": filepath.Join(".", "bin") + string(os.PathListSeparator) + os.Getenv("PATH"),
+	}
+
+	for _, protoDir := range protoDirs {
+		module := filepath.Base(filepath.Dir(protoDir))
+		outDir := filepath.Join("api", module, "openapi_spec")
+
+		protos, err := filepath.Glob(filepath.Join(protoDir, "*.proto"))
+		if err != nil {
+			return fmt.Errorf("finding proto files in %s: %w", protoDir, err)
+		}
+		if len(protos) == 0 {
+			continue
+		}
+
+		if err := os.RemoveAll(outDir); err != nil {
+			return fmt.Errorf("clean openapi output dir %s: %w", outDir, err)
+		}
+		if err := os.MkdirAll(outDir, 0755); err != nil {
+			return fmt.Errorf("create openapi output dir %s: %w", outDir, err)
+		}
+
+		args := []string{
+			fmt.Sprintf("--proto_path=%s", protoDir),
+			"--proto_path=third_party",
+			"--openapiv2_out", outDir,
+			"--openapiv2_opt", "logtostderr=true",
+			"--openapiv2_opt", "disable_default_errors=true",
+			"--openapiv2_opt", "allow_merge=true",
+			"--openapiv2_opt", "merge_file_name=" + module,
+		}
+		for _, p := range protos {
+			args = append(args, filepath.Base(p))
+		}
+
+		fmt.Printf("  %s -> %s\n", module, outDir)
+		if err := sh.RunWith(env, "protoc", args...); err != nil {
+			return fmt.Errorf("protoc openapi for %s: %w", module, err)
+		}
+	}
+
 	return nil
 }
