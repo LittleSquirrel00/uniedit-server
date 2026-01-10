@@ -23,6 +23,9 @@ import (
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
 	authhttp "github.com/uniedit/server/internal/adapter/inbound/http/auth"
 	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
+	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
+	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
 	orderhttp "github.com/uniedit/server/internal/adapter/inbound/http/order"
 	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
 	userhttp "github.com/uniedit/server/internal/adapter/inbound/http/user"
@@ -603,14 +606,87 @@ var PaymentHandlerSet = wire.NewSet(
 	paymenthttp.NewWebhookHandler,
 )
 
+// GitHandlerSet provides Git HTTP handlers.
+var GitHandlerSet = wire.NewSet(
+	ProvideGitHandler,
+)
+
+// ProvideGitHandler creates the Git HTTP handler.
+func ProvideGitHandler(domain inbound.GitDomain, cfg *config.Config) *githttp.Handler {
+	baseURL := cfg.Server.Address
+	if cfg.Email.BaseURL != "" {
+		baseURL = cfg.Email.BaseURL
+	}
+	// LFS domains are optional - pass nil for now
+	return githttp.NewHandler(domain, nil, nil, baseURL)
+}
+
+// CollaborationHandlerSet provides collaboration HTTP handlers.
+var CollaborationHandlerSet = wire.NewSet(
+	ProvideCollaborationHandler,
+)
+
+// ProvideCollaborationHandler creates the Collaboration HTTP handler.
+func ProvideCollaborationHandler(domain inbound.CollaborationDomain, cfg *config.Config) *collaborationhttp.Handler {
+	baseURL := cfg.Server.Address
+	if cfg.Email.BaseURL != "" {
+		baseURL = cfg.Email.BaseURL
+	}
+	// Cast interface to concrete type
+	if d, ok := domain.(*collaboration.Domain); ok {
+		return collaborationhttp.NewHandler(d, baseURL)
+	}
+	return nil
+}
+
+// MediaHandlerSet provides media HTTP handlers.
+var MediaHandlerSet = wire.NewSet(
+	ProvideMediaHandler,
+)
+
+// ProvideMediaHandler creates the Media HTTP handler.
+func ProvideMediaHandler(domain inbound.MediaDomain) *mediahttp.Handler {
+	// Cast interface to concrete type
+	if d, ok := domain.(*media.Domain); ok {
+		return mediahttp.NewHandler(d)
+	}
+	return nil
+}
+
+// ProvideAIProviderAdminHandler creates the AI Provider admin HTTP handler.
+func ProvideAIProviderAdminHandler(domain ai.AIDomain) *aihttp.ProviderAdminHandler {
+	return aihttp.NewProviderAdminHandler(domain)
+}
+
+// ProvideAIModelAdminHandler creates the AI Model admin HTTP handler.
+func ProvideAIModelAdminHandler(domain ai.AIDomain) *aihttp.ModelAdminHandler {
+	return aihttp.NewModelAdminHandler(domain)
+}
+
+// ProvideAIPublicHandler creates the AI public HTTP handler.
+func ProvideAIPublicHandler(domain ai.AIDomain) *aihttp.PublicHandler {
+	return aihttp.NewPublicHandler(domain)
+}
+
+// AIHandlerSet provides AI HTTP handlers.
+var AIHandlerSet = wire.NewSet(
+	aihttp.NewChatHandler,
+	ProvideAIProviderAdminHandler,
+	ProvideAIModelAdminHandler,
+	ProvideAIPublicHandler,
+)
+
 // HandlerSet provides all HTTP handlers.
 var HandlerSet = wire.NewSet(
-	aihttp.NewChatHandler,
+	AIHandlerSet,
 	AuthHandlerSet,
 	UserHandlerSet,
 	BillingHandlerSet,
 	OrderHandlerSet,
 	PaymentHandlerSet,
+	GitHandlerSet,
+	CollaborationHandlerSet,
+	MediaHandlerSet,
 )
 
 // ===== Master Set =====

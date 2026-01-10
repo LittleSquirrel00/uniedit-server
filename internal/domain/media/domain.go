@@ -117,13 +117,14 @@ func (d *Domain) GenerateVideo(ctx context.Context, userID uuid.UUID, input *inb
 
 	// Create task
 	now := time.Now()
+	inputStr := string(inputBytes)
 	task := &model.MediaTask{
 		ID:        uuid.New(),
 		OwnerID:   userID,
 		Type:      "video_generation",
 		Status:    model.MediaTaskStatusPending,
 		Progress:  0,
-		Input:     string(inputBytes),
+		Input:     &inputStr,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -173,9 +174,9 @@ func (d *Domain) GetVideoStatus(ctx context.Context, userID uuid.UUID, taskID st
 	}
 
 	// Parse output if completed
-	if task.Status == model.MediaTaskStatusCompleted && task.Output != "" {
+	if task.Status == model.MediaTaskStatusCompleted && task.Output != nil && *task.Output != "" {
 		var video model.GeneratedVideo
-		if err := json.Unmarshal([]byte(task.Output), &video); err == nil {
+		if err := json.Unmarshal([]byte(*task.Output), &video); err == nil {
 			resp.Video = &video
 		}
 	}
@@ -421,7 +422,11 @@ func (d *Domain) ExecuteVideoTask(ctx context.Context, taskID uuid.UUID) error {
 
 	// Parse input
 	var input inbound.MediaVideoGenerationInput
-	if err := json.Unmarshal([]byte(task.Input), &input); err != nil {
+	if task.Input == nil {
+		d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusFailed, 0, "", "missing input")
+		return fmt.Errorf("task input is nil")
+	}
+	if err := json.Unmarshal([]byte(*task.Input), &input); err != nil {
 		d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusFailed, 0, "", "invalid input")
 		return fmt.Errorf("unmarshal input: %w", err)
 	}

@@ -11,12 +11,19 @@ import (
 	"github.com/uniedit/server/internal/port/outbound"
 )
 
-// Collaboration domain errors (for mapping)
-var (
-	errTeamNotFound       = errors.New("team not found")
-	errMemberNotFound     = errors.New("member not found")
-	errInvitationNotFound = errors.New("invitation not found")
-)
+
+// txContextKey is used to store transaction in context.
+type txContextKeyType struct{}
+
+var txContextKey = txContextKeyType{}
+
+// getDB returns the transaction from context if present, otherwise returns the default db.
+func getDB(db *gorm.DB, ctx context.Context) *gorm.DB {
+	if tx, ok := ctx.Value(txContextKey).(*gorm.DB); ok {
+		return tx
+	}
+	return db.WithContext(ctx)
+}
 
 // ========== Team Adapter ==========
 
@@ -31,7 +38,7 @@ func NewTeamAdapter(db *gorm.DB) *TeamAdapter {
 }
 
 func (a *TeamAdapter) Create(ctx context.Context, team *model.Team) error {
-	return a.db.WithContext(ctx).Create(team).Error
+	return getDB(a.db, ctx).Create(team).Error
 }
 
 func (a *TeamAdapter) FindByID(ctx context.Context, id uuid.UUID) (*model.Team, error) {
@@ -41,7 +48,7 @@ func (a *TeamAdapter) FindByID(ctx context.Context, id uuid.UUID) (*model.Team, 
 		First(&team).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errTeamNotFound
+			return nil, outbound.ErrTeamNotFound
 		}
 		return nil, err
 	}
@@ -55,7 +62,7 @@ func (a *TeamAdapter) FindByOwnerAndSlug(ctx context.Context, ownerID uuid.UUID,
 		First(&team).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errTeamNotFound
+			return nil, outbound.ErrTeamNotFound
 		}
 		return nil, err
 	}
@@ -105,7 +112,7 @@ func NewTeamMemberAdapter(db *gorm.DB) *TeamMemberAdapter {
 }
 
 func (a *TeamMemberAdapter) Add(ctx context.Context, member *model.TeamMember) error {
-	return a.db.WithContext(ctx).Create(member).Error
+	return getDB(a.db, ctx).Create(member).Error
 }
 
 func (a *TeamMemberAdapter) Find(ctx context.Context, teamID, userID uuid.UUID) (*model.TeamMember, error) {
@@ -115,7 +122,7 @@ func (a *TeamMemberAdapter) Find(ctx context.Context, teamID, userID uuid.UUID) 
 		First(&member).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errMemberNotFound
+			return nil, outbound.ErrMemberNotFound
 		}
 		return nil, err
 	}
@@ -158,7 +165,7 @@ func (a *TeamMemberAdapter) UpdateRole(ctx context.Context, teamID, userID uuid.
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errMemberNotFound
+		return outbound.ErrMemberNotFound
 	}
 	return nil
 }
@@ -171,7 +178,7 @@ func (a *TeamMemberAdapter) Remove(ctx context.Context, teamID, userID uuid.UUID
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errMemberNotFound
+		return outbound.ErrMemberNotFound
 	}
 	return nil
 }
@@ -213,7 +220,7 @@ func (a *TeamInvitationAdapter) FindByID(ctx context.Context, id uuid.UUID) (*mo
 		First(&invitation).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errInvitationNotFound
+			return nil, outbound.ErrInvitationNotFound
 		}
 		return nil, err
 	}
@@ -229,7 +236,7 @@ func (a *TeamInvitationAdapter) FindByToken(ctx context.Context, token string) (
 		First(&invitation).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errInvitationNotFound
+			return nil, outbound.ErrInvitationNotFound
 		}
 		return nil, err
 	}
@@ -315,7 +322,7 @@ func (a *TeamInvitationAdapter) UpdateStatus(ctx context.Context, id uuid.UUID, 
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errInvitationNotFound
+		return outbound.ErrInvitationNotFound
 	}
 	return nil
 }
@@ -386,11 +393,6 @@ func (a *CollaborationTransactionAdapter) RunInTransaction(ctx context.Context, 
 		return fn(txCtx)
 	})
 }
-
-// txContextKey is used to store transaction in context.
-type txContextKeyType struct{}
-
-var txContextKey = txContextKeyType{}
 
 // Compile-time interface checks
 var (

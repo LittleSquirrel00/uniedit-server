@@ -2,10 +2,18 @@ package outbound
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
 	"github.com/uniedit/server/internal/model"
+)
+
+// Collaboration port errors.
+var (
+	ErrTeamNotFound       = errors.New("team not found")
+	ErrMemberNotFound     = errors.New("member not found")
+	ErrInvitationNotFound = errors.New("invitation not found")
 )
 
 // TeamDatabasePort defines team persistence operations.

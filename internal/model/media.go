@@ -85,8 +85,8 @@ type MediaTask struct {
 	Type      string          `json:"type"` // image_generation, video_generation
 	Status    MediaTaskStatus `json:"status"`
 	Progress  int             `json:"progress"`
-	Input     string          `json:"input" gorm:"type:jsonb"`    // JSON serialized
-	Output    string          `json:"output" gorm:"type:jsonb"`   // JSON serialized
+	Input     *string         `json:"input" gorm:"type:jsonb"`  // JSON serialized, nullable
+	Output    *string         `json:"output" gorm:"type:jsonb"` // JSON serialized, nullable
 	Error     string          `json:"error,omitempty"`
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`

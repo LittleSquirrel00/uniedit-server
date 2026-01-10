@@ -501,7 +501,7 @@ func getUserID(c *gin.Context) uuid.UUID {
 
 // getUserEmail extracts user email from context.
 func getUserEmail(c *gin.Context) string {
-	emailVal, exists := c.Get("user_email")
+	emailVal, exists := c.Get("email")
 	if !exists {
 		return ""
 	}

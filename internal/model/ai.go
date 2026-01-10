@@ -75,10 +75,10 @@ type AIModel struct {
 	ProviderID      uuid.UUID      `json:"provider_id" gorm:"type:uuid;not null"`
 	Name            string         `json:"name" gorm:"not null"`
 	Capabilities    pq.StringArray `json:"capabilities" gorm:"type:text[];not null"`
-	ContextWindow   int            `json:"context_window" gorm:"not null"`
-	MaxOutputTokens int            `json:"max_output_tokens" gorm:"not null"`
-	InputCostPer1K  float64        `json:"input_cost_per_1k" gorm:"type:decimal(10,6)"`
-	OutputCostPer1K float64        `json:"output_cost_per_1k" gorm:"type:decimal(10,6)"`
+	ContextWindow   int            `json:"context_window" gorm:"column:context_window;not null"`
+	MaxOutputTokens int            `json:"max_output_tokens" gorm:"column:max_output_tokens;not null"`
+	InputCostPer1K  float64        `json:"input_cost_per_1k" gorm:"column:input_cost_per_1k;type:decimal(10,6)"`
+	OutputCostPer1K float64        `json:"output_cost_per_1k" gorm:"column:output_cost_per_1k;type:decimal(10,6)"`
 	Enabled         bool           `json:"enabled" gorm:"default:true"`
 	Options         map[string]any `json:"options" gorm:"type:jsonb;serializer:json"`
 	CreatedAt       time.Time      `json:"created_at"`

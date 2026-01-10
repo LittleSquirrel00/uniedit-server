@@ -105,7 +105,26 @@
       "Bash(goimports:*)",
       "Bash(golangci-lint run:*)",
       "Bash(for dir in /Users/zhangfeng144/Git/uniedit-server/internal/shared/*/)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker run:*)",
+      "Bash(docker start:*)",
+      "Bash(pkill:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImNvbGxhYkB0ZXN0LmNvbSIsImV4cCI6MTc2Nzk3ODE3MywiaWF0IjoxNzY3OTc0NTczLCJzdWIiOiIwYjU2N2EwZC1mOWNkLTRmNzgtOWMwYi0yYWFkZTk3MDZhZTIifQ.UxlVkg9S3WUTwmT46l-UlupnUrevCHbZ9nsbUkpPuGU\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImNvbGxhYkB0ZXN0LmNvbSIsImV4cCI6MTc2Nzk3ODgwMSwiaWF0IjoxNzY3OTc1MjAxLCJzdWIiOiIwYjU2N2EwZC1mOWNkLTRmNzgtOWMwYi0yYWFkZTk3MDZhZTIifQ.uRy95tT80Wpy9Ee0pD8XlAsry3Gwvfy8gw74830wW9I\")",
+      "Bash(migrate:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRidGVzdEBleGFtcGxlLmNvbSIsImV4cCI6MTc2ODAyNzA2OCwiaWF0IjoxNzY4MDIzNDY4LCJzdWIiOiI1MjQyM2EwMS00OTBlLTQ1NGEtODk4Yi0xMWZhNjgwMGQwZTcifQ.GJcjRQLTIkGDzIsyljBjKiTo-ByBHnMG8rG9VMkyD1A\")",
+      "Bash(__NEW_LINE__ echo \"=== 测试 AI Provider 列表 ===\")",
+      "Bash(__NEW_LINE__ echo \"=== 测试获取单个 Provider ===\")",
+      "Bash(__NEW_LINE__ echo \"=== 测试 AI Model 列表 \\(admin\\) ===\")",
+      "Bash(__NEW_LINE__ echo \"=== 测试获取单个 Model ===\")",
+      "Bash(__NEW_LINE__ echo \"=== 测试创建 Provider ===\")",
+      "Bash(PROVIDER_ID=\"b8d56c6b-9d41-4db7-a1d4-f0aa3aeed738\":*)",
+      "Bash(__NEW_LINE__ echo \"=== 测试更新 Provider ===\")",
+      "Bash(__NEW_LINE__ echo \"=== 测试删除 Provider ===\")",
+      "Bash(__NEW_LINE__ echo \"=== 测试更新 Model ===\")",
+      "Bash(__NEW_LINE__ curl -s -X POST -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\" -d '{\"\"id\"\":\"\"test-model-3\"\",\"\"provider_id\"\":\"\"a0000000-0000-0000-0000-000000000001\"\",\"\"name\"\":\"\"Test Model 3\"\",\"\"capabilities\"\":[\"\"chat\"\"],\"\"context_window\"\":4096,\"\"enabled\"\":true}' http://localhost:8080/api/v1/admin/ai/models)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRidGVzdEBleGFtcGxlLmNvbSIsImV4cCI6MTc2ODAzMDY3NCwiaWF0IjoxNzY4MDI3MDc0LCJzdWIiOiI1MjQyM2EwMS00OTBlLTQ1NGEtODk4Yi0xMWZhNjgwMGQwZTcifQ.rLh2XqNoLGdum9976mxWcdIA8PU3q8X7u0MD0eWwteY\")"
     ]
   }
 }

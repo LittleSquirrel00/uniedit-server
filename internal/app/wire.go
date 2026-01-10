@@ -23,6 +23,9 @@ import (
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
 	authhttp "github.com/uniedit/server/internal/adapter/inbound/http/auth"
 	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
+	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
+	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
 	orderhttp "github.com/uniedit/server/internal/adapter/inbound/http/order"
 	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
 	userhttp "github.com/uniedit/server/internal/adapter/inbound/http/user"
@@ -61,8 +64,11 @@ type Dependencies struct {
 	CollaborationDomain inbound.CollaborationDomain
 	MediaDomain         inbound.MediaDomain
 
-	// HTTP Handlers
-	AIChatHandler *aihttp.ChatHandler
+	// AI HTTP Handlers
+	AIChatHandler          *aihttp.ChatHandler
+	AIProviderAdminHandler *aihttp.ProviderAdminHandler
+	AIModelAdminHandler    *aihttp.ModelAdminHandler
+	AIPublicHandler        *aihttp.PublicHandler
 
 	// Auth HTTP Handlers
 	OAuthHandler          *authhttp.OAuthHandler
@@ -88,6 +94,15 @@ type Dependencies struct {
 	PaymentHandler *paymenthttp.PaymentHandler
 	RefundHandler  *paymenthttp.RefundHandler
 	WebhookHandler *paymenthttp.WebhookHandler
+
+	// Git HTTP Handlers
+	GitHandler *githttp.Handler
+
+	// Collaboration HTTP Handlers
+	CollaborationHandler *collaborationhttp.Handler
+
+	// Media HTTP Handlers
+	MediaHandler *mediahttp.Handler
 }
 
 // InitializeDependencies creates all dependencies using Wire.

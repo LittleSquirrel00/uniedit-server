@@ -25,6 +25,9 @@ import (
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
 	authhttp "github.com/uniedit/server/internal/adapter/inbound/http/auth"
 	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
+	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
+	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
 	orderhttp "github.com/uniedit/server/internal/adapter/inbound/http/order"
 	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
 	userhttp "github.com/uniedit/server/internal/adapter/inbound/http/user"
@@ -72,8 +75,11 @@ type App struct {
 	collaborationDomain inbound.CollaborationDomain
 	mediaDomain         inbound.MediaDomain
 
-	// HTTP handlers (inbound adapters)
-	aiChatHandler *aihttp.ChatHandler
+	// AI HTTP handlers
+	aiChatHandler          *aihttp.ChatHandler
+	aiProviderAdminHandler *aihttp.ProviderAdminHandler
+	aiModelAdminHandler    *aihttp.ModelAdminHandler
+	aiPublicHandler        *aihttp.PublicHandler
 
 	// Auth HTTP handlers
 	oauthHandler        *authhttp.OAuthHandler
@@ -99,6 +105,15 @@ type App struct {
 	paymentHandler *paymenthttp.PaymentHandler
 	refundHandler  *paymenthttp.RefundHandler
 	webhookHandler *paymenthttp.WebhookHandler
+
+	// Git HTTP handlers
+	gitHandler *githttp.Handler
+
+	// Collaboration HTTP handlers
+	collaborationHandler *collaborationhttp.Handler
+
+	// Media HTTP handlers
+	mediaHandler *mediahttp.Handler
 
 	// Cleanup functions
 	cleanupFuncs []func()
@@ -129,8 +144,12 @@ func New(cfg *config.Config) (*App, error) {
 		gitDomain:           deps.GitDomain,
 		collaborationDomain: deps.CollaborationDomain,
 		mediaDomain:         deps.MediaDomain,
-		// HTTP handlers
-		aiChatHandler:       deps.AIChatHandler,
+		// AI HTTP handlers
+		aiChatHandler:          deps.AIChatHandler,
+		aiProviderAdminHandler: deps.AIProviderAdminHandler,
+		aiModelAdminHandler:    deps.AIModelAdminHandler,
+		aiPublicHandler:        deps.AIPublicHandler,
+		// Auth HTTP handlers
 		oauthHandler:        deps.OAuthHandler,
 		apiKeyHandler:       deps.APIKeyHandler,
 		systemAPIKeyHandler: deps.SystemAPIKeyHandler,
@@ -143,10 +162,13 @@ func New(cfg *config.Config) (*App, error) {
 		usageHandler:        deps.UsageHandler,
 		orderHandler:        deps.OrderHandler,
 		invoiceHandler:      deps.InvoiceHandler,
-		paymentHandler:      deps.PaymentHandler,
-		refundHandler:       deps.RefundHandler,
-		webhookHandler:      deps.WebhookHandler,
-		cleanupFuncs:        []func(){cleanup},
+		paymentHandler:       deps.PaymentHandler,
+		refundHandler:        deps.RefundHandler,
+		webhookHandler:       deps.WebhookHandler,
+		gitHandler:           deps.GitHandler,
+		collaborationHandler: deps.CollaborationHandler,
+		mediaHandler:         deps.MediaHandler,
+		cleanupFuncs:         []func(){cleanup},
 	}
 
 	// Initialize router
@@ -267,6 +289,15 @@ func (a *App) registerRoutes() {
 		}
 	}
 
+	// AI public routes (list models)
+	if a.aiPublicHandler != nil {
+		aiPublicGroup := protectedRouter.Group("/ai")
+		{
+			aiPublicGroup.GET("/models", a.aiPublicHandler.ListModels)
+			aiPublicGroup.GET("/models/:id", a.aiPublicHandler.GetModel)
+		}
+	}
+
 	// User profile routes
 	if a.profileHandler != nil {
 		a.profileHandler.RegisterRoutes(protectedRouter)
@@ -303,6 +334,21 @@ func (a *App) registerRoutes() {
 		a.paymentHandler.RegisterRoutes(protectedRouter)
 	}
 
+	// Git routes
+	if a.gitHandler != nil {
+		a.gitHandler.RegisterRoutes(v1, authMiddleware)
+	}
+
+	// Collaboration routes
+	if a.collaborationHandler != nil {
+		a.collaborationHandler.RegisterRoutes(v1, authMiddleware)
+	}
+
+	// Media routes
+	if a.mediaHandler != nil {
+		a.mediaHandler.RegisterRoutes(v1, authMiddleware)
+	}
+
 	// ===== Admin Routes (requires admin auth) =====
 	// TODO: Add admin middleware when available
 	adminRouter := protectedRouter.Group("")
@@ -326,6 +372,32 @@ func (a *App) registerRoutes() {
 	// Refund routes (admin only)
 	if a.refundHandler != nil {
 		a.refundHandler.RegisterRoutes(adminRouter)
+	}
+
+	// AI provider admin routes
+	if a.aiProviderAdminHandler != nil {
+		aiAdminGroup := adminRouter.Group("/admin/ai")
+		{
+			aiAdminGroup.GET("/providers", a.aiProviderAdminHandler.ListProviders)
+			aiAdminGroup.POST("/providers", a.aiProviderAdminHandler.CreateProvider)
+			aiAdminGroup.GET("/providers/:id", a.aiProviderAdminHandler.GetProvider)
+			aiAdminGroup.PUT("/providers/:id", a.aiProviderAdminHandler.UpdateProvider)
+			aiAdminGroup.DELETE("/providers/:id", a.aiProviderAdminHandler.DeleteProvider)
+			aiAdminGroup.POST("/providers/:id/sync", a.aiProviderAdminHandler.SyncModels)
+			aiAdminGroup.POST("/providers/:id/health", a.aiProviderAdminHandler.HealthCheck)
+		}
+	}
+
+	// AI model admin routes
+	if a.aiModelAdminHandler != nil {
+		aiAdminGroup := adminRouter.Group("/admin/ai")
+		{
+			aiAdminGroup.GET("/models", a.aiModelAdminHandler.ListModels)
+			aiAdminGroup.POST("/models", a.aiModelAdminHandler.CreateModel)
+			aiAdminGroup.GET("/models/:id", a.aiModelAdminHandler.GetModel)
+			aiAdminGroup.PUT("/models/:id", a.aiModelAdminHandler.UpdateModel)
+			aiAdminGroup.DELETE("/models/:id", a.aiModelAdminHandler.DeleteModel)
+		}
 	}
 }
 
