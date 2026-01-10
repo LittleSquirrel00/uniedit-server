@@ -150,18 +150,18 @@ func New(cfg *config.Config) (*App, error) {
 		aiModelAdminHandler:    deps.AIModelAdminHandler,
 		aiPublicHandler:        deps.AIPublicHandler,
 		// Auth HTTP handlers
-		oauthHandler:        deps.OAuthHandler,
-		apiKeyHandler:       deps.APIKeyHandler,
-		systemAPIKeyHandler: deps.SystemAPIKeyHandler,
-		profileHandler:      deps.ProfileHandler,
-		registrationHandler: deps.RegistrationHandler,
-		userAdminHandler:    deps.UserAdminHandler,
-		subscriptionHandler: deps.SubscriptionHandler,
-		quotaHandler:        deps.QuotaHandler,
-		creditsHandler:      deps.CreditsHandler,
-		usageHandler:        deps.UsageHandler,
-		orderHandler:        deps.OrderHandler,
-		invoiceHandler:      deps.InvoiceHandler,
+		oauthHandler:         deps.OAuthHandler,
+		apiKeyHandler:        deps.APIKeyHandler,
+		systemAPIKeyHandler:  deps.SystemAPIKeyHandler,
+		profileHandler:       deps.ProfileHandler,
+		registrationHandler:  deps.RegistrationHandler,
+		userAdminHandler:     deps.UserAdminHandler,
+		subscriptionHandler:  deps.SubscriptionHandler,
+		quotaHandler:         deps.QuotaHandler,
+		creditsHandler:       deps.CreditsHandler,
+		usageHandler:         deps.UsageHandler,
+		orderHandler:         deps.OrderHandler,
+		invoiceHandler:       deps.InvoiceHandler,
 		paymentHandler:       deps.PaymentHandler,
 		refundHandler:        deps.RefundHandler,
 		webhookHandler:       deps.WebhookHandler,
@@ -253,6 +253,9 @@ func (a *App) registerRoutes() {
 			Methods: []string{"POST", "PUT", "PATCH"},
 		}))
 	}
+
+	// Protobuf (google.api.http) generated routes
+	a.registerProtoRoutes(v1)
 
 	// ===== Public Routes (no auth required) =====
 
