@@ -11,6 +11,7 @@ import (
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/inbound"
 	"github.com/uniedit/server/internal/port/outbound"
+	"github.com/uniedit/server/internal/utils/common"
 	"go.uber.org/zap"
 )
 
@@ -995,7 +996,7 @@ func TestDomain_GetVideoStatus_Completed(t *testing.T) {
 		Type:      "video_generation",
 		Status:    model.MediaTaskStatusCompleted,
 		Progress:  100,
-		Output:    `{"url":"https://example.com/video.mp4","duration":10}`,
+		Output:    common.NewString(`{"url":"https://example.com/video.mp4","duration":10}`),
 		CreatedAt: time.Now(),
 	}
 
@@ -1332,7 +1333,7 @@ func TestDomain_ExecuteVideoTask_Success(t *testing.T) {
 		OwnerID:   userID,
 		Type:      "video_generation",
 		Status:    model.MediaTaskStatusPending,
-		Input:     `{"prompt":"test video","model":"video-model"}`,
+		Input:     common.NewString(`{"prompt":"test video","model":"video-model"}`),
 		CreatedAt: time.Now(),
 	}
 
@@ -1399,7 +1400,7 @@ func TestDomain_ExecuteVideoTask_InvalidInput(t *testing.T) {
 	task := &model.MediaTask{
 		ID:     taskID,
 		Status: model.MediaTaskStatusPending,
-		Input:  "invalid json",
+		Input:  common.NewString("invalid json"),
 	}
 
 	mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
