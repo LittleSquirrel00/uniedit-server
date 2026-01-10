@@ -255,25 +255,41 @@ func Proto() error {
 	mg.Deps(ProtoTools)
 	fmt.Println("Generating proto REST stubs (Gin)...")
 
-	files, err := filepath.Glob("api/*/protobuf_spec/*.proto")
+	const protoRoot = "api/protobuf_spec"
+	const pbOutRoot = "api/pb"
+
+	files, err := filepath.Glob(filepath.Join(protoRoot, "*", "*.proto"))
 	if err != nil {
 		return fmt.Errorf("finding proto files: %w", err)
 	}
 	if len(files) == 0 {
-		fmt.Println("  No proto files found under api/*/protobuf_spec/")
+		fmt.Printf("  No proto files found under %s/*/*.proto\n", protoRoot)
 		return nil
 	}
 
 	env := map[string]string{
 		"PATH": filepath.Join(".", "bin") + string(os.PathListSeparator) + os.Getenv("PATH"),
 	}
-	args := []string{
-		"--proto_path=.",
-		"--proto_path=third_party",
-		"--go_out=paths=import,module=github.com/uniedit/server:.",
-		"--go-gin_out=paths=import,module=github.com/uniedit/server:.",
+	if err := os.MkdirAll(pbOutRoot, 0755); err != nil {
+		return fmt.Errorf("create pb output dir %s: %w", pbOutRoot, err)
 	}
-	args = append(args, files...)
+
+	relFiles := make([]string, 0, len(files))
+	for _, f := range files {
+		rel, err := filepath.Rel(protoRoot, f)
+		if err != nil {
+			return fmt.Errorf("rel proto path for %s: %w", f, err)
+		}
+		relFiles = append(relFiles, filepath.ToSlash(rel))
+	}
+
+	args := []string{
+		"--proto_path=" + protoRoot,
+		"--proto_path=third_party",
+		"--go_out=paths=source_relative:" + pbOutRoot,
+		"--go-gin_out=paths=source_relative:" + pbOutRoot,
+	}
+	args = append(args, relFiles...)
 
 	if err := sh.RunWith(env, "protoc", args...); err != nil {
 		return err
@@ -303,17 +319,20 @@ func ProtoTools() error {
 
 // ProtoOpenAPI generates Swagger/OpenAPI specs from proto (google.api.http) mappings.
 //
-// Output: api/<module>/openapi_spec/<module>.swagger.json (merged per module).
+// Output: api/openapi_spec/<module>/<module>.swagger.yaml (merged per module).
 func ProtoOpenAPI() error {
 	mg.Deps(ProtoTools)
 	fmt.Println("Generating OpenAPI from proto (google.api.http)...")
 
-	protoDirs, err := filepath.Glob("api/*/protobuf_spec")
+	const protoRoot = "api/protobuf_spec"
+	const openapiOutRoot = "api/openapi_spec"
+
+	protoDirs, err := filepath.Glob(filepath.Join(protoRoot, "*"))
 	if err != nil {
 		return fmt.Errorf("finding proto directories: %w", err)
 	}
 	if len(protoDirs) == 0 {
-		fmt.Println("  No proto directories found under api/*/protobuf_spec/")
+		fmt.Printf("  No proto directories found under %s/*\n", protoRoot)
 		return nil
 	}
 
@@ -321,9 +340,18 @@ func ProtoOpenAPI() error {
 		"PATH": filepath.Join(".", "bin") + string(os.PathListSeparator) + os.Getenv("PATH"),
 	}
 
+	generatedAny := false
 	for _, protoDir := range protoDirs {
-		module := filepath.Base(filepath.Dir(protoDir))
-		outDir := filepath.Join("api", module, "openapi_spec")
+		st, err := os.Stat(protoDir)
+		if err != nil {
+			return fmt.Errorf("stat proto dir %s: %w", protoDir, err)
+		}
+		if !st.IsDir() {
+			continue
+		}
+
+		module := filepath.Base(protoDir)
+		outDir := filepath.Join(openapiOutRoot, module)
 
 		protos, err := filepath.Glob(filepath.Join(protoDir, "*.proto"))
 		if err != nil {
@@ -332,6 +360,7 @@ func ProtoOpenAPI() error {
 		if len(protos) == 0 {
 			continue
 		}
+		generatedAny = true
 
 		if err := os.RemoveAll(outDir); err != nil {
 			return fmt.Errorf("clean openapi output dir %s: %w", outDir, err)
@@ -342,12 +371,14 @@ func ProtoOpenAPI() error {
 
 		args := []string{
 			fmt.Sprintf("--proto_path=%s", protoDir),
+			fmt.Sprintf("--proto_path=%s", protoRoot),
 			"--proto_path=third_party",
 			"--openapiv2_out", outDir,
 			"--openapiv2_opt", "logtostderr=true",
 			"--openapiv2_opt", "disable_default_errors=true",
 			"--openapiv2_opt", "allow_merge=true",
 			"--openapiv2_opt", "merge_file_name=" + module,
+			"--openapiv2_opt", "output_format=yaml",
 		}
 		for _, p := range protos {
 			args = append(args, filepath.Base(p))
@@ -359,5 +390,8 @@ func ProtoOpenAPI() error {
 		}
 	}
 
+	if !generatedAny {
+		fmt.Printf("  No proto files found under %s/*/*.proto\n", protoRoot)
+	}
 	return nil
 }
