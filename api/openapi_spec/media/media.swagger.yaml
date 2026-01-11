@@ -1,0 +1,354 @@
+swagger: "2.0"
+info:
+  title: UniEdit API
+  description: UniEdit 后端 API（由 proto 自动生成 OpenAPI）
+  version: v1
+tags:
+  - name: MediaService
+  - name: MediaAdminService
+host: localhost:8080
+basePath: /api/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /media/images/generations:
+    post:
+      operationId: MediaService_GenerateImage
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1GenerateImageResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1GenerateImageRequest'
+      tags:
+        - MediaService
+  /media/models:
+    get:
+      operationId: MediaAdminService_ListModels
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListModelsResponse'
+      parameters:
+        - name: capability
+          in: query
+          required: false
+          type: string
+      tags:
+        - MediaAdminService
+  /media/providers:
+    get:
+      operationId: MediaAdminService_ListProviders
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListProvidersResponse'
+      tags:
+        - MediaAdminService
+  /media/providers/{id}:
+    get:
+      operationId: MediaAdminService_GetProvider
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MediaProvider'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - MediaAdminService
+  /media/tasks:
+    get:
+      operationId: MediaService_ListTasks
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListTasksResponse'
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: offset
+          in: query
+          required: false
+          type: integer
+          format: int32
+      tags:
+        - MediaService
+  /media/tasks/{taskId}:
+    get:
+      operationId: MediaService_GetTask
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MediaTask'
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          type: string
+      tags:
+        - MediaService
+    delete:
+      operationId: MediaService_CancelTask
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Empty'
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          type: string
+      tags:
+        - MediaService
+  /media/videos/generations:
+    post:
+      operationId: MediaService_GenerateVideo
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1VideoGenerationStatus'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1GenerateVideoRequest'
+      tags:
+        - MediaService
+  /media/videos/generations/{taskId}:
+    get:
+      operationId: MediaService_GetVideoStatus
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1VideoGenerationStatus'
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          type: string
+      tags:
+        - MediaService
+definitions:
+  v1Empty:
+    type: object
+  v1GenerateImageRequest:
+    type: object
+    properties:
+      prompt:
+        type: string
+      negativePrompt:
+        type: string
+      "n":
+        type: integer
+        format: int32
+      size:
+        type: string
+      quality:
+        type: string
+      style:
+        type: string
+      model:
+        type: string
+      responseFormat:
+        type: string
+  v1GenerateImageResponse:
+    type: object
+    properties:
+      images:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1GeneratedImage'
+      model:
+        type: string
+      usage:
+        $ref: '#/definitions/v1ImageUsage'
+      createdAt:
+        type: string
+        format: int64
+      taskId:
+        type: string
+  v1GenerateVideoRequest:
+    type: object
+    properties:
+      prompt:
+        type: string
+      inputImage:
+        type: string
+      inputVideo:
+        type: string
+      duration:
+        type: integer
+        format: int32
+      aspectRatio:
+        type: string
+      resolution:
+        type: string
+      fps:
+        type: integer
+        format: int32
+      model:
+        type: string
+  v1GeneratedImage:
+    type: object
+    properties:
+      url:
+        type: string
+      b64Json:
+        type: string
+      revisedPrompt:
+        type: string
+  v1GeneratedVideo:
+    type: object
+    properties:
+      url:
+        type: string
+      duration:
+        type: integer
+        format: int32
+      width:
+        type: integer
+        format: int32
+      height:
+        type: integer
+        format: int32
+      fps:
+        type: integer
+        format: int32
+      fileSize:
+        type: string
+        format: int64
+      format:
+        type: string
+  v1ImageUsage:
+    type: object
+    properties:
+      totalImages:
+        type: integer
+        format: int32
+      costUsd:
+        type: number
+        format: double
+  v1ListModelsResponse:
+    type: object
+    properties:
+      models:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1MediaModel'
+  v1ListProvidersResponse:
+    type: object
+    properties:
+      providers:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1MediaProvider'
+  v1ListTasksResponse:
+    type: object
+    properties:
+      tasks:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1MediaTask'
+  v1MediaModel:
+    type: object
+    properties:
+      id:
+        type: string
+      providerId:
+        type: string
+      name:
+        type: string
+      capabilities:
+        type: array
+        items:
+          type: string
+      enabled:
+        type: boolean
+      createdAt:
+        type: string
+      updatedAt:
+        type: string
+  v1MediaProvider:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+      baseUrl:
+        type: string
+      enabled:
+        type: boolean
+      createdAt:
+        type: string
+      updatedAt:
+        type: string
+  v1MediaTask:
+    type: object
+    properties:
+      id:
+        type: string
+      ownerId:
+        type: string
+      type:
+        type: string
+      status:
+        type: string
+      progress:
+        type: integer
+        format: int32
+      error:
+        type: string
+      createdAt:
+        type: string
+        format: int64
+      updatedAt:
+        type: string
+        format: int64
+  v1VideoGenerationStatus:
+    type: object
+    properties:
+      taskId:
+        type: string
+      status:
+        type: string
+      progress:
+        type: integer
+        format: int32
+      video:
+        $ref: '#/definitions/v1GeneratedVideo'
+      error:
+        type: string
+      createdAt:
+        type: string
+        format: int64

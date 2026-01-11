@@ -1,0 +1,614 @@
+swagger: "2.0"
+info:
+  title: UniEdit API
+  description: UniEdit 后端 API（由 proto 自动生成 OpenAPI）
+  version: v1
+tags:
+  - name: AIService
+  - name: AIAdminService
+host: localhost:8080
+basePath: /api/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /admin/ai/models:
+    get:
+      summary: ===== Models =====
+      operationId: AIAdminService_ListAllModels
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListAllModelsResponse'
+      tags:
+        - AIAdminService
+    post:
+      operationId: AIAdminService_CreateModel
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Model'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CreateModelRequest'
+      tags:
+        - AIAdminService
+  /admin/ai/models/{id}:
+    get:
+      operationId: AIAdminService_GetAdminModel
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Model'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AIAdminService
+    delete:
+      operationId: AIAdminService_DeleteModel
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AIAdminService
+    put:
+      operationId: AIAdminService_UpdateModel
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Model'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AIAdminServiceUpdateModelBody'
+      tags:
+        - AIAdminService
+  /admin/ai/providers:
+    get:
+      summary: ===== Providers =====
+      operationId: AIAdminService_ListProviders
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListProvidersResponse'
+      tags:
+        - AIAdminService
+    post:
+      operationId: AIAdminService_CreateProvider
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Provider'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CreateProviderRequest'
+      tags:
+        - AIAdminService
+  /admin/ai/providers/{id}:
+    get:
+      operationId: AIAdminService_GetProvider
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Provider'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AIAdminService
+    delete:
+      operationId: AIAdminService_DeleteProvider
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AIAdminService
+    put:
+      operationId: AIAdminService_UpdateProvider
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Provider'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AIAdminServiceUpdateProviderBody'
+      tags:
+        - AIAdminService
+  /admin/ai/providers/{id}/health:
+    post:
+      operationId: AIAdminService_HealthCheck
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1HealthCheckResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AIAdminService
+  /admin/ai/providers/{id}/sync:
+    post:
+      operationId: AIAdminService_SyncModels
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AIAdminService
+  /ai/chat:
+    post:
+      operationId: AIService_Chat
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ChatResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1ChatRequest'
+      tags:
+        - AIService
+  /ai/chat/stream:
+    post:
+      operationId: AIService_ChatStream
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Empty'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1ChatRequest'
+      tags:
+        - AIService
+  /ai/models:
+    get:
+      operationId: AIService_ListModels
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListModelsResponse'
+      tags:
+        - AIService
+  /ai/models/{id}:
+    get:
+      operationId: AIService_GetModel
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Model'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AIService
+definitions:
+  AIAdminServiceUpdateModelBody:
+    type: object
+    properties:
+      name:
+        $ref: '#/definitions/commonv1StringValue'
+      capabilities:
+        $ref: '#/definitions/v1StringList'
+      contextWindow:
+        $ref: '#/definitions/commonv1Int32Value'
+      maxOutputTokens:
+        $ref: '#/definitions/commonv1Int32Value'
+      inputCostPer1k:
+        type: number
+        format: double
+      outputCostPer1k:
+        type: number
+        format: double
+      options:
+        type: object
+      enabled:
+        $ref: '#/definitions/commonv1BoolValue'
+  AIAdminServiceUpdateProviderBody:
+    type: object
+    properties:
+      name:
+        $ref: '#/definitions/commonv1StringValue'
+      baseUrl:
+        $ref: '#/definitions/commonv1StringValue'
+      apiKey:
+        $ref: '#/definitions/commonv1StringValue'
+      rateLimit:
+        $ref: '#/definitions/v1RateLimitConfig'
+      options:
+        type: object
+      weight:
+        $ref: '#/definitions/commonv1Int32Value'
+      priority:
+        $ref: '#/definitions/commonv1Int32Value'
+      enabled:
+        $ref: '#/definitions/commonv1BoolValue'
+  commonv1BoolValue:
+    type: object
+    properties:
+      value:
+        type: boolean
+  commonv1Int32Value:
+    type: object
+    properties:
+      value:
+        type: integer
+        format: int32
+  commonv1StringValue:
+    type: object
+    properties:
+      value:
+        type: string
+  protobufNullValue:
+    type: string
+    enum:
+      - NULL_VALUE
+    default: NULL_VALUE
+    description: |-
+      `NullValue` is a singleton enumeration to represent the null value for the
+      `Value` type union.
+
+      The JSON representation for `NullValue` is JSON `null`.
+
+       - NULL_VALUE: Null value.
+  v1ChatMessage:
+    type: object
+    properties:
+      role:
+        type: string
+      content: {}
+      name:
+        type: string
+      toolCallId:
+        type: string
+      toolCalls:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1ToolCall'
+  v1ChatRequest:
+    type: object
+    properties:
+      model:
+        type: string
+      messages:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1ChatMessage'
+      maxTokens:
+        type: integer
+        format: int32
+      temperature:
+        type: number
+        format: double
+      topP:
+        type: number
+        format: double
+      stop:
+        type: array
+        items:
+          type: string
+      tools:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Tool'
+      toolChoice: {}
+      stream:
+        type: boolean
+      metadata:
+        type: object
+  v1ChatResponse:
+    type: object
+    properties:
+      id:
+        type: string
+      model:
+        type: string
+      message:
+        $ref: '#/definitions/v1ChatMessage'
+      finishReason:
+        type: string
+      usage:
+        $ref: '#/definitions/v1Usage'
+      routing:
+        $ref: '#/definitions/v1RoutingInfo'
+  v1CreateModelRequest:
+    type: object
+    properties:
+      id:
+        type: string
+      providerId:
+        type: string
+      name:
+        type: string
+      capabilities:
+        type: array
+        items:
+          type: string
+      contextWindow:
+        type: integer
+        format: int32
+      maxOutputTokens:
+        type: integer
+        format: int32
+      inputCostPer1k:
+        type: number
+        format: double
+      outputCostPer1k:
+        type: number
+        format: double
+      options:
+        type: object
+      enabled:
+        type: boolean
+  v1CreateProviderRequest:
+    type: object
+    properties:
+      name:
+        type: string
+      type:
+        type: string
+      baseUrl:
+        type: string
+      apiKey:
+        type: string
+      rateLimit:
+        $ref: '#/definitions/v1RateLimitConfig'
+      options:
+        type: object
+      weight:
+        type: integer
+        format: int32
+      priority:
+        type: integer
+        format: int32
+      enabled:
+        type: boolean
+  v1Empty:
+    type: object
+  v1FunctionCall:
+    type: object
+    properties:
+      name:
+        type: string
+      arguments:
+        type: string
+  v1FunctionDef:
+    type: object
+    properties:
+      name:
+        type: string
+      description:
+        type: string
+      parameters:
+        type: object
+  v1HealthCheckResponse:
+    type: object
+    properties:
+      providerId:
+        type: string
+      healthy:
+        type: boolean
+  v1ListAllModelsResponse:
+    type: object
+    properties:
+      object:
+        type: string
+      data:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Model'
+  v1ListModelsResponse:
+    type: object
+    properties:
+      models:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Model'
+  v1ListProvidersResponse:
+    type: object
+    properties:
+      object:
+        type: string
+      data:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Provider'
+  v1MessageResponse:
+    type: object
+    properties:
+      message:
+        type: string
+  v1Model:
+    type: object
+    properties:
+      id:
+        type: string
+      providerId:
+        type: string
+      name:
+        type: string
+      capabilities:
+        type: array
+        items:
+          type: string
+      contextWindow:
+        type: integer
+        format: int32
+      maxOutputTokens:
+        type: integer
+        format: int32
+      inputCostPer1k:
+        type: number
+        format: double
+      outputCostPer1k:
+        type: number
+        format: double
+      options:
+        type: object
+      enabled:
+        type: boolean
+      createdAt:
+        type: string
+      updatedAt:
+        type: string
+  v1Provider:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+      baseUrl:
+        type: string
+      enabled:
+        type: boolean
+      weight:
+        type: integer
+        format: int32
+      priority:
+        type: integer
+        format: int32
+      rateLimit:
+        $ref: '#/definitions/v1RateLimitConfig'
+      options:
+        type: object
+      createdAt:
+        type: string
+      updatedAt:
+        type: string
+  v1RateLimitConfig:
+    type: object
+    properties:
+      rpm:
+        type: integer
+        format: int32
+      tpm:
+        type: integer
+        format: int32
+      dailyLimit:
+        type: integer
+        format: int32
+  v1RoutingInfo:
+    type: object
+    properties:
+      providerUsed:
+        type: string
+      modelUsed:
+        type: string
+      latencyMs:
+        type: string
+        format: int64
+      costUsd:
+        type: number
+        format: double
+  v1StringList:
+    type: object
+    properties:
+      values:
+        type: array
+        items:
+          type: string
+  v1Tool:
+    type: object
+    properties:
+      type:
+        type: string
+      function:
+        $ref: '#/definitions/v1FunctionDef'
+  v1ToolCall:
+    type: object
+    properties:
+      id:
+        type: string
+      type:
+        type: string
+      function:
+        $ref: '#/definitions/v1FunctionCall'
+  v1Usage:
+    type: object
+    properties:
+      promptTokens:
+        type: integer
+        format: int32
+      completionTokens:
+        type: integer
+        format: int32
+      totalTokens:
+        type: integer
+        format: int32

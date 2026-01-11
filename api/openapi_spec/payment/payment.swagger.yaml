@@ -1,0 +1,333 @@
+swagger: "2.0"
+info:
+  title: UniEdit API
+  description: UniEdit 后端 API（由 proto 自动生成 OpenAPI）
+  version: v1
+tags:
+  - name: PaymentService
+  - name: PaymentAdminService
+  - name: WebhookService
+host: localhost:8080
+basePath: /api/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /payments:
+    get:
+      operationId: PaymentService_ListPayments
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListPaymentsResponse'
+      parameters:
+        - name: orderId
+          in: query
+          required: false
+          type: string
+        - name: status
+          in: query
+          required: false
+          type: string
+        - name: provider
+          in: query
+          required: false
+          type: string
+        - name: page
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: pageSize
+          in: query
+          required: false
+          type: integer
+          format: int32
+      tags:
+        - PaymentService
+  /payments/intent:
+    post:
+      operationId: PaymentService_CreatePaymentIntent
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1PaymentIntentResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CreatePaymentIntentRequest'
+      tags:
+        - PaymentService
+  /payments/methods:
+    get:
+      operationId: PaymentService_ListPaymentMethods
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListPaymentMethodsResponse'
+      tags:
+        - PaymentService
+  /payments/native:
+    post:
+      operationId: PaymentService_CreateNativePayment
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1NativePaymentResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CreateNativePaymentRequest'
+      tags:
+        - PaymentService
+  /payments/{id}:
+    get:
+      operationId: PaymentService_GetPayment
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Payment'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - PaymentService
+  /payments/{id}/refund:
+    post:
+      operationId: PaymentAdminService_CreateRefund
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/PaymentAdminServiceCreateRefundBody'
+      tags:
+        - PaymentAdminService
+  /webhooks/alipay:
+    post:
+      operationId: WebhookService_AlipayWebhook
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Empty'
+      tags:
+        - WebhookService
+  /webhooks/stripe:
+    post:
+      operationId: WebhookService_StripeWebhook
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1StripeWebhookResponse'
+      tags:
+        - WebhookService
+  /webhooks/wechat:
+    post:
+      operationId: WebhookService_WechatWebhook
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1WechatWebhookResponse'
+      tags:
+        - WebhookService
+definitions:
+  PaymentAdminServiceCreateRefundBody:
+    type: object
+    properties:
+      amount:
+        type: string
+        format: int64
+      reason:
+        type: string
+  v1CreateNativePaymentRequest:
+    type: object
+    properties:
+      orderId:
+        type: string
+      method:
+        type: string
+      scene:
+        type: string
+      returnUrl:
+        type: string
+      openid:
+        type: string
+  v1CreatePaymentIntentRequest:
+    type: object
+    properties:
+      orderId:
+        type: string
+  v1Empty:
+    type: object
+  v1ListPaymentMethodsResponse:
+    type: object
+    properties:
+      methods:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1PaymentMethodInfo'
+  v1ListPaymentsResponse:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Payment'
+      total:
+        type: string
+        format: int64
+      page:
+        type: integer
+        format: int32
+      pageSize:
+        type: integer
+        format: int32
+      totalPages:
+        type: integer
+        format: int32
+  v1MessageResponse:
+    type: object
+    properties:
+      message:
+        type: string
+  v1NativePaymentResponse:
+    type: object
+    properties:
+      paymentId:
+        type: string
+      orderId:
+        type: string
+      method:
+        type: string
+      payUrl:
+        type: string
+      qrCode:
+        type: string
+      appPayData:
+        type: string
+      miniPayData:
+        type: object
+        additionalProperties:
+          type: string
+      amount:
+        type: string
+        format: int64
+      currency:
+        type: string
+      expireTime:
+        type: string
+        format: int64
+  v1Payment:
+    type: object
+    properties:
+      id:
+        type: string
+      orderId:
+        type: string
+      userId:
+        type: string
+      amount:
+        type: string
+        format: int64
+      currency:
+        type: string
+      method:
+        type: string
+      status:
+        type: string
+      provider:
+        type: string
+      stripePaymentIntentId:
+        type: string
+      stripeChargeId:
+        type: string
+      tradeNo:
+        type: string
+      payerId:
+        type: string
+      failureCode:
+        type: string
+      failureMessage:
+        type: string
+      refundedAmount:
+        type: string
+        format: int64
+      succeededAt:
+        type: string
+      failedAt:
+        type: string
+      createdAt:
+        type: string
+      updatedAt:
+        type: string
+  v1PaymentIntentResponse:
+    type: object
+    properties:
+      paymentIntentId:
+        type: string
+      clientSecret:
+        type: string
+      amount:
+        type: string
+        format: int64
+      currency:
+        type: string
+  v1PaymentMethodInfo:
+    type: object
+    properties:
+      id:
+        type: string
+      type:
+        type: string
+      cardBrand:
+        type: string
+      cardLast4:
+        type: string
+      expMonth:
+        type: integer
+        format: int32
+      expYear:
+        type: integer
+        format: int32
+      isDefault:
+        type: boolean
+  v1StripeWebhookResponse:
+    type: object
+    properties:
+      received:
+        type: boolean
+  v1WechatWebhookResponse:
+    type: object
+    properties:
+      code:
+        type: string
+      message:
+        type: string

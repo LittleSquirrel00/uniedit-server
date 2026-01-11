@@ -1,0 +1,228 @@
+syntax = "proto3";
+
+package uniedit.git.v1;
+
+option go_package = "github.com/uniedit/server/api/pb/git;gitv1";
+
+import "common/common.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  host: "localhost:8080"
+  base_path: "/api/v1"
+  schemes: [HTTP]
+  info: {
+    title: "UniEdit API"
+    version: "v1"
+    description: "UniEdit 后端 API（由 proto 自动生成 OpenAPI）"
+  }
+};
+
+service GitService {
+  // ===== Repos =====
+  rpc CreateRepo(CreateRepoRequest) returns (Repo) {
+    option (google.api.http) = {post: "/repos" body: "*"};
+  }
+
+  rpc ListRepos(ListReposRequest) returns (ListReposResponse) {
+    option (google.api.http) = {get: "/repos"};
+  }
+
+  rpc GetRepo(GetByIDRequest) returns (Repo) {
+    option (google.api.http) = {get: "/repos/{id}"};
+  }
+
+  rpc UpdateRepo(UpdateRepoRequest) returns (Repo) {
+    option (google.api.http) = {put: "/repos/{id}" body: "*"};
+  }
+
+  rpc DeleteRepo(GetByIDRequest) returns (uniedit.common.v1.Empty) {
+    option (google.api.http) = {delete: "/repos/{id}"};
+  }
+
+  rpc GetStorageStats(GetByIDRequest) returns (StorageStats) {
+    option (google.api.http) = {get: "/repos/{id}/storage"};
+  }
+
+  // ===== Collaborators =====
+  rpc AddCollaborator(AddCollaboratorRequest) returns (uniedit.common.v1.Empty) {
+    option (google.api.http) = {post: "/repos/{id}/collaborators" body: "*"};
+  }
+
+  rpc ListCollaborators(GetByIDRequest) returns (ListCollaboratorsResponse) {
+    option (google.api.http) = {get: "/repos/{id}/collaborators"};
+  }
+
+  rpc UpdateCollaborator(UpdateCollaboratorRequest) returns (uniedit.common.v1.Empty) {
+    option (google.api.http) = {put: "/repos/{id}/collaborators/{user_id}" body: "*"};
+  }
+
+  rpc RemoveCollaborator(RemoveCollaboratorRequest) returns (uniedit.common.v1.Empty) {
+    option (google.api.http) = {delete: "/repos/{id}/collaborators/{user_id}"};
+  }
+
+  // ===== Pull Requests =====
+  rpc CreatePR(CreatePRRequest) returns (PullRequest) {
+    option (google.api.http) = {post: "/repos/{id}/pulls" body: "*"};
+  }
+
+  rpc ListPRs(ListPRsRequest) returns (ListPRsResponse) {
+    option (google.api.http) = {get: "/repos/{id}/pulls"};
+  }
+
+  rpc GetPR(GetPRRequest) returns (PullRequest) {
+    option (google.api.http) = {get: "/repos/{id}/pulls/{number}"};
+  }
+
+  rpc UpdatePR(UpdatePRRequest) returns (PullRequest) {
+    option (google.api.http) = {put: "/repos/{id}/pulls/{number}" body: "*"};
+  }
+
+  rpc MergePR(GetPRRequest) returns (PullRequest) {
+    option (google.api.http) = {post: "/repos/{id}/pulls/{number}/merge"};
+  }
+}
+
+service GitPublicService {
+  rpc ListPublicRepos(ListReposRequest) returns (ListReposResponse) {
+    option (google.api.http) = {get: "/repos/public"};
+  }
+}
+
+message GetByIDRequest { string id = 1; }
+
+message Repo {
+  string id = 1;
+  string owner_id = 2;
+  string name = 3;
+  string slug = 4;
+  string repo_type = 5;
+  string visibility = 6;
+  string description = 7;
+  string default_branch = 8;
+  int64 size_bytes = 9;
+  bool lfs_enabled = 10;
+  int64 lfs_size_bytes = 11;
+  int64 total_size = 12;
+  int32 stars_count = 13;
+  int32 forks_count = 14;
+  string clone_url = 15;
+  string lfs_url = 16;
+}
+
+message CreateRepoRequest {
+  string name = 1;
+  string type = 2;
+  string visibility = 3;
+  string description = 4;
+  bool lfs_enabled = 5;
+}
+
+message UpdateRepoRequest {
+  string id = 1;
+  uniedit.common.v1.StringValue name = 2;
+  uniedit.common.v1.StringValue description = 3;
+  uniedit.common.v1.StringValue visibility = 4;
+  uniedit.common.v1.StringValue default_branch = 5;
+  uniedit.common.v1.BoolValue lfs_enabled = 6;
+}
+
+message ListReposRequest {
+  string type = 1;
+  string visibility = 2;
+  string search = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+message ListReposResponse {
+  repeated Repo repos = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message StorageStats {
+  int64 repo_size_bytes = 1;
+  int64 lfs_size_bytes = 2;
+  int64 total_size_bytes = 3;
+  int32 lfs_object_count = 4;
+}
+
+message Collaborator {
+  string repo_id = 1;
+  string user_id = 2;
+  string permission = 3;
+  string created_at = 4;
+}
+
+message AddCollaboratorRequest {
+  string id = 1;
+  string user_id = 2;
+  string permission = 3;
+}
+
+message ListCollaboratorsResponse { repeated Collaborator collaborators = 1; }
+
+message UpdateCollaboratorRequest {
+  string id = 1;
+  string user_id = 2;
+  string permission = 3;
+}
+
+message RemoveCollaboratorRequest {
+  string id = 1;
+  string user_id = 2;
+}
+
+message PullRequest {
+  string id = 1;
+  string repo_id = 2;
+  int32 number = 3;
+  string title = 4;
+  string description = 5;
+  string source_branch = 6;
+  string target_branch = 7;
+  string status = 8;
+  string author_id = 9;
+  string merged_by = 10;
+  string merged_at = 11;
+  string closed_at = 12;
+  string created_at = 13;
+  string updated_at = 14;
+}
+
+message CreatePRRequest {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  string source_branch = 4;
+  string target_branch = 5;
+}
+
+message ListPRsRequest {
+  string id = 1;
+  string status = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message ListPRsResponse {
+  repeated PullRequest pull_requests = 1;
+  int64 total_count = 2;
+}
+
+message GetPRRequest {
+  string id = 1;
+  int32 number = 2;
+}
+
+message UpdatePRRequest {
+  string id = 1;
+  int32 number = 2;
+  uniedit.common.v1.StringValue title = 3;
+  uniedit.common.v1.StringValue description = 4;
+  uniedit.common.v1.StringValue status = 5;
+}
+

@@ -1,0 +1,178 @@
+syntax = "proto3";
+
+package uniedit.billing.v1;
+
+option go_package = "github.com/uniedit/server/api/pb/billing;billingv1";
+
+import "common/common.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  host: "localhost:8080"
+  base_path: "/api/v1"
+  schemes: [HTTP]
+  info: {
+    title: "UniEdit API"
+    version: "v1"
+    description: "UniEdit 后端 API（由 proto 自动生成 OpenAPI）"
+  }
+};
+
+service BillingPublicService {
+  rpc ListPlans(uniedit.common.v1.Empty) returns (ListPlansResponse) {
+    option (google.api.http) = {get: "/billing/plans"};
+  }
+
+  rpc GetPlan(GetByIDRequest) returns (Plan) {
+    option (google.api.http) = {get: "/billing/plans/{id}"};
+  }
+}
+
+service BillingService {
+  // ===== Subscription =====
+  rpc GetSubscription(uniedit.common.v1.Empty) returns (Subscription) {
+    option (google.api.http) = {get: "/billing/subscription"};
+  }
+
+  rpc CreateSubscription(CreateSubscriptionRequest) returns (Subscription) {
+    option (google.api.http) = {post: "/billing/subscription" body: "*"};
+  }
+
+  rpc CancelSubscription(CancelSubscriptionRequest) returns (Subscription) {
+    option (google.api.http) = {post: "/billing/subscription/cancel" body: "*"};
+  }
+
+  // ===== Quota =====
+  rpc GetQuotaStatus(uniedit.common.v1.Empty) returns (QuotaStatus) {
+    option (google.api.http) = {get: "/billing/quota"};
+  }
+
+  rpc CheckQuota(CheckQuotaRequest) returns (CheckQuotaResponse) {
+    option (google.api.http) = {post: "/billing/quota/check" body: "*"};
+  }
+
+  // ===== Credits =====
+  rpc GetBalance(uniedit.common.v1.Empty) returns (GetBalanceResponse) {
+    option (google.api.http) = {get: "/billing/credits"};
+  }
+
+  // ===== Usage =====
+  rpc GetUsageStats(GetUsageStatsRequest) returns (UsageStats) {
+    option (google.api.http) = {get: "/billing/usage"};
+  }
+
+  rpc RecordUsage(RecordUsageRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/billing/usage" body: "*"};
+  }
+}
+
+service BillingAdminService {
+  rpc AddCredits(AddCreditsRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/billing/credits" body: "*"};
+  }
+}
+
+message GetByIDRequest { string id = 1; }
+
+message Plan {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+  string description = 4;
+  string billing_cycle = 5;
+  int64 price_usd = 6;
+  int64 monthly_tokens = 7;
+  int32 daily_requests = 8;
+  int32 max_api_keys = 9;
+  repeated string features = 10;
+  int64 monthly_chat_tokens = 11;
+  int32 monthly_image_credits = 12;
+  int32 monthly_video_minutes = 13;
+  int64 monthly_embedding_tokens = 14;
+  int64 git_storage_mb = 15;
+  int64 lfs_storage_mb = 16;
+  int32 max_team_members = 17;
+}
+
+message ListPlansResponse { repeated Plan plans = 1; }
+
+message Subscription {
+  string id = 1;
+  string plan_id = 2;
+  string status = 3;
+  string current_period_start = 4;
+  string current_period_end = 5;
+  bool cancel_at_period_end = 6;
+  string canceled_at = 7;
+  int64 credits_balance = 8;
+  string created_at = 9;
+  Plan plan = 10;
+}
+
+message CreateSubscriptionRequest { string plan_id = 1; }
+
+message CancelSubscriptionRequest { bool immediately = 1; }
+
+message QuotaStatus {
+  string plan = 1;
+  int64 tokens_used = 2;
+  int64 tokens_limit = 3;
+  int64 tokens_remaining = 4;
+  int32 requests_today = 5;
+  int32 requests_limit = 6;
+  string reset_at = 7;
+}
+
+message CheckQuotaRequest { string task_type = 1; }
+
+message CheckQuotaResponse { bool allowed = 1; }
+
+message GetBalanceResponse { int64 balance = 1; }
+
+message GetUsageStatsRequest {
+  string period = 1;
+  string start = 2;
+  string end = 3;
+}
+
+message UsageStats {
+  int64 total_tokens = 1;
+  int32 total_requests = 2;
+  double total_cost_usd = 3;
+  map<string, ModelUsage> by_model = 4;
+  repeated DailyUsage by_day = 5;
+}
+
+message ModelUsage {
+  string model_id = 1;
+  int64 total_tokens = 2;
+  int32 total_requests = 3;
+  double total_cost_usd = 4;
+}
+
+message DailyUsage {
+  string date = 1;
+  int64 total_tokens = 2;
+  int32 total_requests = 3;
+  double total_cost_usd = 4;
+}
+
+message RecordUsageRequest {
+  string request_id = 1;
+  string task_type = 2;
+  string provider_id = 3;
+  string model_id = 4;
+  int32 input_tokens = 5;
+  int32 output_tokens = 6;
+  double cost_usd = 7;
+  int32 latency_ms = 8;
+  bool success = 9;
+}
+
+message AddCreditsRequest {
+  string user_id = 1;
+  int64 amount = 2;
+  string source = 3;
+}
+

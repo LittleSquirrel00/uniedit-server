@@ -1,0 +1,557 @@
+swagger: "2.0"
+info:
+  title: UniEdit API
+  description: UniEdit 后端 API（由 proto 自动生成 OpenAPI）
+  version: v1
+tags:
+  - name: GitService
+  - name: GitPublicService
+host: localhost:8080
+basePath: /api/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /repos:
+    get:
+      operationId: GitService_ListRepos
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListReposResponse'
+      parameters:
+        - name: type
+          in: query
+          required: false
+          type: string
+        - name: visibility
+          in: query
+          required: false
+          type: string
+        - name: search
+          in: query
+          required: false
+          type: string
+        - name: page
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: pageSize
+          in: query
+          required: false
+          type: integer
+          format: int32
+      tags:
+        - GitService
+    post:
+      summary: ===== Repos =====
+      operationId: GitService_CreateRepo
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Repo'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CreateRepoRequest'
+      tags:
+        - GitService
+  /repos/public:
+    get:
+      operationId: GitPublicService_ListPublicRepos
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListReposResponse'
+      parameters:
+        - name: type
+          in: query
+          required: false
+          type: string
+        - name: visibility
+          in: query
+          required: false
+          type: string
+        - name: search
+          in: query
+          required: false
+          type: string
+        - name: page
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: pageSize
+          in: query
+          required: false
+          type: integer
+          format: int32
+      tags:
+        - GitPublicService
+  /repos/{id}:
+    get:
+      operationId: GitService_GetRepo
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Repo'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - GitService
+    delete:
+      operationId: GitService_DeleteRepo
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Empty'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - GitService
+    put:
+      operationId: GitService_UpdateRepo
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Repo'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/GitServiceUpdateRepoBody'
+      tags:
+        - GitService
+  /repos/{id}/collaborators:
+    get:
+      operationId: GitService_ListCollaborators
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListCollaboratorsResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - GitService
+    post:
+      summary: ===== Collaborators =====
+      operationId: GitService_AddCollaborator
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Empty'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/GitServiceAddCollaboratorBody'
+      tags:
+        - GitService
+  /repos/{id}/collaborators/{userId}:
+    delete:
+      operationId: GitService_RemoveCollaborator
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Empty'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: userId
+          in: path
+          required: true
+          type: string
+      tags:
+        - GitService
+    put:
+      operationId: GitService_UpdateCollaborator
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Empty'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: userId
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/GitServiceUpdateCollaboratorBody'
+      tags:
+        - GitService
+  /repos/{id}/pulls:
+    get:
+      operationId: GitService_ListPRs
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListPRsResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: status
+          in: query
+          required: false
+          type: string
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: offset
+          in: query
+          required: false
+          type: integer
+          format: int32
+      tags:
+        - GitService
+    post:
+      summary: ===== Pull Requests =====
+      operationId: GitService_CreatePR
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1PullRequest'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/GitServiceCreatePRBody'
+      tags:
+        - GitService
+  /repos/{id}/pulls/{number}:
+    get:
+      operationId: GitService_GetPR
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1PullRequest'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: number
+          in: path
+          required: true
+          type: integer
+          format: int32
+      tags:
+        - GitService
+    put:
+      operationId: GitService_UpdatePR
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1PullRequest'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: number
+          in: path
+          required: true
+          type: integer
+          format: int32
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/GitServiceUpdatePRBody'
+      tags:
+        - GitService
+  /repos/{id}/pulls/{number}/merge:
+    post:
+      operationId: GitService_MergePR
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1PullRequest'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: number
+          in: path
+          required: true
+          type: integer
+          format: int32
+      tags:
+        - GitService
+  /repos/{id}/storage:
+    get:
+      operationId: GitService_GetStorageStats
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1StorageStats'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - GitService
+definitions:
+  GitServiceAddCollaboratorBody:
+    type: object
+    properties:
+      userId:
+        type: string
+      permission:
+        type: string
+  GitServiceCreatePRBody:
+    type: object
+    properties:
+      title:
+        type: string
+      description:
+        type: string
+      sourceBranch:
+        type: string
+      targetBranch:
+        type: string
+  GitServiceUpdateCollaboratorBody:
+    type: object
+    properties:
+      permission:
+        type: string
+  GitServiceUpdatePRBody:
+    type: object
+    properties:
+      title:
+        $ref: '#/definitions/v1StringValue'
+      description:
+        $ref: '#/definitions/v1StringValue'
+      status:
+        $ref: '#/definitions/v1StringValue'
+  GitServiceUpdateRepoBody:
+    type: object
+    properties:
+      name:
+        $ref: '#/definitions/v1StringValue'
+      description:
+        $ref: '#/definitions/v1StringValue'
+      visibility:
+        $ref: '#/definitions/v1StringValue'
+      defaultBranch:
+        $ref: '#/definitions/v1StringValue'
+      lfsEnabled:
+        $ref: '#/definitions/v1BoolValue'
+  v1BoolValue:
+    type: object
+    properties:
+      value:
+        type: boolean
+  v1Collaborator:
+    type: object
+    properties:
+      repoId:
+        type: string
+      userId:
+        type: string
+      permission:
+        type: string
+      createdAt:
+        type: string
+  v1CreateRepoRequest:
+    type: object
+    properties:
+      name:
+        type: string
+      type:
+        type: string
+      visibility:
+        type: string
+      description:
+        type: string
+      lfsEnabled:
+        type: boolean
+  v1Empty:
+    type: object
+  v1ListCollaboratorsResponse:
+    type: object
+    properties:
+      collaborators:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Collaborator'
+  v1ListPRsResponse:
+    type: object
+    properties:
+      pullRequests:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1PullRequest'
+      totalCount:
+        type: string
+        format: int64
+  v1ListReposResponse:
+    type: object
+    properties:
+      repos:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Repo'
+      totalCount:
+        type: string
+        format: int64
+      page:
+        type: integer
+        format: int32
+      pageSize:
+        type: integer
+        format: int32
+  v1PullRequest:
+    type: object
+    properties:
+      id:
+        type: string
+      repoId:
+        type: string
+      number:
+        type: integer
+        format: int32
+      title:
+        type: string
+      description:
+        type: string
+      sourceBranch:
+        type: string
+      targetBranch:
+        type: string
+      status:
+        type: string
+      authorId:
+        type: string
+      mergedBy:
+        type: string
+      mergedAt:
+        type: string
+      closedAt:
+        type: string
+      createdAt:
+        type: string
+      updatedAt:
+        type: string
+  v1Repo:
+    type: object
+    properties:
+      id:
+        type: string
+      ownerId:
+        type: string
+      name:
+        type: string
+      slug:
+        type: string
+      repoType:
+        type: string
+      visibility:
+        type: string
+      description:
+        type: string
+      defaultBranch:
+        type: string
+      sizeBytes:
+        type: string
+        format: int64
+      lfsEnabled:
+        type: boolean
+      lfsSizeBytes:
+        type: string
+        format: int64
+      totalSize:
+        type: string
+        format: int64
+      starsCount:
+        type: integer
+        format: int32
+      forksCount:
+        type: integer
+        format: int32
+      cloneUrl:
+        type: string
+      lfsUrl:
+        type: string
+  v1StorageStats:
+    type: object
+    properties:
+      repoSizeBytes:
+        type: string
+        format: int64
+      lfsSizeBytes:
+        type: string
+        format: int64
+      totalSizeBytes:
+        type: string
+        format: int64
+      lfsObjectCount:
+        type: integer
+        format: int32
+  v1StringValue:
+    type: object
+    properties:
+      value:
+        type: string

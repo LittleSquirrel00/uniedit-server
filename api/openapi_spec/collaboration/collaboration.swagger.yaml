@@ -1,0 +1,458 @@
+swagger: "2.0"
+info:
+  title: UniEdit API
+  description: UniEdit 后端 API（由 proto 自动生成 OpenAPI）
+  version: v1
+tags:
+  - name: CollaborationService
+host: localhost:8080
+basePath: /api/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /invitations:
+    get:
+      operationId: CollaborationService_ListMyInvitations
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListMyInvitationsResponse'
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: offset
+          in: query
+          required: false
+          type: integer
+          format: int32
+      tags:
+        - CollaborationService
+  /invitations/{id}:
+    delete:
+      operationId: CollaborationService_RevokeInvitation
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - CollaborationService
+  /invitations/{token}/accept:
+    post:
+      operationId: CollaborationService_AcceptInvitation
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1AcceptInvitationResponse'
+      parameters:
+        - name: token
+          in: path
+          required: true
+          type: string
+      tags:
+        - CollaborationService
+  /invitations/{token}/reject:
+    post:
+      operationId: CollaborationService_RejectInvitation
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: token
+          in: path
+          required: true
+          type: string
+      tags:
+        - CollaborationService
+  /teams:
+    get:
+      operationId: CollaborationService_ListMyTeams
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListMyTeamsResponse'
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: offset
+          in: query
+          required: false
+          type: integer
+          format: int32
+      tags:
+        - CollaborationService
+    post:
+      summary: ===== Teams =====
+      operationId: CollaborationService_CreateTeam
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Team'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CreateTeamRequest'
+      tags:
+        - CollaborationService
+  /teams/{slug}:
+    get:
+      operationId: CollaborationService_GetTeam
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Team'
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          type: string
+        - name: ownerId
+          in: query
+          required: false
+          type: string
+      tags:
+        - CollaborationService
+    delete:
+      operationId: CollaborationService_DeleteTeam
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          type: string
+        - name: ownerId
+          in: query
+          required: false
+          type: string
+      tags:
+        - CollaborationService
+    patch:
+      operationId: CollaborationService_UpdateTeam
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Team'
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CollaborationServiceUpdateTeamBody'
+      tags:
+        - CollaborationService
+  /teams/{slug}/invitations:
+    get:
+      operationId: CollaborationService_ListTeamInvitations
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListTeamInvitationsResponse'
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          type: string
+        - name: ownerId
+          in: query
+          required: false
+          type: string
+        - name: status
+          in: query
+          required: false
+          type: string
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: offset
+          in: query
+          required: false
+          type: integer
+          format: int32
+      tags:
+        - CollaborationService
+    post:
+      summary: ===== Invitations =====
+      operationId: CollaborationService_SendInvitation
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Invitation'
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CollaborationServiceSendInvitationBody'
+      tags:
+        - CollaborationService
+  /teams/{slug}/leave:
+    post:
+      operationId: CollaborationService_LeaveTeam
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          type: string
+        - name: ownerId
+          in: query
+          required: false
+          type: string
+      tags:
+        - CollaborationService
+  /teams/{slug}/members:
+    get:
+      summary: ===== Members =====
+      operationId: CollaborationService_ListMembers
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListMembersResponse'
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          type: string
+        - name: ownerId
+          in: query
+          required: false
+          type: string
+      tags:
+        - CollaborationService
+  /teams/{slug}/members/{userId}:
+    delete:
+      operationId: CollaborationService_RemoveMember
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          type: string
+        - name: userId
+          in: path
+          required: true
+          type: string
+      tags:
+        - CollaborationService
+    patch:
+      operationId: CollaborationService_UpdateMemberRole
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          type: string
+        - name: userId
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/CollaborationServiceUpdateMemberRoleBody'
+      tags:
+        - CollaborationService
+definitions:
+  CollaborationServiceSendInvitationBody:
+    type: object
+    properties:
+      email:
+        type: string
+      role:
+        type: string
+  CollaborationServiceUpdateMemberRoleBody:
+    type: object
+    properties:
+      role:
+        type: string
+  CollaborationServiceUpdateTeamBody:
+    type: object
+    properties:
+      name:
+        $ref: '#/definitions/v1StringValue'
+      description:
+        $ref: '#/definitions/v1StringValue'
+      visibility:
+        $ref: '#/definitions/v1StringValue'
+  v1AcceptInvitationResponse:
+    type: object
+    properties:
+      message:
+        type: string
+      team:
+        $ref: '#/definitions/v1Team'
+  v1CreateTeamRequest:
+    type: object
+    properties:
+      name:
+        type: string
+      description:
+        type: string
+      visibility:
+        type: string
+  v1Invitation:
+    type: object
+    properties:
+      id:
+        type: string
+      teamId:
+        type: string
+      teamName:
+        type: string
+      inviterId:
+        type: string
+      inviterName:
+        type: string
+      inviteeEmail:
+        type: string
+      role:
+        type: string
+      status:
+        type: string
+      expiresAt:
+        type: string
+      createdAt:
+        type: string
+      acceptedAt:
+        type: string
+      token:
+        type: string
+      acceptUrl:
+        type: string
+  v1ListMembersResponse:
+    type: object
+    properties:
+      members:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Member'
+  v1ListMyInvitationsResponse:
+    type: object
+    properties:
+      invitations:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Invitation'
+  v1ListMyTeamsResponse:
+    type: object
+    properties:
+      teams:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Team'
+  v1ListTeamInvitationsResponse:
+    type: object
+    properties:
+      invitations:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Invitation'
+  v1Member:
+    type: object
+    properties:
+      userId:
+        type: string
+      email:
+        type: string
+      name:
+        type: string
+      role:
+        type: string
+      joinedAt:
+        type: string
+  v1MessageResponse:
+    type: object
+    properties:
+      message:
+        type: string
+  v1StringValue:
+    type: object
+    properties:
+      value:
+        type: string
+  v1Team:
+    type: object
+    properties:
+      id:
+        type: string
+      ownerId:
+        type: string
+      name:
+        type: string
+      slug:
+        type: string
+      description:
+        type: string
+      visibility:
+        type: string
+      memberCount:
+        type: integer
+        format: int32
+      memberLimit:
+        type: integer
+        format: int32
+      createdAt:
+        type: string
+      updatedAt:
+        type: string
+      myRole:
+        type: string

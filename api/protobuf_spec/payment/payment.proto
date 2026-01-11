@@ -1,0 +1,158 @@
+syntax = "proto3";
+
+package uniedit.payment.v1;
+
+option go_package = "github.com/uniedit/server/api/pb/payment;paymentv1";
+
+import "common/common.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  host: "localhost:8080"
+  base_path: "/api/v1"
+  schemes: [HTTP]
+  info: {
+    title: "UniEdit API"
+    version: "v1"
+    description: "UniEdit 后端 API（由 proto 自动生成 OpenAPI）"
+  }
+};
+
+service PaymentService {
+  rpc CreatePaymentIntent(CreatePaymentIntentRequest) returns (PaymentIntentResponse) {
+    option (google.api.http) = {post: "/payments/intent" body: "*"};
+  }
+
+  rpc CreateNativePayment(CreateNativePaymentRequest) returns (NativePaymentResponse) {
+    option (google.api.http) = {post: "/payments/native" body: "*"};
+  }
+
+  rpc GetPayment(GetByIDRequest) returns (Payment) {
+    option (google.api.http) = {get: "/payments/{id}"};
+  }
+
+  rpc ListPayments(ListPaymentsRequest) returns (ListPaymentsResponse) {
+    option (google.api.http) = {get: "/payments"};
+  }
+
+  rpc ListPaymentMethods(uniedit.common.v1.Empty) returns (ListPaymentMethodsResponse) {
+    option (google.api.http) = {get: "/payments/methods"};
+  }
+}
+
+service PaymentAdminService {
+  rpc CreateRefund(CreateRefundRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/payments/{id}/refund" body: "*"};
+  }
+}
+
+service WebhookService {
+  rpc StripeWebhook(uniedit.common.v1.Empty) returns (StripeWebhookResponse) {
+    option (google.api.http) = {post: "/webhooks/stripe"};
+  }
+
+  rpc AlipayWebhook(uniedit.common.v1.Empty) returns (uniedit.common.v1.Empty) {
+    option (google.api.http) = {post: "/webhooks/alipay"};
+  }
+
+  rpc WechatWebhook(uniedit.common.v1.Empty) returns (WechatWebhookResponse) {
+    option (google.api.http) = {post: "/webhooks/wechat"};
+  }
+}
+
+message GetByIDRequest { string id = 1; }
+
+message CreatePaymentIntentRequest { string order_id = 1; }
+
+message PaymentIntentResponse {
+  string payment_intent_id = 1;
+  string client_secret = 2;
+  int64 amount = 3;
+  string currency = 4;
+}
+
+message CreateNativePaymentRequest {
+  string order_id = 1;
+  string method = 2;
+  string scene = 3;
+  string return_url = 4;
+  string openid = 5;
+}
+
+message NativePaymentResponse {
+  string payment_id = 1;
+  string order_id = 2;
+  string method = 3;
+  string pay_url = 4;
+  string qr_code = 5;
+  string app_pay_data = 6;
+  map<string, string> mini_pay_data = 7;
+  int64 amount = 8;
+  string currency = 9;
+  int64 expire_time = 10;
+}
+
+message Payment {
+  string id = 1;
+  string order_id = 2;
+  string user_id = 3;
+  int64 amount = 4;
+  string currency = 5;
+  string method = 6;
+  string status = 7;
+  string provider = 8;
+  string stripe_payment_intent_id = 9;
+  string stripe_charge_id = 10;
+  string trade_no = 11;
+  string payer_id = 12;
+  string failure_code = 13;
+  string failure_message = 14;
+  int64 refunded_amount = 15;
+  string succeeded_at = 16;
+  string failed_at = 17;
+  string created_at = 18;
+  string updated_at = 19;
+}
+
+message ListPaymentsRequest {
+  string order_id = 1;
+  string status = 2;
+  string provider = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+message ListPaymentsResponse {
+  repeated Payment data = 1;
+  int64 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  int32 total_pages = 5;
+}
+
+message PaymentMethodInfo {
+  string id = 1;
+  string type = 2;
+  string card_brand = 3;
+  string card_last4 = 4;
+  int32 exp_month = 5;
+  int32 exp_year = 6;
+  bool is_default = 7;
+}
+
+message ListPaymentMethodsResponse { repeated PaymentMethodInfo methods = 1; }
+
+message CreateRefundRequest {
+  string id = 1;
+  int64 amount = 2;
+  string reason = 3;
+}
+
+message StripeWebhookResponse { bool received = 1; }
+
+message WechatWebhookResponse {
+  string code = 1;
+  string message = 2;
+}
+

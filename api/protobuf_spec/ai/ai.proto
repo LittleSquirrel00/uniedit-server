@@ -1,0 +1,263 @@
+syntax = "proto3";
+
+package uniedit.ai.v1;
+
+option go_package = "github.com/uniedit/server/api/pb/ai;aiv1";
+
+import "common/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/wrappers.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  host: "localhost:8080"
+  base_path: "/api/v1"
+  schemes: [HTTP]
+  info: {
+    title: "UniEdit API"
+    version: "v1"
+    description: "UniEdit 后端 API（由 proto 自动生成 OpenAPI）"
+  }
+};
+
+service AIService {
+  rpc Chat(ChatRequest) returns (ChatResponse) {
+    option (google.api.http) = {post: "/ai/chat" body: "*"};
+  }
+
+  rpc ChatStream(ChatRequest) returns (uniedit.common.v1.Empty) {
+    option (google.api.http) = {post: "/ai/chat/stream" body: "*"};
+  }
+
+  rpc ListModels(uniedit.common.v1.Empty) returns (ListModelsResponse) {
+    option (google.api.http) = {get: "/ai/models"};
+  }
+
+  rpc GetModel(GetByIDRequest) returns (Model) {
+    option (google.api.http) = {get: "/ai/models/{id}"};
+  }
+}
+
+service AIAdminService {
+  // ===== Providers =====
+  rpc ListProviders(uniedit.common.v1.Empty) returns (ListProvidersResponse) {
+    option (google.api.http) = {get: "/admin/ai/providers"};
+  }
+
+  rpc CreateProvider(CreateProviderRequest) returns (Provider) {
+    option (google.api.http) = {post: "/admin/ai/providers" body: "*"};
+  }
+
+  rpc GetProvider(GetByIDRequest) returns (Provider) {
+    option (google.api.http) = {get: "/admin/ai/providers/{id}"};
+  }
+
+  rpc UpdateProvider(UpdateProviderRequest) returns (Provider) {
+    option (google.api.http) = {put: "/admin/ai/providers/{id}" body: "*"};
+  }
+
+  rpc DeleteProvider(GetByIDRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {delete: "/admin/ai/providers/{id}"};
+  }
+
+  rpc SyncModels(GetByIDRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/admin/ai/providers/{id}/sync"};
+  }
+
+  rpc HealthCheck(GetByIDRequest) returns (HealthCheckResponse) {
+    option (google.api.http) = {post: "/admin/ai/providers/{id}/health"};
+  }
+
+  // ===== Models =====
+  rpc ListAllModels(uniedit.common.v1.Empty) returns (ListAllModelsResponse) {
+    option (google.api.http) = {get: "/admin/ai/models"};
+  }
+
+  rpc CreateModel(CreateModelRequest) returns (Model) {
+    option (google.api.http) = {post: "/admin/ai/models" body: "*"};
+  }
+
+  rpc GetAdminModel(GetByIDRequest) returns (Model) {
+    option (google.api.http) = {get: "/admin/ai/models/{id}"};
+  }
+
+  rpc UpdateModel(UpdateModelRequest) returns (Model) {
+    option (google.api.http) = {put: "/admin/ai/models/{id}" body: "*"};
+  }
+
+  rpc DeleteModel(GetByIDRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {delete: "/admin/ai/models/{id}"};
+  }
+}
+
+message GetByIDRequest { string id = 1; }
+
+message ChatRequest {
+  string model = 1;
+  repeated ChatMessage messages = 2;
+  int32 max_tokens = 3;
+  google.protobuf.DoubleValue temperature = 4;
+  google.protobuf.DoubleValue top_p = 5;
+  repeated string stop = 6;
+  repeated Tool tools = 7;
+  google.protobuf.Value tool_choice = 8;
+  bool stream = 9;
+  google.protobuf.Struct metadata = 10;
+}
+
+message ChatMessage {
+  string role = 1;
+  google.protobuf.Value content = 2;
+  string name = 3;
+  string tool_call_id = 4;
+  repeated ToolCall tool_calls = 5;
+}
+
+message Tool {
+  string type = 1;
+  FunctionDef function = 2;
+}
+
+message FunctionDef {
+  string name = 1;
+  string description = 2;
+  google.protobuf.Struct parameters = 3;
+}
+
+message ToolCall {
+  string id = 1;
+  string type = 2;
+  FunctionCall function = 3;
+}
+
+message FunctionCall {
+  string name = 1;
+  string arguments = 2;
+}
+
+message Usage {
+  int32 prompt_tokens = 1;
+  int32 completion_tokens = 2;
+  int32 total_tokens = 3;
+}
+
+message RoutingInfo {
+  string provider_used = 1;
+  string model_used = 2;
+  int64 latency_ms = 3;
+  double cost_usd = 4;
+}
+
+message ChatResponse {
+  string id = 1;
+  string model = 2;
+  ChatMessage message = 3;
+  string finish_reason = 4;
+  Usage usage = 5;
+  RoutingInfo routing = 6;
+}
+
+message RateLimitConfig {
+  int32 rpm = 1;
+  int32 tpm = 2;
+  int32 daily_limit = 3;
+}
+
+message Provider {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  string base_url = 4;
+  bool enabled = 5;
+  int32 weight = 6;
+  int32 priority = 7;
+  RateLimitConfig rate_limit = 8;
+  google.protobuf.Struct options = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+
+message ListProvidersResponse {
+  string object = 1;
+  repeated Provider data = 2;
+}
+
+message CreateProviderRequest {
+  string name = 1;
+  string type = 2;
+  string base_url = 3;
+  string api_key = 4;
+  RateLimitConfig rate_limit = 5;
+  google.protobuf.Struct options = 6;
+  int32 weight = 7;
+  int32 priority = 8;
+  bool enabled = 9;
+}
+
+message UpdateProviderRequest {
+  string id = 1;
+  uniedit.common.v1.StringValue name = 2;
+  uniedit.common.v1.StringValue base_url = 3;
+  uniedit.common.v1.StringValue api_key = 4;
+  RateLimitConfig rate_limit = 5;
+  google.protobuf.Struct options = 6;
+  uniedit.common.v1.Int32Value weight = 7;
+  uniedit.common.v1.Int32Value priority = 8;
+  uniedit.common.v1.BoolValue enabled = 9;
+}
+
+message HealthCheckResponse {
+  string provider_id = 1;
+  bool healthy = 2;
+}
+
+message Model {
+  string id = 1;
+  string provider_id = 2;
+  string name = 3;
+  repeated string capabilities = 4;
+  int32 context_window = 5;
+  int32 max_output_tokens = 6;
+  double input_cost_per_1k = 7;
+  double output_cost_per_1k = 8;
+  google.protobuf.Struct options = 9;
+  bool enabled = 10;
+  string created_at = 11;
+  string updated_at = 12;
+}
+
+message ListModelsResponse {
+  repeated Model models = 1;
+}
+
+message ListAllModelsResponse {
+  string object = 1;
+  repeated Model data = 2;
+}
+
+message CreateModelRequest {
+  string id = 1;
+  string provider_id = 2;
+  string name = 3;
+  repeated string capabilities = 4;
+  int32 context_window = 5;
+  int32 max_output_tokens = 6;
+  double input_cost_per_1k = 7;
+  double output_cost_per_1k = 8;
+  google.protobuf.Struct options = 9;
+  bool enabled = 10;
+}
+
+message UpdateModelRequest {
+  string id = 1;
+  uniedit.common.v1.StringValue name = 2;
+  uniedit.common.v1.StringList capabilities = 3;
+  uniedit.common.v1.Int32Value context_window = 4;
+  uniedit.common.v1.Int32Value max_output_tokens = 5;
+  google.protobuf.DoubleValue input_cost_per_1k = 6;
+  google.protobuf.DoubleValue output_cost_per_1k = 7;
+  google.protobuf.Struct options = 8;
+  uniedit.common.v1.BoolValue enabled = 9;
+}
+

@@ -1,0 +1,194 @@
+syntax = "proto3";
+
+package uniedit.collaboration.v1;
+
+option go_package = "github.com/uniedit/server/api/pb/collaboration;collabv1";
+
+import "common/common.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  host: "localhost:8080"
+  base_path: "/api/v1"
+  schemes: [HTTP]
+  info: {
+    title: "UniEdit API"
+    version: "v1"
+    description: "UniEdit 后端 API（由 proto 自动生成 OpenAPI）"
+  }
+};
+
+service CollaborationService {
+  // ===== Teams =====
+  rpc CreateTeam(CreateTeamRequest) returns (Team) {
+    option (google.api.http) = {post: "/teams" body: "*"};
+  }
+
+  rpc ListMyTeams(ListMyTeamsRequest) returns (ListMyTeamsResponse) {
+    option (google.api.http) = {get: "/teams"};
+  }
+
+  rpc GetTeam(GetTeamRequest) returns (Team) {
+    option (google.api.http) = {get: "/teams/{slug}"};
+  }
+
+  rpc UpdateTeam(UpdateTeamRequest) returns (Team) {
+    option (google.api.http) = {patch: "/teams/{slug}" body: "*"};
+  }
+
+  rpc DeleteTeam(GetTeamRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {delete: "/teams/{slug}"};
+  }
+
+  // ===== Members =====
+  rpc ListMembers(GetTeamRequest) returns (ListMembersResponse) {
+    option (google.api.http) = {get: "/teams/{slug}/members"};
+  }
+
+  rpc UpdateMemberRole(UpdateMemberRoleRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {patch: "/teams/{slug}/members/{user_id}" body: "*"};
+  }
+
+  rpc RemoveMember(RemoveMemberRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {delete: "/teams/{slug}/members/{user_id}"};
+  }
+
+  rpc LeaveTeam(GetTeamRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/teams/{slug}/leave"};
+  }
+
+  // ===== Invitations =====
+  rpc SendInvitation(SendInvitationRequest) returns (Invitation) {
+    option (google.api.http) = {post: "/teams/{slug}/invitations" body: "*"};
+  }
+
+  rpc ListTeamInvitations(ListTeamInvitationsRequest) returns (ListTeamInvitationsResponse) {
+    option (google.api.http) = {get: "/teams/{slug}/invitations"};
+  }
+
+  rpc ListMyInvitations(ListMyInvitationsRequest) returns (ListMyInvitationsResponse) {
+    option (google.api.http) = {get: "/invitations"};
+  }
+
+  rpc AcceptInvitation(InvitationTokenRequest) returns (AcceptInvitationResponse) {
+    option (google.api.http) = {post: "/invitations/{token}/accept"};
+  }
+
+  rpc RejectInvitation(InvitationTokenRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/invitations/{token}/reject"};
+  }
+
+  rpc RevokeInvitation(GetByIDRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {delete: "/invitations/{id}"};
+  }
+}
+
+message GetByIDRequest { string id = 1; }
+
+message CreateTeamRequest {
+  string name = 1;
+  string description = 2;
+  string visibility = 3;
+}
+
+message Team {
+  string id = 1;
+  string owner_id = 2;
+  string name = 3;
+  string slug = 4;
+  string description = 5;
+  string visibility = 6;
+  int32 member_count = 7;
+  int32 member_limit = 8;
+  string created_at = 9;
+  string updated_at = 10;
+  string my_role = 11;
+}
+
+message ListMyTeamsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ListMyTeamsResponse { repeated Team teams = 1; }
+
+message GetTeamRequest {
+  string slug = 1;
+  string owner_id = 2;
+}
+
+message UpdateTeamRequest {
+  string slug = 1;
+  uniedit.common.v1.StringValue name = 2;
+  uniedit.common.v1.StringValue description = 3;
+  uniedit.common.v1.StringValue visibility = 4;
+}
+
+message Member {
+  string user_id = 1;
+  string email = 2;
+  string name = 3;
+  string role = 4;
+  string joined_at = 5;
+}
+
+message ListMembersResponse { repeated Member members = 1; }
+
+message UpdateMemberRoleRequest {
+  string slug = 1;
+  string user_id = 2;
+  string role = 3;
+}
+
+message RemoveMemberRequest {
+  string slug = 1;
+  string user_id = 2;
+}
+
+message SendInvitationRequest {
+  string slug = 1;
+  string email = 2;
+  string role = 3;
+}
+
+message Invitation {
+  string id = 1;
+  string team_id = 2;
+  string team_name = 3;
+  string inviter_id = 4;
+  string inviter_name = 5;
+  string invitee_email = 6;
+  string role = 7;
+  string status = 8;
+  string expires_at = 9;
+  string created_at = 10;
+  string accepted_at = 11;
+  string token = 12;
+  string accept_url = 13;
+}
+
+message ListTeamInvitationsRequest {
+  string slug = 1;
+  string owner_id = 2;
+  string status = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message ListTeamInvitationsResponse { repeated Invitation invitations = 1; }
+
+message ListMyInvitationsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ListMyInvitationsResponse { repeated Invitation invitations = 1; }
+
+message InvitationTokenRequest { string token = 1; }
+
+message AcceptInvitationResponse {
+  string message = 1;
+  Team team = 2;
+}
+

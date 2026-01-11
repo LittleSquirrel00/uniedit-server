@@ -1,0 +1,397 @@
+swagger: "2.0"
+info:
+  title: UniEdit API
+  description: UniEdit 后端 API（由 proto 自动生成 OpenAPI）
+  version: v1
+tags:
+  - name: BillingPublicService
+  - name: BillingService
+  - name: BillingAdminService
+host: localhost:8080
+basePath: /api/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /billing/credits:
+    get:
+      summary: ===== Credits =====
+      operationId: BillingService_GetBalance
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1GetBalanceResponse'
+      tags:
+        - BillingService
+    post:
+      operationId: BillingAdminService_AddCredits
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1AddCreditsRequest'
+      tags:
+        - BillingAdminService
+  /billing/plans:
+    get:
+      operationId: BillingPublicService_ListPlans
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListPlansResponse'
+      tags:
+        - BillingPublicService
+  /billing/plans/{id}:
+    get:
+      operationId: BillingPublicService_GetPlan
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Plan'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - BillingPublicService
+  /billing/quota:
+    get:
+      summary: ===== Quota =====
+      operationId: BillingService_GetQuotaStatus
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1QuotaStatus'
+      tags:
+        - BillingService
+  /billing/quota/check:
+    post:
+      operationId: BillingService_CheckQuota
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1CheckQuotaResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CheckQuotaRequest'
+      tags:
+        - BillingService
+  /billing/subscription:
+    get:
+      summary: ===== Subscription =====
+      operationId: BillingService_GetSubscription
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Subscription'
+      tags:
+        - BillingService
+    post:
+      operationId: BillingService_CreateSubscription
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Subscription'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CreateSubscriptionRequest'
+      tags:
+        - BillingService
+  /billing/subscription/cancel:
+    post:
+      operationId: BillingService_CancelSubscription
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Subscription'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CancelSubscriptionRequest'
+      tags:
+        - BillingService
+  /billing/usage:
+    get:
+      summary: ===== Usage =====
+      operationId: BillingService_GetUsageStats
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1UsageStats'
+      parameters:
+        - name: period
+          in: query
+          required: false
+          type: string
+        - name: start
+          in: query
+          required: false
+          type: string
+        - name: end
+          in: query
+          required: false
+          type: string
+      tags:
+        - BillingService
+    post:
+      operationId: BillingService_RecordUsage
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1RecordUsageRequest'
+      tags:
+        - BillingService
+definitions:
+  v1AddCreditsRequest:
+    type: object
+    properties:
+      userId:
+        type: string
+      amount:
+        type: string
+        format: int64
+      source:
+        type: string
+  v1CancelSubscriptionRequest:
+    type: object
+    properties:
+      immediately:
+        type: boolean
+  v1CheckQuotaRequest:
+    type: object
+    properties:
+      taskType:
+        type: string
+  v1CheckQuotaResponse:
+    type: object
+    properties:
+      allowed:
+        type: boolean
+  v1CreateSubscriptionRequest:
+    type: object
+    properties:
+      planId:
+        type: string
+  v1DailyUsage:
+    type: object
+    properties:
+      date:
+        type: string
+      totalTokens:
+        type: string
+        format: int64
+      totalRequests:
+        type: integer
+        format: int32
+      totalCostUsd:
+        type: number
+        format: double
+  v1GetBalanceResponse:
+    type: object
+    properties:
+      balance:
+        type: string
+        format: int64
+  v1ListPlansResponse:
+    type: object
+    properties:
+      plans:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Plan'
+  v1MessageResponse:
+    type: object
+    properties:
+      message:
+        type: string
+  v1ModelUsage:
+    type: object
+    properties:
+      modelId:
+        type: string
+      totalTokens:
+        type: string
+        format: int64
+      totalRequests:
+        type: integer
+        format: int32
+      totalCostUsd:
+        type: number
+        format: double
+  v1Plan:
+    type: object
+    properties:
+      id:
+        type: string
+      type:
+        type: string
+      name:
+        type: string
+      description:
+        type: string
+      billingCycle:
+        type: string
+      priceUsd:
+        type: string
+        format: int64
+      monthlyTokens:
+        type: string
+        format: int64
+      dailyRequests:
+        type: integer
+        format: int32
+      maxApiKeys:
+        type: integer
+        format: int32
+      features:
+        type: array
+        items:
+          type: string
+      monthlyChatTokens:
+        type: string
+        format: int64
+      monthlyImageCredits:
+        type: integer
+        format: int32
+      monthlyVideoMinutes:
+        type: integer
+        format: int32
+      monthlyEmbeddingTokens:
+        type: string
+        format: int64
+      gitStorageMb:
+        type: string
+        format: int64
+      lfsStorageMb:
+        type: string
+        format: int64
+      maxTeamMembers:
+        type: integer
+        format: int32
+  v1QuotaStatus:
+    type: object
+    properties:
+      plan:
+        type: string
+      tokensUsed:
+        type: string
+        format: int64
+      tokensLimit:
+        type: string
+        format: int64
+      tokensRemaining:
+        type: string
+        format: int64
+      requestsToday:
+        type: integer
+        format: int32
+      requestsLimit:
+        type: integer
+        format: int32
+      resetAt:
+        type: string
+  v1RecordUsageRequest:
+    type: object
+    properties:
+      requestId:
+        type: string
+      taskType:
+        type: string
+      providerId:
+        type: string
+      modelId:
+        type: string
+      inputTokens:
+        type: integer
+        format: int32
+      outputTokens:
+        type: integer
+        format: int32
+      costUsd:
+        type: number
+        format: double
+      latencyMs:
+        type: integer
+        format: int32
+      success:
+        type: boolean
+  v1Subscription:
+    type: object
+    properties:
+      id:
+        type: string
+      planId:
+        type: string
+      status:
+        type: string
+      currentPeriodStart:
+        type: string
+      currentPeriodEnd:
+        type: string
+      cancelAtPeriodEnd:
+        type: boolean
+      canceledAt:
+        type: string
+      creditsBalance:
+        type: string
+        format: int64
+      createdAt:
+        type: string
+      plan:
+        $ref: '#/definitions/v1Plan'
+  v1UsageStats:
+    type: object
+    properties:
+      totalTokens:
+        type: string
+        format: int64
+      totalRequests:
+        type: integer
+        format: int32
+      totalCostUsd:
+        type: number
+        format: double
+      byModel:
+        type: object
+        additionalProperties:
+          $ref: '#/definitions/v1ModelUsage'
+      byDay:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1DailyUsage'
