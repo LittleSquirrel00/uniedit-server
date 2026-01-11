@@ -24,77 +24,9 @@ func Build() error {
 	return sh.Run("go", "build", "-o", "bin/server", "./cmd/server")
 }
 
-// Generate runs all code generation (wire, swagger, etc.).
+// Generate runs all code generation (wire, proto, etc.).
 func Generate() error {
-	mg.Deps(Wire, Swagger)
-	return nil
-}
-
-// Swagger generates Swagger/OpenAPI documentation for all modules.
-func Swagger() error {
-	fmt.Println("Generating Swagger documentation...")
-	return sh.Run("swag", "init", "-g", "cmd/server/docs.go", "-o", "cmd/server/docs", "--parseDependency", "--parseInternal")
-}
-
-// swaggerModules defines the available modules for swagger generation.
-var swaggerModules = map[string]struct {
-	Tag  string // Swagger tag name
-	Desc string // Description for display
-}{
-	"user":          {Tag: "User", Desc: "User management APIs"},
-	"auth":          {Tag: "Auth", Desc: "Authentication APIs"},
-	"billing":       {Tag: "Billing", Desc: "Billing & subscription APIs"},
-	"order":         {Tag: "Order", Desc: "Order management APIs"},
-	"payment":       {Tag: "Payment", Desc: "Payment APIs"},
-	"git":           {Tag: "Git", Desc: "Git hosting APIs"},
-	"collaboration": {Tag: "Collaboration", Desc: "Team collaboration APIs"},
-	"ai":            {Tag: "AI", Desc: "AI service APIs"},
-}
-
-// SwaggerModule generates Swagger documentation for a specific module.
-// Usage: mage swaggermodule <module>
-// Available modules: user, auth, billing, order, payment, git, collaboration, ai
-func SwaggerModule(module string) error {
-	mod, ok := swaggerModules[module]
-	if !ok {
-		fmt.Println("Available modules:")
-		for name, m := range swaggerModules {
-			fmt.Printf("  %-15s - %s\n", name, m.Desc)
-		}
-		return fmt.Errorf("unknown module: %s", module)
-	}
-
-	outputDir := fmt.Sprintf("cmd/server/docs/%s", module)
-
-	// Create output directory
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("creating output dir: %w", err)
-	}
-
-	fmt.Printf("Generating Swagger documentation for %s module (tag: %s)...\n", module, mod.Tag)
-
-	// Generate swagger for specific module using tag filter
-	return sh.Run("swag", "init",
-		"--generalInfo", "cmd/server/docs.go",
-		"--dir", ".",
-		"--output", outputDir,
-		"--parseDependency",
-		"--parseInternal",
-		"--instanceName", module,
-		"--tags", mod.Tag,
-	)
-}
-
-// SwaggerList lists all available modules for swagger generation.
-func SwaggerList() error {
-	fmt.Println("Available modules for swagger generation:")
-	fmt.Println()
-	for name, mod := range swaggerModules {
-		fmt.Printf("  %-15s - %s (tag: %s)\n", name, mod.Desc, mod.Tag)
-	}
-	fmt.Println()
-	fmt.Println("Usage: mage swaggermodule <module>")
-	fmt.Println("Example: mage swaggermodule user")
+	mg.Deps(Wire, Proto)
 	return nil
 }
 
@@ -237,7 +169,6 @@ func Install() error {
 		"google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0",
 		"github.com/google/wire/cmd/wire@latest",
 		"github.com/golangci/golangci-lint/cmd/golangci-lint@latest",
-		"github.com/swaggo/swag/cmd/swag@latest",
 	}
 
 	for _, tool := range tools {

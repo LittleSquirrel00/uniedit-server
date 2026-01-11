@@ -88,14 +88,13 @@ uniedit-server/
 ### 安装开发工具
 
 ```bash
-# 运行设置脚本（安装 wire, mage, golangci-lint, swag 等）
+# 运行设置脚本（安装 wire, mage, golangci-lint 等）
 ./scripts/setup.sh
 
 # 或手动安装
 go install github.com/magefile/mage@latest
 go install github.com/google/wire/cmd/wire@latest
 go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-go install github.com/swaggo/swag/cmd/swag@latest
 
 # 或使用 mage install 安装所有开发工具
 mage install
@@ -141,11 +140,8 @@ go build -o server ./cmd/server && ./server
 
 ```bash
 mage build         # 构建服务器二进制
-mage generate      # 生成所有代码 (Wire + Swagger)
+mage generate      # 生成所有代码 (Wire + Proto)
 mage wire          # 生成 Wire 依赖注入代码
-mage swagger       # 生成 Swagger/OpenAPI 文档 (全部)
-mage swaggermodule # 生成指定模块的 Swagger 文档
-mage swaggerlist   # 列出可用的模块
 mage test          # 运行所有测试
 mage testCover     # 运行测试并生成覆盖率报告
 mage lint          # 运行 golangci-lint
@@ -155,29 +151,16 @@ mage clean         # 清理构建产物
 mage dev           # 构建并运行开发服务器
 mage all           # 完整构建流程 (tidy → generate → vet → lint → test → build)
 mage ci            # CI 流程 (tidy → generate → vet → testCover)
-mage install       # 安装开发工具 (wire, golangci-lint, swag, protoc-gen-go)
+mage install       # 安装开发工具 (wire, golangci-lint, protoc-gen-go)
 mage proto         # 从 proto 规范生成 Go + Gin 接口代码
+mage protoOpenAPI  # 从 proto 规范生成 OpenAPI v2 (YAML)
 ```
 
 **Proto 生成：**
 
 ```bash
-mage proto                                  # 默认扫描 api/**/protobuf_spec/**/*.proto
-PROTO_DIR=api/ping/protobuf_spec mage proto # 指定读取 proto 目录
-PROTO_PATHS=.:third_party:api/ping/protobuf_spec mage proto # 指定 import 搜索路径
-PROTO_VERBOSE=1 mage proto                  # 打印实际配置与文件列表
-```
-
-说明：生成文件的落盘目录由每个 `.proto` 的 `option go_package` 决定；`PROTO_OUT` 只影响输出根目录，`PROTO_MODULE` 用于剥离模块前缀（默认从 `go.mod` 读取）。
-
-**分模块生成 Swagger 文档：**
-
-```bash
-mage swaggerlist           # 查看可用模块
-mage swaggermodule user    # 仅生成 User 模块文档
-mage swaggermodule billing # 仅生成 Billing 模块文档
-mage swaggermodule ai      # 仅生成 AI 模块文档
-# 可用模块: user, auth, billing, order, payment, git, collaboration, ai
+mage proto         # 扫描 ./api/protobuf_spec/*/*.proto，生成到 ./api/pb/*/*.go
+mage protoOpenAPI  # 生成到 ./api/openapi_spec/*/*.swagger.yaml
 ```
 
 ## 模块说明
@@ -343,17 +326,13 @@ go test -v ./internal/module/ai/task/...
 
 ### API 文档
 
-项目集成了 Swagger/OpenAPI 文档，服务启动后可通过以下地址访问：
-
-- **Swagger UI**: `http://localhost:8080/swagger/index.html`
-- **OpenAPI JSON**: `http://localhost:8080/swagger/doc.json`
-
-生成/更新 API 文档：
+项目的 API 文档由 proto 定义自动生成（OpenAPI v2 YAML）：
 
 ```bash
-mage swagger    # 单独生成 Swagger 文档
-mage generate   # 生成所有代码 (包含 Swagger)
+mage protoOpenAPI
 ```
+
+输出目录：`./api/openapi_spec/*/*.swagger.yaml`
 
 ## 开发规范
 

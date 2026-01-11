@@ -231,6 +231,9 @@ func (a *App) registerRoutes() {
 	// API v1 group
 	v1 := a.router.Group("/api/v1")
 
+	// Proto-defined routes (from ./api/protobuf_spec)
+	a.registerProtoRoutes(v1)
+
 	// Apply API-level rate limiting (per user/IP)
 	if a.config.RateLimit.Enabled && a.rateLimiter != nil {
 		v1.Use(middleware.RateLimitByUser(
@@ -247,9 +250,6 @@ func (a *App) registerRoutes() {
 			Methods: []string{"POST", "PUT", "PATCH"},
 		}))
 	}
-
-	// Protobuf (google.api.http) generated routes
-	a.registerProtoRoutes(v1)
 
 	// ===== Public Routes (no auth required) =====
 

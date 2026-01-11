@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.2
-// source: test/ping.proto
+// source: ping/ping.proto
 
 package pingv1
 
@@ -32,7 +32,7 @@ type PingRequest struct {
 
 func (x *PingRequest) Reset() {
 	*x = PingRequest{}
-	mi := &file_test_ping_proto_msgTypes[0]
+	mi := &file_ping_ping_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -44,7 +44,7 @@ func (x *PingRequest) String() string {
 func (*PingRequest) ProtoMessage() {}
 
 func (x *PingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_test_ping_proto_msgTypes[0]
+	mi := &file_ping_ping_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,7 +57,7 @@ func (x *PingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingRequest.ProtoReflect.Descriptor instead.
 func (*PingRequest) Descriptor() ([]byte, []int) {
-	return file_test_ping_proto_rawDescGZIP(), []int{0}
+	return file_ping_ping_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *PingRequest) GetMessage() string {
@@ -76,7 +76,7 @@ type PingReply struct {
 
 func (x *PingReply) Reset() {
 	*x = PingReply{}
-	mi := &file_test_ping_proto_msgTypes[1]
+	mi := &file_ping_ping_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -88,7 +88,7 @@ func (x *PingReply) String() string {
 func (*PingReply) ProtoMessage() {}
 
 func (x *PingReply) ProtoReflect() protoreflect.Message {
-	mi := &file_test_ping_proto_msgTypes[1]
+	mi := &file_ping_ping_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -101,7 +101,7 @@ func (x *PingReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingReply.ProtoReflect.Descriptor instead.
 func (*PingReply) Descriptor() ([]byte, []int) {
-	return file_test_ping_proto_rawDescGZIP(), []int{1}
+	return file_ping_ping_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *PingReply) GetMessage() string {
@@ -111,37 +111,37 @@ func (x *PingReply) GetMessage() string {
 	return ""
 }
 
-var File_test_ping_proto protoreflect.FileDescriptor
+var File_ping_ping_proto protoreflect.FileDescriptor
 
-const file_test_ping_proto_rawDesc = "" +
+const file_ping_ping_proto_rawDesc = "" +
 	"\n" +
-	"\x0ftest/ping.proto\x12\x0funiedit.ping.v1\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"'\n" +
+	"\x0fping/ping.proto\x12\x0funiedit.ping.v1\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"'\n" +
 	"\vPingRequest\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"%\n" +
 	"\tPingReply\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage2W\n" +
 	"\x04Ping\x12O\n" +
-	"\x04Ping\x12\x1c.uniedit.ping.v1.PingRequest\x1a\x1a.uniedit.ping.v1.PingReply\"\r\x82\xd3\xe4\x93\x02\a\x12\x05/pingB\x9b\x01\x92Ag\x12I\n" +
-	"\vUniEdit API\x126UniEdit 后端 API（由 proto 自动生成 OpenAPI）2\x02v1\x1a\x0elocalhost:8080\"\a/api/v1*\x01\x01Z/github.com/uniedit/server/api/ping/pb/v1;pingv1b\x06proto3"
+	"\x04Ping\x12\x1c.uniedit.ping.v1.PingRequest\x1a\x1a.uniedit.ping.v1.PingReply\"\r\x82\xd3\xe4\x93\x02\a\x12\x05/pingB\x98\x01\x92Ag\x12I\n" +
+	"\vUniEdit API\x126UniEdit 后端 API（由 proto 自动生成 OpenAPI）2\x02v1\x1a\x0elocalhost:8080\"\a/api/v1*\x01\x01Z,github.com/uniedit/server/api/pb/ping;pingv1b\x06proto3"
 
 var (
-	file_test_ping_proto_rawDescOnce sync.Once
-	file_test_ping_proto_rawDescData []byte
+	file_ping_ping_proto_rawDescOnce sync.Once
+	file_ping_ping_proto_rawDescData []byte
 )
 
-func file_test_ping_proto_rawDescGZIP() []byte {
-	file_test_ping_proto_rawDescOnce.Do(func() {
-		file_test_ping_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_test_ping_proto_rawDesc), len(file_test_ping_proto_rawDesc)))
+func file_ping_ping_proto_rawDescGZIP() []byte {
+	file_ping_ping_proto_rawDescOnce.Do(func() {
+		file_ping_ping_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_ping_ping_proto_rawDesc), len(file_ping_ping_proto_rawDesc)))
 	})
-	return file_test_ping_proto_rawDescData
+	return file_ping_ping_proto_rawDescData
 }
 
-var file_test_ping_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_test_ping_proto_goTypes = []any{
+var file_ping_ping_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_ping_ping_proto_goTypes = []any{
 	(*PingRequest)(nil), // 0: uniedit.ping.v1.PingRequest
 	(*PingReply)(nil),   // 1: uniedit.ping.v1.PingReply
 }
-var file_test_ping_proto_depIdxs = []int32{
+var file_ping_ping_proto_depIdxs = []int32{
 	0, // 0: uniedit.ping.v1.Ping.Ping:input_type -> uniedit.ping.v1.PingRequest
 	1, // 1: uniedit.ping.v1.Ping.Ping:output_type -> uniedit.ping.v1.PingReply
 	1, // [1:2] is the sub-list for method output_type
@@ -151,26 +151,26 @@ var file_test_ping_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_test_ping_proto_init() }
-func file_test_ping_proto_init() {
-	if File_test_ping_proto != nil {
+func init() { file_ping_ping_proto_init() }
+func file_ping_ping_proto_init() {
+	if File_ping_ping_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_test_ping_proto_rawDesc), len(file_test_ping_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ping_ping_proto_rawDesc), len(file_ping_ping_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_test_ping_proto_goTypes,
-		DependencyIndexes: file_test_ping_proto_depIdxs,
-		MessageInfos:      file_test_ping_proto_msgTypes,
+		GoTypes:           file_ping_ping_proto_goTypes,
+		DependencyIndexes: file_ping_ping_proto_depIdxs,
+		MessageInfos:      file_ping_ping_proto_msgTypes,
 	}.Build()
-	File_test_ping_proto = out.File
-	file_test_ping_proto_goTypes = nil
-	file_test_ping_proto_depIdxs = nil
+	File_ping_ping_proto = out.File
+	file_ping_ping_proto_goTypes = nil
+	file_ping_ping_proto_depIdxs = nil
 }

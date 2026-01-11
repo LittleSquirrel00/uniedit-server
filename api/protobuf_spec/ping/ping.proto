@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package uniedit.ping.v1;
 
-option go_package = "github.com/uniedit/server/api/ping/pb/v1;pingv1";
+option go_package = "github.com/uniedit/server/api/pb/ping;pingv1";
 
 import "google/api/annotations.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
@@ -31,3 +31,4 @@ message PingRequest {
 message PingReply {
   string message = 1;
 }
+
