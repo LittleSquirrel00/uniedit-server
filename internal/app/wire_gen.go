@@ -7,18 +7,17 @@
 package app
 
 import (
-	"net/http"
-
 	"github.com/redis/go-redis/v9"
 	"github.com/uniedit/server/internal/adapter/inbound/http/ai"
-	authhttp "github.com/uniedit/server/internal/adapter/inbound/http/auth"
-	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
-	collabhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
-	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
-	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
-	orderhttp "github.com/uniedit/server/internal/adapter/inbound/http/order"
-	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
-	userhttp "github.com/uniedit/server/internal/adapter/inbound/http/user"
+	"github.com/uniedit/server/internal/adapter/inbound/http/authproto"
+	"github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	"github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
+	"github.com/uniedit/server/internal/adapter/inbound/http/git"
+	"github.com/uniedit/server/internal/adapter/inbound/http/media"
+	"github.com/uniedit/server/internal/adapter/inbound/http/orderproto"
+	"github.com/uniedit/server/internal/adapter/inbound/http/payment"
+	"github.com/uniedit/server/internal/adapter/inbound/http/pingproto"
+	"github.com/uniedit/server/internal/adapter/inbound/http/userproto"
 	"github.com/uniedit/server/internal/adapter/outbound/postgres"
 	ai2 "github.com/uniedit/server/internal/domain/ai"
 	"github.com/uniedit/server/internal/domain/auth"
@@ -33,6 +32,7 @@ import (
 	"github.com/uniedit/server/internal/utils/metrics"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"net/http"
 )
 
 // Injectors from wire.go:
@@ -110,22 +110,18 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 	providerAdminHandler := ProvideAIProviderAdminHandler(aiDomain)
 	modelAdminHandler := ProvideAIModelAdminHandler(aiDomain)
 	publicHandler := ProvideAIPublicHandler(aiDomain)
-	oAuthHandler := authhttp.NewOAuthHandler(authDomain)
-	apiKeyHandler := authhttp.NewAPIKeyHandler(authDomain)
-	systemAPIKeyHandler := authhttp.NewSystemAPIKeyHandler(authDomain)
-	profileHandler := userhttp.NewProfileHandler(userDomain)
-	registrationHandler := userhttp.NewRegistrationHandler(userDomain)
-	adminHandler := userhttp.NewAdminHandler(userDomain)
+	handler := pingproto.NewHandler()
+	authprotoHandler := authproto.NewHandler(authDomain)
+	userprotoHandler := userproto.NewHandler(userDomain)
+	orderprotoHandler := orderproto.NewHandler(orderDomain)
 	subscriptionHandler := billinghttp.NewSubscriptionHandler(billingDomain)
 	quotaHandler := billinghttp.NewQuotaHandler(billingDomain)
 	creditsHandler := billinghttp.NewCreditsHandler(billingDomain)
 	usageHandler := billinghttp.NewUsageHandler(billingDomain)
-	orderHandler := orderhttp.NewOrderHandler(orderDomain)
-	invoiceHandler := orderhttp.NewInvoiceHandler(orderDomain)
 	paymentHandler := paymenthttp.NewPaymentHandler(paymentDomain)
 	refundHandler := paymenthttp.NewRefundHandler(paymentDomain)
 	webhookHandler := paymenthttp.NewWebhookHandler(paymentDomain)
-	handler := ProvideGitHandler(gitDomain, cfg)
+	githttpHandler := ProvideGitHandler(gitDomain, cfg)
 	collabhttpHandler := ProvideCollaborationHandler(collaborationDomain, cfg)
 	mediahttpHandler := ProvideMediaHandler(mediaDomain)
 	dependencies := &Dependencies{
@@ -150,22 +146,18 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 		AIProviderAdminHandler: providerAdminHandler,
 		AIModelAdminHandler:    modelAdminHandler,
 		AIPublicHandler:        publicHandler,
-		OAuthHandler:           oAuthHandler,
-		APIKeyHandler:          apiKeyHandler,
-		SystemAPIKeyHandler:    systemAPIKeyHandler,
-		ProfileHandler:         profileHandler,
-		RegistrationHandler:    registrationHandler,
-		UserAdminHandler:       adminHandler,
+		PingProtoHandler:       handler,
+		AuthProtoHandler:       authprotoHandler,
+		UserProtoHandler:       userprotoHandler,
+		OrderProtoHandler:      orderprotoHandler,
 		SubscriptionHandler:    subscriptionHandler,
 		QuotaHandler:           quotaHandler,
 		CreditsHandler:         creditsHandler,
 		UsageHandler:           usageHandler,
-		OrderHandler:           orderHandler,
-		InvoiceHandler:         invoiceHandler,
 		PaymentHandler:         paymentHandler,
 		RefundHandler:          refundHandler,
 		WebhookHandler:         webhookHandler,
-		GitHandler:             handler,
+		GitHandler:             githttpHandler,
 		CollaborationHandler:   collabhttpHandler,
 		MediaHandler:           mediahttpHandler,
 	}
@@ -203,25 +195,17 @@ type Dependencies struct {
 	AIModelAdminHandler    *ai.ModelAdminHandler
 	AIPublicHandler        *ai.PublicHandler
 
-	// Auth HTTP Handlers
-	OAuthHandler        *authhttp.OAuthHandler
-	APIKeyHandler       *authhttp.APIKeyHandler
-	SystemAPIKeyHandler *authhttp.SystemAPIKeyHandler
-
-	// User HTTP Handlers
-	ProfileHandler      *userhttp.ProfileHandler
-	RegistrationHandler *userhttp.RegistrationHandler
-	UserAdminHandler    *userhttp.AdminHandler
+	// Proto-defined HTTP Handlers (generated from google.api.http)
+	PingProtoHandler  *pingproto.Handler
+	AuthProtoHandler  *authproto.Handler
+	UserProtoHandler  *userproto.Handler
+	OrderProtoHandler *orderproto.Handler
 
 	// Billing HTTP Handlers
 	SubscriptionHandler *billinghttp.SubscriptionHandler
 	QuotaHandler        *billinghttp.QuotaHandler
 	CreditsHandler      *billinghttp.CreditsHandler
 	UsageHandler        *billinghttp.UsageHandler
-
-	// Order HTTP Handlers
-	OrderHandler   *orderhttp.OrderHandler
-	InvoiceHandler *orderhttp.InvoiceHandler
 
 	// Payment HTTP Handlers
 	PaymentHandler *paymenthttp.PaymentHandler

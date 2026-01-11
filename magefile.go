@@ -63,7 +63,7 @@ func findWireDirs() ([]string, error) {
 		// Skip vendor and hidden directories
 		if info.IsDir() {
 			name := info.Name()
-			if name == "vendor" || strings.HasPrefix(name, ".") {
+			if name == "vendor" || (strings.HasPrefix(name, ".") && name != ".") {
 				return filepath.SkipDir
 			}
 			return nil
@@ -310,6 +310,7 @@ func ProtoOpenAPI() error {
 			"--openapiv2_opt", "allow_merge=true",
 			"--openapiv2_opt", "merge_file_name=" + module,
 			"--openapiv2_opt", "output_format=yaml",
+			"--openapiv2_opt", "allow_delete_body=true",
 		}
 		for _, p := range protos {
 			args = append(args, filepath.Base(p))

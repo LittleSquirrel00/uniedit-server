@@ -8,6 +8,7 @@ import (
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/pluginpb"
 )
 
 const (
@@ -28,6 +29,8 @@ func main() {
 	opts := protogen.Options{ParamFunc: flags.Set}
 
 	opts.Run(func(plugin *protogen.Plugin) error {
+		plugin.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
+
 		for _, f := range plugin.Files {
 			if !f.Generate {
 				continue

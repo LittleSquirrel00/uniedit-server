@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package uniedit.order.v1;
+
+option go_package = "github.com/uniedit/server/api/pb/order;orderv1";
+
+import "common/common.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  host: "localhost:8080"
+  base_path: "/api/v1"
+  schemes: [HTTP]
+  info: {
+    title: "UniEdit API"
+    version: "v1"
+    description: "UniEdit 后端 API（由 proto 自动生成 OpenAPI）"
+  }
+};
+
+service OrderService {
+  // ===== Orders =====
+  rpc CreateSubscriptionOrder(CreateSubscriptionOrderRequest) returns (Order) {
+    option (google.api.http) = {post: "/orders/subscription" body: "*"};
+  }
+
+  rpc CreateTopupOrder(CreateTopupOrderRequest) returns (Order) {
+    option (google.api.http) = {post: "/orders/topup" body: "*"};
+  }
+
+  rpc ListOrders(ListOrdersRequest) returns (OrderListResponse) {
+    option (google.api.http) = {get: "/orders"};
+  }
+
+  rpc GetOrder(GetByIDRequest) returns (Order) {
+    option (google.api.http) = {get: "/orders/{id}"};
+  }
+
+  rpc CancelOrder(CancelOrderRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/orders/{id}/cancel" body: "*"};
+  }
+
+  // ===== Invoices =====
+  rpc ListInvoices(uniedit.common.v1.Empty) returns (InvoiceListResponse) {
+    option (google.api.http) = {get: "/invoices"};
+  }
+
+  rpc GetInvoice(GetByIDRequest) returns (Invoice) {
+    option (google.api.http) = {get: "/invoices/{id}"};
+  }
+
+  rpc DownloadInvoice(GetByIDRequest) returns (DownloadInvoiceResponse) {
+    option (google.api.http) = {get: "/invoices/{id}/download"};
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      responses: {
+        key: "302"
+        value: {
+          description: "Found";
+          headers: {
+            key: "Location"
+            value: {description: "Redirect URL"; type: "string";}
+          }
+        }
+      }
+    };
+  }
+}
+
+message CreateSubscriptionOrderRequest {
+  string plan_id = 1;
+}
+
+message CreateTopupOrderRequest {
+  int64 amount = 1;
+}
+
+message GetByIDRequest {
+  string id = 1;
+}
+
+message ListOrdersRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string status = 3;
+  string type = 4;
+}
+
+message CancelOrderRequest {
+  string id = 1;
+  string reason = 2;
+}
+
+message OrderItem {
+  string id = 1;
+  string description = 2;
+  int32 quantity = 3;
+  int64 unit_price = 4;
+  int64 amount = 5;
+}
+
+message Order {
+  string id = 1;
+  string order_no = 2;
+  string type = 3;
+  string status = 4;
+  int64 subtotal = 5;
+  int64 discount = 6;
+  int64 tax = 7;
+  int64 total = 8;
+  string currency = 9;
+  string plan_id = 10;
+  int64 credits_amount = 11;
+  string paid_at = 12;
+  string canceled_at = 13;
+  string refunded_at = 14;
+  string expires_at = 15;
+  string created_at = 16;
+  repeated OrderItem items = 17;
+}
+
+message OrderListResponse {
+  repeated Order orders = 1;
+  int64 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  int32 total_pages = 5;
+}
+
+message Invoice {
+  string id = 1;
+  string invoice_no = 2;
+  string order_id = 3;
+  int64 amount = 4;
+  string currency = 5;
+  string status = 6;
+  string pdf_url = 7;
+  string issued_at = 8;
+  string due_at = 9;
+  string paid_at = 10;
+}
+
+message InvoiceListResponse {
+  repeated Invoice invoices = 1;
+}
+
+message DownloadInvoiceResponse {
+  string redirect_url = 1;
+}

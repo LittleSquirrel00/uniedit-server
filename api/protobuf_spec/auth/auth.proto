@@ -1,0 +1,207 @@
+syntax = "proto3";
+
+package uniedit.auth.v1;
+
+option go_package = "github.com/uniedit/server/api/pb/auth;authv1";
+
+import "common/common.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  host: "localhost:8080"
+  base_path: "/api/v1"
+  schemes: [HTTP]
+  info: {
+    title: "UniEdit API"
+    version: "v1"
+    description: "UniEdit 后端 API（由 proto 自动生成 OpenAPI）"
+  }
+};
+
+service AuthOAuthService {
+  rpc InitiateLogin(InitiateLoginRequest) returns (InitiateLoginResponse) {
+    option (google.api.http) = {post: "/auth/oauth/{provider}"};
+  }
+
+  rpc CompleteLogin(CompleteLoginRequest) returns (CompleteLoginResponse) {
+    option (google.api.http) = {post: "/auth/oauth/{provider}/callback" body: "*"};
+  }
+
+  rpc RefreshToken(RefreshTokenRequest) returns (TokenPairResponse) {
+    option (google.api.http) = {post: "/auth/refresh" body: "*"};
+  }
+
+  rpc GetMe(uniedit.common.v1.Empty) returns (GetMeResponse) {
+    option (google.api.http) = {get: "/auth/me"};
+  }
+}
+
+service AuthSessionService {
+  rpc Logout(uniedit.common.v1.Empty) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/auth/logout" body: "*"};
+  }
+}
+
+service AuthAPIKeyService {
+  rpc CreateUserAPIKey(CreateUserAPIKeyRequest) returns (UserAPIKey) {
+    option (google.api.http) = {post: "/api-keys" body: "*"};
+  }
+
+  rpc ListUserAPIKeys(uniedit.common.v1.Empty) returns (ListUserAPIKeysResponse) {
+    option (google.api.http) = {get: "/api-keys"};
+  }
+
+  rpc GetUserAPIKey(GetByIDRequest) returns (UserAPIKey) {
+    option (google.api.http) = {get: "/api-keys/{id}"};
+  }
+
+  rpc DeleteUserAPIKey(GetByIDRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {delete: "/api-keys/{id}"};
+  }
+
+  rpc RotateUserAPIKey(RotateUserAPIKeyRequest) returns (UserAPIKey) {
+    option (google.api.http) = {post: "/api-keys/{id}/rotate" body: "*"};
+  }
+}
+
+service AuthSystemAPIKeyService {
+  rpc CreateSystemAPIKey(CreateSystemAPIKeyRequest) returns (CreateSystemAPIKeyResponse) {
+    option (google.api.http) = {post: "/system-api-keys" body: "*"};
+  }
+
+  rpc ListSystemAPIKeys(uniedit.common.v1.Empty) returns (ListSystemAPIKeysResponse) {
+    option (google.api.http) = {get: "/system-api-keys"};
+  }
+
+  rpc GetSystemAPIKey(GetByIDRequest) returns (SystemAPIKey) {
+    option (google.api.http) = {get: "/system-api-keys/{id}"};
+  }
+
+  rpc UpdateSystemAPIKey(UpdateSystemAPIKeyRequest) returns (SystemAPIKey) {
+    option (google.api.http) = {patch: "/system-api-keys/{id}" body: "*"};
+  }
+
+  rpc DeleteSystemAPIKey(GetByIDRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {delete: "/system-api-keys/{id}"};
+  }
+
+  rpc RotateSystemAPIKey(GetByIDRequest) returns (CreateSystemAPIKeyResponse) {
+    option (google.api.http) = {post: "/system-api-keys/{id}/rotate"};
+  }
+}
+
+message InitiateLoginRequest {
+  string provider = 1;
+}
+
+message InitiateLoginResponse {
+  string auth_url = 1;
+  string state = 2;
+}
+
+message CompleteLoginRequest {
+  string provider = 1;
+  string code = 2;
+  string state = 3;
+}
+
+message TokenPairResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  string token_type = 3;
+  int64 expires_in = 4;
+  string expires_at = 5;
+}
+
+message CompleteLoginResponse {
+  TokenPairResponse token = 1;
+  uniedit.common.v1.User user = 2;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message GetMeResponse {
+  string user_id = 1;
+  string email = 2;
+}
+
+message GetByIDRequest {
+  string id = 1;
+}
+
+message UserAPIKey {
+  string id = 1;
+  string provider = 2;
+  string name = 3;
+  string key_prefix = 4;
+  repeated string scopes = 5;
+  string last_used_at = 6;
+  string created_at = 7;
+}
+
+message CreateUserAPIKeyRequest {
+  string provider = 1;
+  string name = 2;
+  string api_key = 3;
+  repeated string scopes = 4;
+}
+
+message ListUserAPIKeysResponse {
+  repeated UserAPIKey api_keys = 1;
+}
+
+message RotateUserAPIKeyRequest {
+  string id = 1;
+  string new_api_key = 2;
+}
+
+message SystemAPIKey {
+  string id = 1;
+  string name = 2;
+  string key_prefix = 3;
+  repeated string scopes = 4;
+  int32 rate_limit_rpm = 5;
+  int32 rate_limit_tpm = 6;
+  int64 total_requests = 7;
+  int64 total_input_tokens = 8;
+  int64 total_output_tokens = 9;
+  double total_cost_usd = 10;
+  int64 cache_hits = 11;
+  int64 cache_misses = 12;
+  bool is_active = 13;
+  string last_used_at = 14;
+  string expires_at = 15;
+  repeated string allowed_ips = 16;
+  int32 rotate_after_days = 17;
+  string last_rotated_at = 18;
+  string created_at = 19;
+}
+
+message CreateSystemAPIKeyRequest {
+  string name = 1;
+  repeated string scopes = 2;
+  int32 rate_limit_rpm = 3;
+  int32 rate_limit_tpm = 4;
+  int32 expires_in_days = 5;
+}
+
+message CreateSystemAPIKeyResponse {
+  string api_key = 1;
+  SystemAPIKey key_details = 2;
+}
+
+message ListSystemAPIKeysResponse {
+  repeated SystemAPIKey api_keys = 1;
+}
+
+message UpdateSystemAPIKeyRequest {
+  string id = 1;
+  uniedit.common.v1.StringValue name = 2;
+  uniedit.common.v1.StringList scopes = 3;
+  uniedit.common.v1.Int32Value rate_limit_rpm = 4;
+  uniedit.common.v1.Int32Value rate_limit_tpm = 5;
+  uniedit.common.v1.BoolValue is_active = 6;
+}

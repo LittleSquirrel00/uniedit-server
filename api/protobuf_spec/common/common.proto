@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package uniedit.common.v1;
+
+option go_package = "github.com/uniedit/server/api/pb/common;commonv1";
+
+message Empty {}
+
+message MessageResponse {
+  string message = 1;
+}
+
+message StringList {
+  repeated string values = 1;
+}
+
+message StringValue {
+  string value = 1;
+}
+
+message Int32Value {
+  int32 value = 1;
+}
+
+message BoolValue {
+  bool value = 1;
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string name = 3;
+  string avatar_url = 4;
+  string provider = 5;
+  string status = 6;
+  bool email_verified = 7;
+  bool is_admin = 8;
+  string suspended_at = 9;
+  string suspend_reason = 10;
+  string created_at = 11;
+}

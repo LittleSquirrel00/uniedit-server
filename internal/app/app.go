@@ -21,14 +21,15 @@ import (
 
 	// Inbound adapters (HTTP handlers)
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
-	authhttp "github.com/uniedit/server/internal/adapter/inbound/http/auth"
+	"github.com/uniedit/server/internal/adapter/inbound/http/authproto"
 	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
 	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
 	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
 	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
-	orderhttp "github.com/uniedit/server/internal/adapter/inbound/http/order"
+	"github.com/uniedit/server/internal/adapter/inbound/http/orderproto"
 	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
-	userhttp "github.com/uniedit/server/internal/adapter/inbound/http/user"
+	"github.com/uniedit/server/internal/adapter/inbound/http/pingproto"
+	"github.com/uniedit/server/internal/adapter/inbound/http/userproto"
 
 	// Inbound ports
 	"github.com/uniedit/server/internal/port/inbound"
@@ -78,15 +79,11 @@ type App struct {
 	aiModelAdminHandler    *aihttp.ModelAdminHandler
 	aiPublicHandler        *aihttp.PublicHandler
 
-	// Auth HTTP handlers
-	oauthHandler        *authhttp.OAuthHandler
-	apiKeyHandler       *authhttp.APIKeyHandler
-	systemAPIKeyHandler *authhttp.SystemAPIKeyHandler
-
-	// User HTTP handlers
-	profileHandler      *userhttp.ProfileHandler
-	registrationHandler *userhttp.RegistrationHandler
-	userAdminHandler    *userhttp.AdminHandler
+	// Proto-defined HTTP handlers (from ./api/protobuf_spec)
+	pingProtoHandler  *pingproto.Handler
+	authProtoHandler  *authproto.Handler
+	userProtoHandler  *userproto.Handler
+	orderProtoHandler *orderproto.Handler
 
 	// Billing HTTP handlers
 	subscriptionHandler *billinghttp.SubscriptionHandler
@@ -95,8 +92,7 @@ type App struct {
 	usageHandler        *billinghttp.UsageHandler
 
 	// Order HTTP handlers
-	orderHandler   *orderhttp.OrderHandler
-	invoiceHandler *orderhttp.InvoiceHandler
+	// (migrated to proto routes)
 
 	// Payment HTTP handlers
 	paymentHandler *paymenthttp.PaymentHandler
@@ -146,26 +142,21 @@ func New(cfg *config.Config) (*App, error) {
 		aiProviderAdminHandler: deps.AIProviderAdminHandler,
 		aiModelAdminHandler:    deps.AIModelAdminHandler,
 		aiPublicHandler:        deps.AIPublicHandler,
-		// Auth HTTP handlers
-		oauthHandler:         deps.OAuthHandler,
-		apiKeyHandler:        deps.APIKeyHandler,
-		systemAPIKeyHandler:  deps.SystemAPIKeyHandler,
-		profileHandler:       deps.ProfileHandler,
-		registrationHandler:  deps.RegistrationHandler,
-		userAdminHandler:     deps.UserAdminHandler,
-		subscriptionHandler:  deps.SubscriptionHandler,
-		quotaHandler:         deps.QuotaHandler,
-		creditsHandler:       deps.CreditsHandler,
-		usageHandler:         deps.UsageHandler,
-		orderHandler:         deps.OrderHandler,
-		invoiceHandler:       deps.InvoiceHandler,
-		paymentHandler:       deps.PaymentHandler,
-		refundHandler:        deps.RefundHandler,
-		webhookHandler:       deps.WebhookHandler,
-		gitHandler:           deps.GitHandler,
-		collaborationHandler: deps.CollaborationHandler,
-		mediaHandler:         deps.MediaHandler,
-		cleanupFuncs:         []func(){cleanup},
+		pingProtoHandler:       deps.PingProtoHandler,
+		authProtoHandler:       deps.AuthProtoHandler,
+		userProtoHandler:       deps.UserProtoHandler,
+		orderProtoHandler:      deps.OrderProtoHandler,
+		subscriptionHandler:    deps.SubscriptionHandler,
+		quotaHandler:           deps.QuotaHandler,
+		creditsHandler:         deps.CreditsHandler,
+		usageHandler:           deps.UsageHandler,
+		paymentHandler:         deps.PaymentHandler,
+		refundHandler:          deps.RefundHandler,
+		webhookHandler:         deps.WebhookHandler,
+		gitHandler:             deps.GitHandler,
+		collaborationHandler:   deps.CollaborationHandler,
+		mediaHandler:           deps.MediaHandler,
+		cleanupFuncs:           []func(){cleanup},
 	}
 
 	// Initialize router
@@ -231,9 +222,6 @@ func (a *App) registerRoutes() {
 	// API v1 group
 	v1 := a.router.Group("/api/v1")
 
-	// Proto-defined routes (from ./api/protobuf_spec)
-	a.registerProtoRoutes(v1)
-
 	// Apply API-level rate limiting (per user/IP)
 	if a.config.RateLimit.Enabled && a.rateLimiter != nil {
 		v1.Use(middleware.RateLimitByUser(
@@ -253,15 +241,10 @@ func (a *App) registerRoutes() {
 
 	// ===== Public Routes (no auth required) =====
 
-	// Auth routes (OAuth, refresh, logout)
-	if a.oauthHandler != nil {
-		a.oauthHandler.RegisterRoutes(v1)
-	}
+	// Auth routes (migrated to proto routes)
 
 	// Registration routes
-	if a.registrationHandler != nil {
-		a.registrationHandler.RegisterRoutes(v1)
-	}
+	// (migrated to proto routes)
 
 	// Billing plans (read-only, public)
 	if a.subscriptionHandler != nil {
@@ -296,14 +279,10 @@ func (a *App) registerRoutes() {
 	}
 
 	// User profile routes
-	if a.profileHandler != nil {
-		a.profileHandler.RegisterRoutes(protectedRouter)
-	}
+	// (migrated to proto routes)
 
 	// API key routes
-	if a.apiKeyHandler != nil {
-		a.apiKeyHandler.RegisterRoutes(protectedRouter)
-	}
+	// (migrated to proto routes)
 
 	// Billing routes (subscription, quota, credits, usage)
 	if a.quotaHandler != nil {
@@ -317,14 +296,7 @@ func (a *App) registerRoutes() {
 	}
 
 	// Order routes
-	if a.orderHandler != nil {
-		a.orderHandler.RegisterRoutes(protectedRouter)
-	}
-
-	// Invoice routes
-	if a.invoiceHandler != nil {
-		a.invoiceHandler.RegisterRoutes(protectedRouter)
-	}
+	// (migrated to proto routes)
 
 	// Payment routes
 	if a.paymentHandler != nil {
@@ -352,14 +324,10 @@ func (a *App) registerRoutes() {
 	// adminRouter.Use(middleware.RequireAdmin())
 
 	// User admin routes
-	if a.userAdminHandler != nil {
-		a.userAdminHandler.RegisterRoutes(adminRouter)
-	}
+	// (migrated to proto routes)
 
 	// System API key routes (admin only)
-	if a.systemAPIKeyHandler != nil {
-		a.systemAPIKeyHandler.RegisterRoutes(adminRouter)
-	}
+	// (migrated to proto routes)
 
 	// Credits admin routes (add credits)
 	if a.creditsHandler != nil {
@@ -396,6 +364,9 @@ func (a *App) registerRoutes() {
 			aiAdminGroup.DELETE("/models/:id", a.aiModelAdminHandler.DeleteModel)
 		}
 	}
+
+	// Proto-defined routes (from ./api/protobuf_spec)
+	a.registerProtoRoutes(v1, protectedRouter, adminRouter)
 }
 
 // Router returns the HTTP router.

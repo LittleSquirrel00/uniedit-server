@@ -1,0 +1,204 @@
+syntax = "proto3";
+
+package uniedit.user.v1;
+
+option go_package = "github.com/uniedit/server/api/pb/user;userv1";
+
+import "common/common.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  host: "localhost:8080"
+  base_path: "/api/v1"
+  schemes: [HTTP]
+  info: {
+    title: "UniEdit API"
+    version: "v1"
+    description: "UniEdit 后端 API（由 proto 自动生成 OpenAPI）"
+  }
+};
+
+service UserAuthService {
+  rpc Register(RegisterRequest) returns (RegisterResponse) {
+    option (google.api.http) = {post: "/auth/register" body: "*"};
+  }
+
+  rpc VerifyEmail(VerifyEmailRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/auth/verify-email" body: "*"};
+  }
+
+  rpc ResendVerification(ResendVerificationRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/auth/resend-verification" body: "*"};
+  }
+
+  rpc RequestPasswordReset(RequestPasswordResetRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/auth/password-reset" body: "*"};
+  }
+
+  rpc CompletePasswordReset(CompletePasswordResetRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/auth/password-reset/complete" body: "*"};
+  }
+}
+
+service UserProfileService {
+  rpc GetMe(uniedit.common.v1.Empty) returns (uniedit.common.v1.User) {
+    option (google.api.http) = {get: "/users/me"};
+  }
+
+  rpc GetProfile(uniedit.common.v1.Empty) returns (Profile) {
+    option (google.api.http) = {get: "/users/me/profile"};
+  }
+
+  rpc UpdateProfile(UpdateProfileRequest) returns (uniedit.common.v1.User) {
+    option (google.api.http) = {put: "/users/me/profile" body: "*"};
+  }
+
+  rpc GetPreferences(uniedit.common.v1.Empty) returns (Preferences) {
+    option (google.api.http) = {get: "/users/me/preferences"};
+  }
+
+  rpc UpdatePreferences(UpdatePreferencesRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {put: "/users/me/preferences" body: "*"};
+  }
+
+  rpc UploadAvatar(UploadAvatarRequest) returns (UploadAvatarResponse) {
+    option (google.api.http) = {post: "/users/me/avatar" body: "*"};
+  }
+
+  rpc ChangePassword(ChangePasswordRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/users/me/password" body: "*"};
+  }
+
+  rpc DeleteAccount(DeleteAccountRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {delete: "/users/me" body: "*"};
+  }
+}
+
+service UserAdminService {
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
+    option (google.api.http) = {get: "/users"};
+  }
+
+  rpc GetUser(GetByIDRequest) returns (uniedit.common.v1.User) {
+    option (google.api.http) = {get: "/users/{id}"};
+  }
+
+  rpc SuspendUser(SuspendUserRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/users/{id}/suspend" body: "*"};
+  }
+
+  rpc ReactivateUser(GetByIDRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {post: "/users/{id}/reactivate"};
+  }
+
+  rpc SetAdminStatus(SetAdminStatusRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {put: "/users/{id}/admin" body: "*"};
+  }
+
+  rpc DeleteUser(GetByIDRequest) returns (uniedit.common.v1.MessageResponse) {
+    option (google.api.http) = {delete: "/users/{id}"};
+  }
+}
+
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string name = 3;
+}
+
+message RegisterResponse {
+  string message = 1;
+  uniedit.common.v1.User user = 2;
+}
+
+message VerifyEmailRequest {
+  string token = 1;
+}
+
+message ResendVerificationRequest {
+  string email = 1;
+}
+
+message RequestPasswordResetRequest {
+  string email = 1;
+}
+
+message CompletePasswordResetRequest {
+  string token = 1;
+  string new_password = 2;
+}
+
+message Profile {
+  string user_id = 1;
+  string display_name = 2;
+  string bio = 3;
+  string avatar_url = 4;
+  string updated_at = 5;
+}
+
+message UpdateProfileRequest {
+  string name = 1;
+  string avatar_url = 2;
+}
+
+message Preferences {
+  string user_id = 1;
+  string theme = 2;
+  string language = 3;
+  string timezone = 4;
+}
+
+message UpdatePreferencesRequest {
+  string theme = 1;
+  string language = 2;
+  string timezone = 3;
+}
+
+message UploadAvatarRequest {
+  bytes data = 1;
+  string content_type = 2;
+}
+
+message UploadAvatarResponse {
+  string url = 1;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+
+message DeleteAccountRequest { string password = 1; }
+
+message ListUsersRequest {
+  repeated string ids = 1;
+  string email = 2;
+  string status = 3;
+  uniedit.common.v1.BoolValue is_admin = 4;
+  string search = 5;
+  int32 page = 6;
+  int32 page_size = 7;
+}
+
+message ListUsersResponse {
+  repeated uniedit.common.v1.User data = 1;
+  int64 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  int32 total_pages = 5;
+}
+
+message SuspendUserRequest {
+  string id = 1;
+  string reason = 2;
+}
+
+message SetAdminStatusRequest {
+  string id = 1;
+  bool is_admin = 2;
+}
+
+message GetByIDRequest {
+  string id = 1;
+}

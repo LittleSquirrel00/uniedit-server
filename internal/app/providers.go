@@ -21,14 +21,15 @@ import (
 
 	// Inbound adapters
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
-	authhttp "github.com/uniedit/server/internal/adapter/inbound/http/auth"
+	"github.com/uniedit/server/internal/adapter/inbound/http/authproto"
 	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
 	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
 	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
 	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
-	orderhttp "github.com/uniedit/server/internal/adapter/inbound/http/order"
+	"github.com/uniedit/server/internal/adapter/inbound/http/orderproto"
 	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
-	userhttp "github.com/uniedit/server/internal/adapter/inbound/http/user"
+	"github.com/uniedit/server/internal/adapter/inbound/http/pingproto"
+	"github.com/uniedit/server/internal/adapter/inbound/http/userproto"
 
 	// Ports
 	"github.com/uniedit/server/internal/port/inbound"
@@ -571,18 +572,12 @@ func ProvideMediaDomain(
 
 // ===== HTTP Handler Providers =====
 
-// AuthHandlerSet provides auth HTTP handlers.
-var AuthHandlerSet = wire.NewSet(
-	authhttp.NewOAuthHandler,
-	authhttp.NewAPIKeyHandler,
-	authhttp.NewSystemAPIKeyHandler,
-)
-
-// UserHandlerSet provides user HTTP handlers.
-var UserHandlerSet = wire.NewSet(
-	userhttp.NewProfileHandler,
-	userhttp.NewRegistrationHandler,
-	userhttp.NewAdminHandler,
+// ProtoHandlerSet provides proto-defined HTTP handlers (google.api.http).
+var ProtoHandlerSet = wire.NewSet(
+	pingproto.NewHandler,
+	authproto.NewHandler,
+	userproto.NewHandler,
+	orderproto.NewHandler,
 )
 
 // BillingHandlerSet provides billing HTTP handlers.
@@ -591,12 +586,6 @@ var BillingHandlerSet = wire.NewSet(
 	billinghttp.NewQuotaHandler,
 	billinghttp.NewCreditsHandler,
 	billinghttp.NewUsageHandler,
-)
-
-// OrderHandlerSet provides order HTTP handlers.
-var OrderHandlerSet = wire.NewSet(
-	orderhttp.NewOrderHandler,
-	orderhttp.NewInvoiceHandler,
 )
 
 // PaymentHandlerSet provides payment HTTP handlers.
@@ -679,10 +668,8 @@ var AIHandlerSet = wire.NewSet(
 // HandlerSet provides all HTTP handlers.
 var HandlerSet = wire.NewSet(
 	AIHandlerSet,
-	AuthHandlerSet,
-	UserHandlerSet,
+	ProtoHandlerSet,
 	BillingHandlerSet,
-	OrderHandlerSet,
 	PaymentHandlerSet,
 	GitHandlerSet,
 	CollaborationHandlerSet,

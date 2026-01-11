@@ -1,0 +1,506 @@
+swagger: "2.0"
+info:
+  title: UniEdit API
+  description: UniEdit 后端 API（由 proto 自动生成 OpenAPI）
+  version: v1
+tags:
+  - name: AuthOAuthService
+  - name: AuthSessionService
+  - name: AuthAPIKeyService
+  - name: AuthSystemAPIKeyService
+host: localhost:8080
+basePath: /api/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /api-keys:
+    get:
+      operationId: AuthAPIKeyService_ListUserAPIKeys
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListUserAPIKeysResponse'
+      tags:
+        - AuthAPIKeyService
+    post:
+      operationId: AuthAPIKeyService_CreateUserAPIKey
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1UserAPIKey'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CreateUserAPIKeyRequest'
+      tags:
+        - AuthAPIKeyService
+  /api-keys/{id}:
+    get:
+      operationId: AuthAPIKeyService_GetUserAPIKey
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1UserAPIKey'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AuthAPIKeyService
+    delete:
+      operationId: AuthAPIKeyService_DeleteUserAPIKey
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AuthAPIKeyService
+  /api-keys/{id}/rotate:
+    post:
+      operationId: AuthAPIKeyService_RotateUserAPIKey
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1UserAPIKey'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AuthAPIKeyServiceRotateUserAPIKeyBody'
+      tags:
+        - AuthAPIKeyService
+  /auth/logout:
+    post:
+      operationId: AuthSessionService_Logout
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1Empty'
+      tags:
+        - AuthSessionService
+  /auth/me:
+    get:
+      operationId: AuthOAuthService_GetMe
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1GetMeResponse'
+      tags:
+        - AuthOAuthService
+  /auth/oauth/{provider}:
+    post:
+      operationId: AuthOAuthService_InitiateLogin
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1InitiateLoginResponse'
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          type: string
+      tags:
+        - AuthOAuthService
+  /auth/oauth/{provider}/callback:
+    post:
+      operationId: AuthOAuthService_CompleteLogin
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1CompleteLoginResponse'
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AuthOAuthServiceCompleteLoginBody'
+      tags:
+        - AuthOAuthService
+  /auth/refresh:
+    post:
+      operationId: AuthOAuthService_RefreshToken
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1TokenPairResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1RefreshTokenRequest'
+      tags:
+        - AuthOAuthService
+  /system-api-keys:
+    get:
+      operationId: AuthSystemAPIKeyService_ListSystemAPIKeys
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListSystemAPIKeysResponse'
+      tags:
+        - AuthSystemAPIKeyService
+    post:
+      operationId: AuthSystemAPIKeyService_CreateSystemAPIKey
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1CreateSystemAPIKeyResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CreateSystemAPIKeyRequest'
+      tags:
+        - AuthSystemAPIKeyService
+  /system-api-keys/{id}:
+    get:
+      operationId: AuthSystemAPIKeyService_GetSystemAPIKey
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1SystemAPIKey'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AuthSystemAPIKeyService
+    delete:
+      operationId: AuthSystemAPIKeyService_DeleteSystemAPIKey
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AuthSystemAPIKeyService
+    patch:
+      operationId: AuthSystemAPIKeyService_UpdateSystemAPIKey
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1SystemAPIKey'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/AuthSystemAPIKeyServiceUpdateSystemAPIKeyBody'
+      tags:
+        - AuthSystemAPIKeyService
+  /system-api-keys/{id}/rotate:
+    post:
+      operationId: AuthSystemAPIKeyService_RotateSystemAPIKey
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1CreateSystemAPIKeyResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - AuthSystemAPIKeyService
+definitions:
+  AuthAPIKeyServiceRotateUserAPIKeyBody:
+    type: object
+    properties:
+      newApiKey:
+        type: string
+  AuthOAuthServiceCompleteLoginBody:
+    type: object
+    properties:
+      code:
+        type: string
+      state:
+        type: string
+  AuthSystemAPIKeyServiceUpdateSystemAPIKeyBody:
+    type: object
+    properties:
+      name:
+        $ref: '#/definitions/v1StringValue'
+      scopes:
+        $ref: '#/definitions/v1StringList'
+      rateLimitRpm:
+        $ref: '#/definitions/v1Int32Value'
+      rateLimitTpm:
+        $ref: '#/definitions/v1Int32Value'
+      isActive:
+        $ref: '#/definitions/v1BoolValue'
+  v1BoolValue:
+    type: object
+    properties:
+      value:
+        type: boolean
+  v1CompleteLoginResponse:
+    type: object
+    properties:
+      token:
+        $ref: '#/definitions/v1TokenPairResponse'
+      user:
+        $ref: '#/definitions/v1User'
+  v1CreateSystemAPIKeyRequest:
+    type: object
+    properties:
+      name:
+        type: string
+      scopes:
+        type: array
+        items:
+          type: string
+      rateLimitRpm:
+        type: integer
+        format: int32
+      rateLimitTpm:
+        type: integer
+        format: int32
+      expiresInDays:
+        type: integer
+        format: int32
+  v1CreateSystemAPIKeyResponse:
+    type: object
+    properties:
+      apiKey:
+        type: string
+      keyDetails:
+        $ref: '#/definitions/v1SystemAPIKey'
+  v1CreateUserAPIKeyRequest:
+    type: object
+    properties:
+      provider:
+        type: string
+      name:
+        type: string
+      apiKey:
+        type: string
+      scopes:
+        type: array
+        items:
+          type: string
+  v1Empty:
+    type: object
+  v1GetMeResponse:
+    type: object
+    properties:
+      userId:
+        type: string
+      email:
+        type: string
+  v1InitiateLoginResponse:
+    type: object
+    properties:
+      authUrl:
+        type: string
+      state:
+        type: string
+  v1Int32Value:
+    type: object
+    properties:
+      value:
+        type: integer
+        format: int32
+  v1ListSystemAPIKeysResponse:
+    type: object
+    properties:
+      apiKeys:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1SystemAPIKey'
+  v1ListUserAPIKeysResponse:
+    type: object
+    properties:
+      apiKeys:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1UserAPIKey'
+  v1MessageResponse:
+    type: object
+    properties:
+      message:
+        type: string
+  v1RefreshTokenRequest:
+    type: object
+    properties:
+      refreshToken:
+        type: string
+  v1StringList:
+    type: object
+    properties:
+      values:
+        type: array
+        items:
+          type: string
+  v1StringValue:
+    type: object
+    properties:
+      value:
+        type: string
+  v1SystemAPIKey:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      keyPrefix:
+        type: string
+      scopes:
+        type: array
+        items:
+          type: string
+      rateLimitRpm:
+        type: integer
+        format: int32
+      rateLimitTpm:
+        type: integer
+        format: int32
+      totalRequests:
+        type: string
+        format: int64
+      totalInputTokens:
+        type: string
+        format: int64
+      totalOutputTokens:
+        type: string
+        format: int64
+      totalCostUsd:
+        type: number
+        format: double
+      cacheHits:
+        type: string
+        format: int64
+      cacheMisses:
+        type: string
+        format: int64
+      isActive:
+        type: boolean
+      lastUsedAt:
+        type: string
+      expiresAt:
+        type: string
+      allowedIps:
+        type: array
+        items:
+          type: string
+      rotateAfterDays:
+        type: integer
+        format: int32
+      lastRotatedAt:
+        type: string
+      createdAt:
+        type: string
+  v1TokenPairResponse:
+    type: object
+    properties:
+      accessToken:
+        type: string
+      refreshToken:
+        type: string
+      tokenType:
+        type: string
+      expiresIn:
+        type: string
+        format: int64
+      expiresAt:
+        type: string
+  v1User:
+    type: object
+    properties:
+      id:
+        type: string
+      email:
+        type: string
+      name:
+        type: string
+      avatarUrl:
+        type: string
+      provider:
+        type: string
+      status:
+        type: string
+      emailVerified:
+        type: boolean
+      isAdmin:
+        type: boolean
+      suspendedAt:
+        type: string
+      suspendReason:
+        type: string
+      createdAt:
+        type: string
+  v1UserAPIKey:
+    type: object
+    properties:
+      id:
+        type: string
+      provider:
+        type: string
+      name:
+        type: string
+      keyPrefix:
+        type: string
+      scopes:
+        type: array
+        items:
+          type: string
+      lastUsedAt:
+        type: string
+      createdAt:
+        type: string

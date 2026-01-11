@@ -21,14 +21,15 @@ import (
 
 	// Inbound adapters
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
-	authhttp "github.com/uniedit/server/internal/adapter/inbound/http/auth"
+	"github.com/uniedit/server/internal/adapter/inbound/http/authproto"
 	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
 	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
 	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
 	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
-	orderhttp "github.com/uniedit/server/internal/adapter/inbound/http/order"
+	"github.com/uniedit/server/internal/adapter/inbound/http/orderproto"
 	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
-	userhttp "github.com/uniedit/server/internal/adapter/inbound/http/user"
+	"github.com/uniedit/server/internal/adapter/inbound/http/pingproto"
+	"github.com/uniedit/server/internal/adapter/inbound/http/userproto"
 
 	// Ports
 	"github.com/uniedit/server/internal/port/inbound"
@@ -70,25 +71,17 @@ type Dependencies struct {
 	AIModelAdminHandler    *aihttp.ModelAdminHandler
 	AIPublicHandler        *aihttp.PublicHandler
 
-	// Auth HTTP Handlers
-	OAuthHandler          *authhttp.OAuthHandler
-	APIKeyHandler         *authhttp.APIKeyHandler
-	SystemAPIKeyHandler   *authhttp.SystemAPIKeyHandler
-
-	// User HTTP Handlers
-	ProfileHandler      *userhttp.ProfileHandler
-	RegistrationHandler *userhttp.RegistrationHandler
-	UserAdminHandler    *userhttp.AdminHandler
+	// Proto-defined HTTP Handlers (generated from google.api.http)
+	PingProtoHandler  *pingproto.Handler
+	AuthProtoHandler  *authproto.Handler
+	UserProtoHandler  *userproto.Handler
+	OrderProtoHandler *orderproto.Handler
 
 	// Billing HTTP Handlers
 	SubscriptionHandler *billinghttp.SubscriptionHandler
 	QuotaHandler        *billinghttp.QuotaHandler
 	CreditsHandler      *billinghttp.CreditsHandler
 	UsageHandler        *billinghttp.UsageHandler
-
-	// Order HTTP Handlers
-	OrderHandler   *orderhttp.OrderHandler
-	InvoiceHandler *orderhttp.InvoiceHandler
 
 	// Payment HTTP Handlers
 	PaymentHandler *paymenthttp.PaymentHandler

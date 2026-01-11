@@ -1,0 +1,502 @@
+swagger: "2.0"
+info:
+  title: UniEdit API
+  description: UniEdit 后端 API（由 proto 自动生成 OpenAPI）
+  version: v1
+tags:
+  - name: UserAuthService
+  - name: UserProfileService
+  - name: UserAdminService
+host: localhost:8080
+basePath: /api/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /auth/password-reset:
+    post:
+      operationId: UserAuthService_RequestPasswordReset
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1RequestPasswordResetRequest'
+      tags:
+        - UserAuthService
+  /auth/password-reset/complete:
+    post:
+      operationId: UserAuthService_CompletePasswordReset
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CompletePasswordResetRequest'
+      tags:
+        - UserAuthService
+  /auth/register:
+    post:
+      operationId: UserAuthService_Register
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1RegisterResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1RegisterRequest'
+      tags:
+        - UserAuthService
+  /auth/resend-verification:
+    post:
+      operationId: UserAuthService_ResendVerification
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1ResendVerificationRequest'
+      tags:
+        - UserAuthService
+  /auth/verify-email:
+    post:
+      operationId: UserAuthService_VerifyEmail
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1VerifyEmailRequest'
+      tags:
+        - UserAuthService
+  /users:
+    get:
+      operationId: UserAdminService_ListUsers
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1ListUsersResponse'
+      parameters:
+        - name: ids
+          in: query
+          required: false
+          type: array
+          items:
+            type: string
+          collectionFormat: multi
+        - name: email
+          in: query
+          required: false
+          type: string
+        - name: status
+          in: query
+          required: false
+          type: string
+        - name: isAdmin.value
+          in: query
+          required: false
+          type: boolean
+        - name: search
+          in: query
+          required: false
+          type: string
+        - name: page
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: pageSize
+          in: query
+          required: false
+          type: integer
+          format: int32
+      tags:
+        - UserAdminService
+  /users/me:
+    get:
+      operationId: UserProfileService_GetMe
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1User'
+      tags:
+        - UserProfileService
+    delete:
+      operationId: UserProfileService_DeleteAccount
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1DeleteAccountRequest'
+      tags:
+        - UserProfileService
+  /users/me/avatar:
+    post:
+      operationId: UserProfileService_UploadAvatar
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1UploadAvatarResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1UploadAvatarRequest'
+      tags:
+        - UserProfileService
+  /users/me/password:
+    post:
+      operationId: UserProfileService_ChangePassword
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1ChangePasswordRequest'
+      tags:
+        - UserProfileService
+  /users/me/preferences:
+    get:
+      operationId: UserProfileService_GetPreferences
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Preferences'
+      tags:
+        - UserProfileService
+    put:
+      operationId: UserProfileService_UpdatePreferences
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1UpdatePreferencesRequest'
+      tags:
+        - UserProfileService
+  /users/me/profile:
+    get:
+      operationId: UserProfileService_GetProfile
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Profile'
+      tags:
+        - UserProfileService
+    put:
+      operationId: UserProfileService_UpdateProfile
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1User'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1UpdateProfileRequest'
+      tags:
+        - UserProfileService
+  /users/{id}:
+    get:
+      operationId: UserAdminService_GetUser
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1User'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - UserAdminService
+    delete:
+      operationId: UserAdminService_DeleteUser
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - UserAdminService
+  /users/{id}/admin:
+    put:
+      operationId: UserAdminService_SetAdminStatus
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/UserAdminServiceSetAdminStatusBody'
+      tags:
+        - UserAdminService
+  /users/{id}/reactivate:
+    post:
+      operationId: UserAdminService_ReactivateUser
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - UserAdminService
+  /users/{id}/suspend:
+    post:
+      operationId: UserAdminService_SuspendUser
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/UserAdminServiceSuspendUserBody'
+      tags:
+        - UserAdminService
+definitions:
+  UserAdminServiceSetAdminStatusBody:
+    type: object
+    properties:
+      isAdmin:
+        type: boolean
+  UserAdminServiceSuspendUserBody:
+    type: object
+    properties:
+      reason:
+        type: string
+  v1BoolValue:
+    type: object
+    properties:
+      value:
+        type: boolean
+  v1ChangePasswordRequest:
+    type: object
+    properties:
+      currentPassword:
+        type: string
+      newPassword:
+        type: string
+  v1CompletePasswordResetRequest:
+    type: object
+    properties:
+      token:
+        type: string
+      newPassword:
+        type: string
+  v1DeleteAccountRequest:
+    type: object
+    properties:
+      password:
+        type: string
+  v1ListUsersResponse:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1User'
+      total:
+        type: string
+        format: int64
+      page:
+        type: integer
+        format: int32
+      pageSize:
+        type: integer
+        format: int32
+      totalPages:
+        type: integer
+        format: int32
+  v1MessageResponse:
+    type: object
+    properties:
+      message:
+        type: string
+  v1Preferences:
+    type: object
+    properties:
+      userId:
+        type: string
+      theme:
+        type: string
+      language:
+        type: string
+      timezone:
+        type: string
+  v1Profile:
+    type: object
+    properties:
+      userId:
+        type: string
+      displayName:
+        type: string
+      bio:
+        type: string
+      avatarUrl:
+        type: string
+      updatedAt:
+        type: string
+  v1RegisterRequest:
+    type: object
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      name:
+        type: string
+  v1RegisterResponse:
+    type: object
+    properties:
+      message:
+        type: string
+      user:
+        $ref: '#/definitions/v1User'
+  v1RequestPasswordResetRequest:
+    type: object
+    properties:
+      email:
+        type: string
+  v1ResendVerificationRequest:
+    type: object
+    properties:
+      email:
+        type: string
+  v1UpdatePreferencesRequest:
+    type: object
+    properties:
+      theme:
+        type: string
+      language:
+        type: string
+      timezone:
+        type: string
+  v1UpdateProfileRequest:
+    type: object
+    properties:
+      name:
+        type: string
+      avatarUrl:
+        type: string
+  v1UploadAvatarRequest:
+    type: object
+    properties:
+      data:
+        type: string
+        format: byte
+      contentType:
+        type: string
+  v1UploadAvatarResponse:
+    type: object
+    properties:
+      url:
+        type: string
+  v1User:
+    type: object
+    properties:
+      id:
+        type: string
+      email:
+        type: string
+      name:
+        type: string
+      avatarUrl:
+        type: string
+      provider:
+        type: string
+      status:
+        type: string
+      emailVerified:
+        type: boolean
+      isAdmin:
+        type: boolean
+      suspendedAt:
+        type: string
+      suspendReason:
+        type: string
+      createdAt:
+        type: string
+  v1VerifyEmailRequest:
+    type: object
+    properties:
+      token:
+        type: string

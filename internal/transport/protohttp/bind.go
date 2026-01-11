@@ -1,6 +1,7 @@
 package protohttp
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -10,6 +11,35 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/uniedit/server/internal/utils/response"
 )
+
+type HTTPError struct {
+	Status  int
+	Code    string
+	Message string
+	Err     error
+}
+
+var ErrHandled = errors.New("protohttp: response handled")
+
+func (e *HTTPError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Message != "" {
+		return e.Message
+	}
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+	return "http error"
+}
+
+func (e *HTTPError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
 
 // BindQuery 将 URL query 参数绑定到 dst（一般是 proto 生成的请求结构体指针）。
 func BindQuery(c *gin.Context, dst any) error {
@@ -104,15 +134,37 @@ func AbortBindError(c *gin.Context, err error) {
 
 // AbortServerError 统一处理服务端错误（默认不向外暴露内部错误详情）。
 func AbortServerError(c *gin.Context, err error) {
+	if errors.Is(err, ErrHandled) {
+		return
+	}
 	if err != nil {
 		_ = c.Error(err)
 	}
+
+	var httpErr *HTTPError
+	if errors.As(err, &httpErr) {
+		status := httpErr.Status
+		if status == 0 {
+			status = http.StatusInternalServerError
+		}
+		if httpErr.Code != "" {
+			response.ErrorWithCode(c, status, httpErr.Code, httpErr.Error())
+			return
+		}
+		response.Error(c, status, httpErr.Error())
+		return
+	}
+
 	response.InternalError(c, "")
 }
 
 // WriteOK 写入 200 OK 响应。
 func WriteOK(c *gin.Context, out any) {
-	c.JSON(http.StatusOK, out)
+	status := c.Writer.Status()
+	if status == 0 {
+		status = http.StatusOK
+	}
+	c.JSON(status, out)
 }
 
 func bindValues(dst any, values map[string][]string) error {

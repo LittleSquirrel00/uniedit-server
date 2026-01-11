@@ -1,0 +1,301 @@
+swagger: "2.0"
+info:
+  title: UniEdit API
+  description: UniEdit 后端 API（由 proto 自动生成 OpenAPI）
+  version: v1
+tags:
+  - name: OrderService
+host: localhost:8080
+basePath: /api/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /invoices:
+    get:
+      summary: ===== Invoices =====
+      operationId: OrderService_ListInvoices
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1InvoiceListResponse'
+      tags:
+        - OrderService
+  /invoices/{id}:
+    get:
+      operationId: OrderService_GetInvoice
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Invoice'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - OrderService
+  /invoices/{id}/download:
+    get:
+      operationId: OrderService_DownloadInvoice
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1DownloadInvoiceResponse'
+        "302":
+          description: Found
+          schema: {}
+          headers:
+            Location:
+              description: Redirect URL
+              type: string
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - OrderService
+  /orders:
+    get:
+      operationId: OrderService_ListOrders
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1OrderListResponse'
+      parameters:
+        - name: page
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: pageSize
+          in: query
+          required: false
+          type: integer
+          format: int32
+        - name: status
+          in: query
+          required: false
+          type: string
+        - name: type
+          in: query
+          required: false
+          type: string
+      tags:
+        - OrderService
+  /orders/subscription:
+    post:
+      summary: ===== Orders =====
+      operationId: OrderService_CreateSubscriptionOrder
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Order'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CreateSubscriptionOrderRequest'
+      tags:
+        - OrderService
+  /orders/topup:
+    post:
+      operationId: OrderService_CreateTopupOrder
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Order'
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/v1CreateTopupOrderRequest'
+      tags:
+        - OrderService
+  /orders/{id}:
+    get:
+      operationId: OrderService_GetOrder
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1Order'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      tags:
+        - OrderService
+  /orders/{id}/cancel:
+    post:
+      operationId: OrderService_CancelOrder
+      responses:
+        "200":
+          description: A successful response.
+          schema:
+            $ref: '#/definitions/v1MessageResponse'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/OrderServiceCancelOrderBody'
+      tags:
+        - OrderService
+definitions:
+  OrderServiceCancelOrderBody:
+    type: object
+    properties:
+      reason:
+        type: string
+  v1CreateSubscriptionOrderRequest:
+    type: object
+    properties:
+      planId:
+        type: string
+  v1CreateTopupOrderRequest:
+    type: object
+    properties:
+      amount:
+        type: string
+        format: int64
+  v1DownloadInvoiceResponse:
+    type: object
+    properties:
+      redirectUrl:
+        type: string
+  v1Invoice:
+    type: object
+    properties:
+      id:
+        type: string
+      invoiceNo:
+        type: string
+      orderId:
+        type: string
+      amount:
+        type: string
+        format: int64
+      currency:
+        type: string
+      status:
+        type: string
+      pdfUrl:
+        type: string
+      issuedAt:
+        type: string
+      dueAt:
+        type: string
+      paidAt:
+        type: string
+  v1InvoiceListResponse:
+    type: object
+    properties:
+      invoices:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Invoice'
+  v1MessageResponse:
+    type: object
+    properties:
+      message:
+        type: string
+  v1Order:
+    type: object
+    properties:
+      id:
+        type: string
+      orderNo:
+        type: string
+      type:
+        type: string
+      status:
+        type: string
+      subtotal:
+        type: string
+        format: int64
+      discount:
+        type: string
+        format: int64
+      tax:
+        type: string
+        format: int64
+      total:
+        type: string
+        format: int64
+      currency:
+        type: string
+      planId:
+        type: string
+      creditsAmount:
+        type: string
+        format: int64
+      paidAt:
+        type: string
+      canceledAt:
+        type: string
+      refundedAt:
+        type: string
+      expiresAt:
+        type: string
+      createdAt:
+        type: string
+      items:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1OrderItem'
+  v1OrderItem:
+    type: object
+    properties:
+      id:
+        type: string
+      description:
+        type: string
+      quantity:
+        type: integer
+        format: int32
+      unitPrice:
+        type: string
+        format: int64
+      amount:
+        type: string
+        format: int64
+  v1OrderListResponse:
+    type: object
+    properties:
+      orders:
+        type: array
+        items:
+          type: object
+          $ref: '#/definitions/v1Order'
+      total:
+        type: string
+        format: int64
+      page:
+        type: integer
+        format: int32
+      pageSize:
+        type: integer
+        format: int32
+      totalPages:
+        type: integer
+        format: int32
