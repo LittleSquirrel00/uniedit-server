@@ -2,47 +2,50 @@ package ai
 
 import "errors"
 
-// Provider errors.
+// Domain errors.
 var (
-	ErrProviderNotFound    = errors.New("provider not found")
-	ErrProviderDisabled    = errors.New("provider is disabled")
-	ErrProviderUnhealthy   = errors.New("provider is unhealthy")
-	ErrProviderRateLimited = errors.New("provider rate limited")
-)
+	// Provider errors
+	ErrProviderNotFound     = errors.New("provider not found")
+	ErrProviderDisabled     = errors.New("provider is disabled")
+	ErrProviderUnhealthy    = errors.New("provider is unhealthy")
+	ErrProviderAlreadyExists = errors.New("provider already exists")
 
-// Model errors.
-var (
-	ErrModelNotFound    = errors.New("model not found")
-	ErrModelDisabled    = errors.New("model is disabled")
-	ErrModelUnavailable = errors.New("model is unavailable")
-)
+	// Model errors
+	ErrModelNotFound        = errors.New("model not found")
+	ErrModelDisabled        = errors.New("model is disabled")
+	ErrModelNotSupported    = errors.New("model does not support required capability")
+	ErrModelAlreadyExists   = errors.New("model already exists")
 
-// Group errors.
-var (
-	ErrGroupNotFound  = errors.New("group not found")
-	ErrGroupDisabled  = errors.New("group is disabled")
-	ErrNoModelsInGroup = errors.New("no models in group")
-)
+	// Account errors
+	ErrAccountNotFound      = errors.New("account not found")
+	ErrAccountDisabled      = errors.New("account is disabled")
+	ErrAccountUnhealthy     = errors.New("account is unhealthy")
+	ErrNoAvailableAccount   = errors.New("no available account")
 
-// Routing errors.
-var (
-	ErrNoModelAvailable       = errors.New("no model available")
-	ErrNoProviderAvailable    = errors.New("no provider available")
-	ErrCapabilityNotSupported = errors.New("capability not supported")
-	ErrAllFallbacksFailed     = errors.New("all fallback attempts failed")
-)
+	// Group errors
+	ErrGroupNotFound        = errors.New("group not found")
+	ErrGroupDisabled        = errors.New("group is disabled")
+	ErrGroupAlreadyExists   = errors.New("group already exists")
 
-// Request errors.
-var (
-	ErrInvalidRequest     = errors.New("invalid request")
-	ErrContextCancelled   = errors.New("context cancelled")
-	ErrRequestTimeout     = errors.New("request timeout")
-	ErrInsufficientQuota  = errors.New("insufficient quota")
-)
+	// Routing errors
+	ErrNoAvailableModels    = errors.New("no available models for routing")
+	ErrRoutingFailed        = errors.New("routing failed")
+	ErrAllFallbacksFailed   = errors.New("all fallback attempts failed")
 
-// Response errors.
-var (
-	ErrInvalidResponse    = errors.New("invalid response from provider")
-	ErrResponseTruncated  = errors.New("response was truncated")
-	ErrContentFiltered    = errors.New("content was filtered")
+	// Request errors
+	ErrInvalidRequest       = errors.New("invalid request")
+	ErrEmptyMessages        = errors.New("messages cannot be empty")
+	ErrEmptyInput           = errors.New("input cannot be empty")
+
+	// Rate limit errors
+	ErrRateLimitExceeded    = errors.New("rate limit exceeded")
+	ErrQuotaExceeded        = errors.New("quota exceeded")
+
+	// Adapter errors
+	ErrAdapterNotFound      = errors.New("adapter not found")
+	ErrAdapterNotSupported  = errors.New("adapter does not support this operation")
+
+	// API errors
+	ErrUpstreamError        = errors.New("upstream API error")
+	ErrTimeout              = errors.New("request timeout")
 )

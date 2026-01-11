@@ -59,39 +59,21 @@ UniEdit 视频编辑器的后端服务，提供用户认证、AI 代理、计费
 
 ```
 uniedit-server/
-├── cmd/server/              # 程序入口
+├── cmd/server/            # 程序入口
 ├── internal/
-│   ├── app/                 # 应用组装、路由
-│   ├── module/              # 业务模块
-│   │   ├── ai/              # AI 代理模块
-│   │   │   ├── adapter/     # LLM 适配器 (OpenAI/Anthropic)
-│   │   │   ├── provider/    # 提供商管理 (Registry/Health/Pool)
-│   │   │   ├── routing/     # 智能路由 (Strategy Chain)
-│   │   │   ├── group/       # 模型分组
-│   │   │   ├── task/        # 异步任务管理
-│   │   │   ├── llm/         # LLM 服务
-│   │   │   ├── media/       # 媒体生成服务
-│   │   │   ├── cache/       # Embedding 缓存
-│   │   │   └── handler/     # HTTP 处理器
-│   │   ├── auth/            # 认证模块 (OAuth/JWT/API Key)
-│   │   ├── user/            # 用户模块 (注册/登录/验证)
-│   │   ├── billing/         # 计费模块 (订阅/配额/用量)
-│   │   ├── order/           # 订单模块 (订单/发票)
-│   │   ├── payment/         # 支付模块 (Stripe/Alipay/WeChat)
-│   │   ├── git/             # Git 托管模块 (仓库/LFS/PR)
-│   │   └── collaboration/   # 协作模块 (团队/邀请)
-│   └── shared/              # 共享基础设施
-│       ├── config/          # 配置管理 (Viper)
-│       ├── database/        # 数据库连接 (GORM)
-│       ├── cache/           # Redis 缓存
-│       ├── middleware/      # HTTP 中间件
-│       ├── events/          # 领域事件总线
-│       └── errors/          # 错误定义
-├── configs/                 # 配置文件模板
-├── migrations/              # 数据库迁移
-├── docker-compose.yaml      # 本地开发环境
-├── docs/                    # 设计文档
-└── openspec/                # OpenSpec 规范
+│   ├── app/               # Wire 依赖注入、应用组装
+│   ├── adapter/           # 适配层：
+│   │   ├── inbound/http   # HTTP 路由与 Handler
+│   │   └── outbound       # Postgres/Redis/OAuth/第三方 Provider 适配器
+│   ├── domain/            # 领域层 (ai/auth/billing/order/payment/git/collaboration/media/user)
+│   ├── infra/             # 基础设施封装 (config/database/cache/httpclient)
+│   ├── port/              # 端口定义 (inbound/outbound 接口)
+│   ├── model/             # 领域模型与枚举
+│   └── utils/             # 通用工具 (logger/metrics/middleware 等)
+├── configs/               # 配置文件模板
+├── migrations/            # 数据库迁移
+├── docs/                  # 设计文档
+└── openspec/              # OpenSpec 规范
 ```
 
 ## 快速开始
@@ -106,14 +88,13 @@ uniedit-server/
 ### 安装开发工具
 
 ```bash
-# 运行设置脚本（安装 wire, mage, golangci-lint, swag 等）
+# 运行设置脚本（安装 wire, mage, golangci-lint 等）
 ./scripts/setup.sh
 
 # 或手动安装
 go install github.com/magefile/mage@latest
 go install github.com/google/wire/cmd/wire@latest
 go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-go install github.com/swaggo/swag/cmd/swag@latest
 
 # 或使用 mage install 安装所有开发工具
 mage install
@@ -159,11 +140,8 @@ go build -o server ./cmd/server && ./server
 
 ```bash
 mage build         # 构建服务器二进制
-mage generate      # 生成所有代码 (Wire + Swagger)
+mage generate      # 生成所有代码 (Wire + Proto)
 mage wire          # 生成 Wire 依赖注入代码
-mage swagger       # 生成 Swagger/OpenAPI 文档 (全部)
-mage swaggermodule # 生成指定模块的 Swagger 文档
-mage swaggerlist   # 列出可用的模块
 mage test          # 运行所有测试
 mage testCover     # 运行测试并生成覆盖率报告
 mage lint          # 运行 golangci-lint
@@ -173,17 +151,16 @@ mage clean         # 清理构建产物
 mage dev           # 构建并运行开发服务器
 mage all           # 完整构建流程 (tidy → generate → vet → lint → test → build)
 mage ci            # CI 流程 (tidy → generate → vet → testCover)
-mage install       # 安装开发工具 (wire, golangci-lint, swag)
+mage install       # 安装开发工具 (wire, golangci-lint, protoc-gen-go)
+mage proto         # 从 proto 规范生成 Go + Gin 接口代码
+mage protoOpenAPI  # 从 proto 规范生成 OpenAPI v2 (YAML)
 ```
 
-**分模块生成 Swagger 文档：**
+**Proto 生成：**
 
 ```bash
-mage swaggerlist           # 查看可用模块
-mage swaggermodule user    # 仅生成 User 模块文档
-mage swaggermodule billing # 仅生成 Billing 模块文档
-mage swaggermodule ai      # 仅生成 AI 模块文档
-# 可用模块: user, auth, billing, order, payment, git, collaboration, ai
+mage proto         # 扫描 ./api/protobuf_spec/*/*.proto，生成到 ./api/pb/*/*.go
+mage protoOpenAPI  # 生成到 ./api/openapi_spec/*/*.swagger.yaml
 ```
 
 ## 模块说明
@@ -215,6 +192,15 @@ mage swaggermodule ai      # 仅生成 AI 模块文档
 | **media** | 图片/视频生成服务 | - |
 | **group** | 模型分组、选择策略、降级配置 | - |
 
+#### 域服务要点（internal/domain/ai）
+
+- Chat / ChatStream / Embed 三类入口，自动从请求推断能力需求（流式、工具调用、视觉、JSON 格式）并构建 `AIRoutingContext`。
+- 默认策略链顺序：UserPreference (100) → HealthFilter (90) → CapabilityFilter (80) → ContextWindow (70) → CostOptimization (50，可选) → LoadBalancing (10)。策略按得分汇总后择优，并在所有候选被滤空时返回清晰错误。
+- 账户池优先：可从 `accountDB.FindAvailableByProvider` 选择高优先级账号，若存在加密密钥则通过 `AICryptoPort` 解密；否则回退 Provider 主密钥。
+- 健康监控：`StartHealthMonitor` 后以配置的 `HealthCheckInterval`（默认 30s）轮询 Provider，并将状态写入内存及可选 Redis 缓存，路由前会注入最新健康度。
+- 失败恢复：按账户连续失败阈值（2 次降级，5 次标记不可用）与成功恢复计数驱动健康状态；成功/失败都会更新统计与用量计费（若配置了 `AIUsageRecorderPort`）。
+- 成本核算：基于模型配置的 `InputCostPer1K`/`OutputCostPer1K` 计算请求成本并回填到响应的 `RoutingInfo`。
+
 #### 路由策略
 
 ```
@@ -229,6 +215,20 @@ mage swaggermodule ai      # 仅生成 AI 模块文档
   6. LoadBalancing (10)     → 负载均衡随机
     ↓
 选择最高分模型 → 返回路由结果
+```
+
+### AI 配置关键项（configs/config.example.yaml）
+
+```yaml
+ai:
+  health_check_interval: 30s   # Provider 健康轮询间隔
+  failure_threshold: 5         # 熔断失败阈值（账户层）
+  success_threshold: 2         # 连续成功恢复阈值
+  circuit_timeout: 60s         # 熔断冷却时间
+  task_cleanup_interval: 5m    # 异步任务清理周期
+  task_retention_period: 24h   # 任务保留时间
+  max_concurrent_tasks: 100    # 并发任务上限
+  embedding_cache_ttl: 24h     # Embedding 缓存时间
 ```
 
 #### 支持的 AI 提供商
@@ -326,17 +326,13 @@ go test -v ./internal/module/ai/task/...
 
 ### API 文档
 
-项目集成了 Swagger/OpenAPI 文档，服务启动后可通过以下地址访问：
-
-- **Swagger UI**: `http://localhost:8080/swagger/index.html`
-- **OpenAPI JSON**: `http://localhost:8080/swagger/doc.json`
-
-生成/更新 API 文档：
+项目的 API 文档由 proto 定义自动生成（OpenAPI v2 YAML）：
 
 ```bash
-mage swagger    # 单独生成 Swagger 文档
-mage generate   # 生成所有代码 (包含 Swagger)
+mage protoOpenAPI
 ```
+
+输出目录：`./api/openapi_spec/*/*.swagger.yaml`
 
 ## 开发规范
 

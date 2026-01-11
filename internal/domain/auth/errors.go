@@ -4,6 +4,10 @@ import "errors"
 
 // Domain errors.
 var (
+	// User errors
+	ErrUserNotFound      = errors.New("user not found")
+	ErrUserAlreadyExists = errors.New("user already exists")
+
 	// Token errors
 	ErrInvalidToken       = errors.New("invalid token")
 	ErrExpiredToken       = errors.New("token has expired")
@@ -17,7 +21,7 @@ var (
 	ErrInvalidOAuthState    = errors.New("invalid OAuth state")
 	ErrOAuthFailed          = errors.New("OAuth authentication failed")
 
-	// User API Key errors
+	// API Key errors
 	ErrAPIKeyNotFound      = errors.New("API key not found")
 	ErrAPIKeyAlreadyExists = errors.New("API key already exists for this provider")
 	ErrInvalidAPIKey       = errors.New("invalid API key")

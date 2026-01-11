@@ -62,14 +62,20 @@ uniedit-server/
 │   │   ├── community/       # 社区模块 (P2)
 │   │   ├── render/          # 渲染模块 (P2)
 │   │   └── publish/         # 发布模块 (P2)
-│   └── shared/              # 共享基础设施
-│       ├── config/          # 配置管理
-│       ├── database/        # 数据库连接
-│       ├── cache/           # Redis 缓存
-│       ├── storage/         # R2/S3 客户端
+│   ├── infra/               # 基础设施层（外部依赖）
+│   │   ├── config/          # 配置管理
+│   │   ├── database/        # 数据库连接
+│   │   ├── cache/           # Redis 缓存
+│   │   ├── events/          # 领域事件总线
+│   │   └── task/            # 任务队列
+│   └── utils/               # 工具层（纯函数/无状态）
+│       ├── errors/          # 错误处理
+│       ├── logger/          # 日志工具
+│       ├── metrics/         # 指标采集
 │       ├── middleware/      # HTTP 中间件
-│       ├── crypto/          # 加密工具
-│       └── errors/          # 错误处理
+│       ├── pagination/      # 分页工具
+│       ├── random/          # 随机数生成
+│       └── response/        # 响应格式化
 ├── migrations/              # 数据库迁移
 ├── api/                     # OpenAPI 定义
 ├── docker/                  # Docker 配置

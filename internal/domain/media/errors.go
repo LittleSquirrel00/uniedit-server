@@ -2,31 +2,37 @@ package media
 
 import "errors"
 
-// Domain errors for media module.
 var (
-	// Task errors
-	ErrTaskNotFound      = errors.New("task not found")
-	ErrTaskNotOwned      = errors.New("task not owned by user")
-	ErrTaskAlreadyDone   = errors.New("task already completed or cancelled")
-	ErrTaskInProgress    = errors.New("task is already in progress")
+	// ErrProviderNotFound is returned when a provider is not found.
+	ErrProviderNotFound = errors.New("media provider not found")
 
-	// Provider errors
-	ErrProviderNotFound  = errors.New("provider not found")
+	// ErrModelNotFound is returned when a model is not found.
+	ErrModelNotFound = errors.New("media model not found")
+
+	// ErrTaskNotFound is returned when a task is not found.
+	ErrTaskNotFound = errors.New("media task not found")
+
+	// ErrTaskNotOwned is returned when the user doesn't own the task.
+	ErrTaskNotOwned = errors.New("task not owned by user")
+
+	// ErrNoAdapterFound is returned when no adapter is found for a provider.
+	ErrNoAdapterFound = errors.New("no adapter found for provider")
+
+	// ErrProviderUnhealthy is returned when a provider is unhealthy.
 	ErrProviderUnhealthy = errors.New("provider is unhealthy")
-	ErrProviderDisabled  = errors.New("provider is disabled")
 
-	// Model errors
-	ErrModelNotFound         = errors.New("model not found")
-	ErrModelNotSupported     = errors.New("model does not support requested capability")
-	ErrNoModelAvailable      = errors.New("no model available for capability")
-	ErrNoHealthyProvider     = errors.New("no healthy provider available")
+	// ErrNoHealthyProvider is returned when no healthy provider is available.
+	ErrNoHealthyProvider = errors.New("no healthy provider available")
 
-	// Adapter errors
-	ErrAdapterNotFound       = errors.New("adapter not found for provider type")
-	ErrCapabilityNotSupported = errors.New("capability not supported by adapter")
+	// ErrCapabilityNotSupported is returned when a model doesn't support a capability.
+	ErrCapabilityNotSupported = errors.New("model does not support this capability")
 
-	// Request errors
-	ErrInvalidRequest        = errors.New("invalid request")
-	ErrMissingPrompt         = errors.New("prompt is required")
-	ErrMissingInput          = errors.New("prompt, input_image, or input_video is required")
+	// ErrInvalidInput is returned when input is invalid.
+	ErrInvalidInput = errors.New("invalid input")
+
+	// ErrTaskAlreadyCompleted is returned when trying to cancel a completed task.
+	ErrTaskAlreadyCompleted = errors.New("task already completed")
+
+	// ErrTaskAlreadyCancelled is returned when trying to cancel a cancelled task.
+	ErrTaskAlreadyCancelled = errors.New("task already cancelled")
 )

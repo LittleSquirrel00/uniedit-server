@@ -59,3 +59,7 @@ storage:
 log:
   level: info  # debug, info, warn, error
   format: json  # json, text
+
+# Feature flags for gradual rollout
+features:
+  use_new_architecture: true  # Uses hexagonal architecture (app_v2)
