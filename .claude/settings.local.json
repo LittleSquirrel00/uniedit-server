@@ -8,7 +8,19 @@
       "Bash(go build ./internal/domain/user/...)",
       "Bash(go build ./internal/domain/auth/... ./internal/domain/user/...)",
       "Bash(go test ./internal/domain/auth/... ./internal/domain/user/... -v)",
-      "Bash(go test ./internal/domain/user/... -v)"
+      "Bash(go test ./internal/domain/user/... -v)",
+      "Bash(docker-compose up -d)",
+      "Bash(pg_isready -h localhost -p 5432)",
+      "Bash(redis-cli -p 6379 ping)",
+      "Bash(psql -h localhost -U postgres -lqt)",
+      "Bash(cut -d | -f 1)",
+      "Bash(mage -l)",
+      "Bash(go build -o bin/server ./cmd/server)",
+      "Bash(curl -s http://localhost:8080/health)",
+      "Bash(curl -s http://localhost:8080/api/v1/ping)",
+      "Bash(./bin/server)",
+      "Bash(curl -s http://localhost:8080/api/v1/billing/plans echo \"\" echo \"=== 测试 AI Models ===\" curl -s http://localhost:8080/api/v1/ai/models)",
+      "Bash(curl -s http://localhost:8080/api/v1/ai/models)"
     ],
     "additionalDirectories": [
       "/Users/zhangfeng144/Git/uniedit-server/internal/model"
