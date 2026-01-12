@@ -20,7 +20,21 @@
       "Bash(curl -s http://localhost:8080/api/v1/ping)",
       "Bash(./bin/server)",
       "Bash(curl -s http://localhost:8080/api/v1/billing/plans echo \"\" echo \"=== 测试 AI Models ===\" curl -s http://localhost:8080/api/v1/ai/models)",
-      "Bash(curl -s http://localhost:8080/api/v1/ai/models)"
+      "Bash(curl -s http://localhost:8080/api/v1/ai/models)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJleHAiOjE3NjgzMTE2MjMsImlhdCI6MTc2ODIyNTIyMywic3ViIjoiYWYzYmMzMTEtYjBlZC00MGYxLTlhOWYtMTMyZjg3MWM4ZmZlIn0.QZBMV65Aosagfbr3jpXslDL4q8gVmql6YjFtDu4IeG4\")",
+      "Bash(__NEW_LINE_f3714800ea9c45ba__ echo \"=== 1. 获取当前用户信息 \\(Auth\\) ===\")",
+      "Bash(curl -s http://localhost:8080/api/v1/auth/me -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(__NEW_LINE_5585e984b65d8970__ echo \"\")",
+      "Bash(curl -s http://localhost:8080/api/v1/users/me -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(__NEW_LINE_dc363936c4a9c003__ echo \"\")",
+      "Bash(curl -s http://localhost:8080/api/v1/ai/models -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(__NEW_LINE_c478339f3d05cd19__ echo \"=== 1. 获取当前用户信息 \\(Auth\\) ===\")",
+      "Bash(curl -s \"http://localhost:8080/api/v1/auth/me\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(__NEW_LINE_46c94812d8ff1f70__ echo \"\")",
+      "Bash(curl -s \"http://localhost:8080/api/v1/users/me\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(__NEW_LINE_5f6cd3c8cfb35dfb__ echo \"\")",
+      "Bash(curl -s \"http://localhost:8080/api/v1/ai/models\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(PGPASSWORD=postgres psql -h localhost -U postgres -d uniedit -c \"\\\\dt media*\")"
     ],
     "additionalDirectories": [
       "/Users/zhangfeng144/Git/uniedit-server/internal/model"
