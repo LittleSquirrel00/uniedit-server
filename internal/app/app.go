@@ -21,13 +21,19 @@ import (
 
 	// Inbound adapters (HTTP handlers)
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
+	"github.com/uniedit/server/internal/adapter/inbound/http/aiproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/authproto"
 	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	"github.com/uniedit/server/internal/adapter/inbound/http/billingproto"
 	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
+	"github.com/uniedit/server/internal/adapter/inbound/http/collaborationproto"
 	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
+	"github.com/uniedit/server/internal/adapter/inbound/http/gitproto"
 	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
+	"github.com/uniedit/server/internal/adapter/inbound/http/mediaproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/orderproto"
 	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
+	"github.com/uniedit/server/internal/adapter/inbound/http/paymentproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/pingproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/userproto"
 
@@ -84,6 +90,12 @@ type App struct {
 	authProtoHandler  *authproto.Handler
 	userProtoHandler  *userproto.Handler
 	orderProtoHandler *orderproto.Handler
+	billingProtoHandler *billingproto.Handler
+	aiProtoHandler      *aiproto.Handler
+	collaborationProtoHandler *collaborationproto.Handler
+	paymentProtoHandler *paymentproto.Handler
+	gitProtoHandler     *gitproto.Handler
+	mediaProtoHandler   *mediaproto.Handler
 
 	// Billing HTTP handlers
 	subscriptionHandler *billinghttp.SubscriptionHandler
@@ -146,6 +158,12 @@ func New(cfg *config.Config) (*App, error) {
 		authProtoHandler:       deps.AuthProtoHandler,
 		userProtoHandler:       deps.UserProtoHandler,
 		orderProtoHandler:      deps.OrderProtoHandler,
+		billingProtoHandler:    deps.BillingProtoHandler,
+		aiProtoHandler:         deps.AIProtoHandler,
+		collaborationProtoHandler: deps.CollaborationProtoHandler,
+		paymentProtoHandler:    deps.PaymentProtoHandler,
+		gitProtoHandler:        deps.GitProtoHandler,
+		mediaProtoHandler:      deps.MediaProtoHandler,
 		subscriptionHandler:    deps.SubscriptionHandler,
 		quotaHandler:           deps.QuotaHandler,
 		creditsHandler:         deps.CreditsHandler,
@@ -239,131 +257,14 @@ func (a *App) registerRoutes() {
 		}))
 	}
 
-	// ===== Public Routes (no auth required) =====
-
-	// Auth routes (migrated to proto routes)
-
-	// Registration routes
-	// (migrated to proto routes)
-
-	// Billing plans (read-only, public)
-	if a.subscriptionHandler != nil {
-		a.subscriptionHandler.RegisterRoutes(v1)
-	}
-
-	// Payment webhooks (no auth, verified by signature)
-	if a.webhookHandler != nil {
-		a.webhookHandler.RegisterRoutes(v1)
-	}
-
 	// ===== Protected Routes (requires auth) =====
 	protectedRouter := v1.Group("")
 	protectedRouter.Use(authMiddleware)
-
-	// AI routes
-	if a.aiChatHandler != nil {
-		aiGroup := protectedRouter.Group("/ai")
-		{
-			aiGroup.POST("/chat", a.aiChatHandler.Chat)
-			aiGroup.POST("/chat/stream", a.aiChatHandler.ChatStream)
-		}
-	}
-
-	// AI public routes (list models)
-	if a.aiPublicHandler != nil {
-		aiPublicGroup := protectedRouter.Group("/ai")
-		{
-			aiPublicGroup.GET("/models", a.aiPublicHandler.ListModels)
-			aiPublicGroup.GET("/models/:id", a.aiPublicHandler.GetModel)
-		}
-	}
-
-	// User profile routes
-	// (migrated to proto routes)
-
-	// API key routes
-	// (migrated to proto routes)
-
-	// Billing routes (subscription, quota, credits, usage)
-	if a.quotaHandler != nil {
-		a.quotaHandler.RegisterRoutes(protectedRouter)
-	}
-	if a.creditsHandler != nil {
-		a.creditsHandler.RegisterRoutes(protectedRouter)
-	}
-	if a.usageHandler != nil {
-		a.usageHandler.RegisterRoutes(protectedRouter)
-	}
-
-	// Order routes
-	// (migrated to proto routes)
-
-	// Payment routes
-	if a.paymentHandler != nil {
-		a.paymentHandler.RegisterRoutes(protectedRouter)
-	}
-
-	// Git routes
-	if a.gitHandler != nil {
-		a.gitHandler.RegisterRoutes(v1, authMiddleware)
-	}
-
-	// Collaboration routes
-	if a.collaborationHandler != nil {
-		a.collaborationHandler.RegisterRoutes(v1, authMiddleware)
-	}
-
-	// Media routes
-	if a.mediaHandler != nil {
-		a.mediaHandler.RegisterRoutes(v1, authMiddleware)
-	}
 
 	// ===== Admin Routes (requires admin auth) =====
 	// TODO: Add admin middleware when available
 	adminRouter := protectedRouter.Group("")
 	// adminRouter.Use(middleware.RequireAdmin())
-
-	// User admin routes
-	// (migrated to proto routes)
-
-	// System API key routes (admin only)
-	// (migrated to proto routes)
-
-	// Credits admin routes (add credits)
-	if a.creditsHandler != nil {
-		a.creditsHandler.RegisterAdminRoutes(adminRouter)
-	}
-
-	// Refund routes (admin only)
-	if a.refundHandler != nil {
-		a.refundHandler.RegisterRoutes(adminRouter)
-	}
-
-	// AI provider admin routes
-	if a.aiProviderAdminHandler != nil {
-		aiAdminGroup := adminRouter.Group("/admin/ai")
-		{
-			aiAdminGroup.GET("/providers", a.aiProviderAdminHandler.ListProviders)
-			aiAdminGroup.POST("/providers", a.aiProviderAdminHandler.CreateProvider)
-			aiAdminGroup.GET("/providers/:id", a.aiProviderAdminHandler.GetProvider)
-			aiAdminGroup.PUT("/providers/:id", a.aiProviderAdminHandler.UpdateProvider)
-			aiAdminGroup.DELETE("/providers/:id", a.aiProviderAdminHandler.DeleteProvider)
-			aiAdminGroup.POST("/providers/:id/sync", a.aiProviderAdminHandler.SyncModels)
-			aiAdminGroup.POST("/providers/:id/health", a.aiProviderAdminHandler.HealthCheck)
-		}
-	}
-
-	// AI model admin routes
-	if a.aiModelAdminHandler != nil {
-		aiAdminGroup := adminRouter.Group("/admin/ai")
-		{
-			aiAdminGroup.GET("/models", a.aiModelAdminHandler.ListModels)
-			aiAdminGroup.POST("/models", a.aiModelAdminHandler.CreateModel)
-			aiAdminGroup.GET("/models/:id", a.aiModelAdminHandler.GetModel)
-			aiAdminGroup.PUT("/models/:id", a.aiModelAdminHandler.UpdateModel)
-			aiAdminGroup.DELETE("/models/:id", a.aiModelAdminHandler.DeleteModel)
-		}
-	}
 
 	// Proto-defined routes (from ./api/protobuf_spec)
 	a.registerProtoRoutes(v1, protectedRouter, adminRouter)

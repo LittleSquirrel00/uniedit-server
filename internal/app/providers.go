@@ -21,13 +21,19 @@ import (
 
 	// Inbound adapters
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
+	"github.com/uniedit/server/internal/adapter/inbound/http/aiproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/authproto"
 	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	"github.com/uniedit/server/internal/adapter/inbound/http/billingproto"
 	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
+	"github.com/uniedit/server/internal/adapter/inbound/http/collaborationproto"
 	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
+	"github.com/uniedit/server/internal/adapter/inbound/http/gitproto"
 	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
+	"github.com/uniedit/server/internal/adapter/inbound/http/mediaproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/orderproto"
 	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
+	"github.com/uniedit/server/internal/adapter/inbound/http/paymentproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/pingproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/userproto"
 
@@ -578,6 +584,12 @@ var ProtoHandlerSet = wire.NewSet(
 	authproto.NewHandler,
 	userproto.NewHandler,
 	orderproto.NewHandler,
+	billingproto.NewHandler,
+	ProvideAIProtoHandler,
+	ProvideCollaborationProtoHandler,
+	ProvidePaymentProtoHandler,
+	ProvideGitProtoHandler,
+	ProvideMediaProtoHandler,
 )
 
 // BillingHandlerSet provides billing HTTP handlers.
@@ -675,6 +687,36 @@ var HandlerSet = wire.NewSet(
 	CollaborationHandlerSet,
 	MediaHandlerSet,
 )
+
+// Proto adapters built on existing HTTP handlers.
+func ProvideAIProtoHandler(
+	chat *aihttp.ChatHandler,
+	providerAdmin *aihttp.ProviderAdminHandler,
+	modelAdmin *aihttp.ModelAdminHandler,
+	public *aihttp.PublicHandler,
+) *aiproto.Handler {
+	return aiproto.NewHandler(chat, providerAdmin, modelAdmin, public)
+}
+
+func ProvideCollaborationProtoHandler(handler *collaborationhttp.Handler) *collaborationproto.Handler {
+	return collaborationproto.NewHandler(handler)
+}
+
+func ProvidePaymentProtoHandler(
+	payment *paymenthttp.PaymentHandler,
+	refund *paymenthttp.RefundHandler,
+	webhook *paymenthttp.WebhookHandler,
+) *paymentproto.Handler {
+	return paymentproto.NewHandler(payment, refund, webhook)
+}
+
+func ProvideGitProtoHandler(handler *githttp.Handler) *gitproto.Handler {
+	return gitproto.NewHandler(handler)
+}
+
+func ProvideMediaProtoHandler(handler *mediahttp.Handler) *mediaproto.Handler {
+	return mediaproto.NewHandler(handler)
+}
 
 // ===== Master Set =====
 

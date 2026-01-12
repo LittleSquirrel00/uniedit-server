@@ -21,13 +21,19 @@ import (
 
 	// Inbound adapters
 	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
+	"github.com/uniedit/server/internal/adapter/inbound/http/aiproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/authproto"
 	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
+	"github.com/uniedit/server/internal/adapter/inbound/http/billingproto"
 	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
+	"github.com/uniedit/server/internal/adapter/inbound/http/collaborationproto"
 	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
+	"github.com/uniedit/server/internal/adapter/inbound/http/gitproto"
 	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
+	"github.com/uniedit/server/internal/adapter/inbound/http/mediaproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/orderproto"
 	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
+	"github.com/uniedit/server/internal/adapter/inbound/http/paymentproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/pingproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/userproto"
 
@@ -76,6 +82,12 @@ type Dependencies struct {
 	AuthProtoHandler  *authproto.Handler
 	UserProtoHandler  *userproto.Handler
 	OrderProtoHandler *orderproto.Handler
+	BillingProtoHandler *billingproto.Handler
+	AIProtoHandler      *aiproto.Handler
+	CollaborationProtoHandler *collaborationproto.Handler
+	PaymentProtoHandler *paymentproto.Handler
+	GitProtoHandler     *gitproto.Handler
+	MediaProtoHandler   *mediaproto.Handler
 
 	// Billing HTTP Handlers
 	SubscriptionHandler *billinghttp.SubscriptionHandler
