@@ -60,15 +60,20 @@ UniEdit 视频编辑器的后端服务，提供用户认证、AI 代理、计费
 ```
 uniedit-server/
 ├── cmd/server/            # 程序入口
+├── api/
+│   ├── protobuf_spec/     # Proto 接口定义 (auth/user/ai/billing/payment/order/git/media/collaboration)
+│   ├── pb/                # 生成的 Go 代码 (*_pb.go, *_gin.pb.go)
+│   └── openapi_spec/      # 生成的 OpenAPI v2 文档
 ├── internal/
-│   ├── app/               # Wire 依赖注入、应用组装
+│   ├── app/               # Wire 依赖注入、应用组装、路由注册
 │   ├── adapter/           # 适配层：
-│   │   ├── inbound/http   # HTTP 路由与 Handler
-│   │   └── outbound       # Postgres/Redis/OAuth/第三方 Provider 适配器
+│   │   ├── inbound/http/  # HTTP Handler (xxxproto/ 使用 Proto 消息)
+│   │   └── outbound/      # Postgres/Redis/OAuth/第三方 Provider 适配器
 │   ├── domain/            # 领域层 (ai/auth/billing/order/payment/git/collaboration/media/user)
 │   ├── infra/             # 基础设施封装 (config/database/cache/httpclient)
 │   ├── port/              # 端口定义 (inbound/outbound 接口)
-│   ├── model/             # 领域模型与枚举
+│   ├── model/             # 数据库模型 (GORM)
+│   ├── transport/         # 传输层工具 (protohttp 绑定)
 │   └── utils/             # 通用工具 (logger/metrics/middleware 等)
 ├── configs/               # 配置文件模板
 ├── migrations/            # 数据库迁移
@@ -177,6 +182,33 @@ mage protoOpenAPI  # 生成到 ./api/openapi_spec/*/*.swagger.yaml
 | **Payment** | 支付集成：Stripe、支付宝、微信支付 | ✅ 已实现 |
 | **Git** | Git 托管：仓库管理、协作者、PR、LFS | ✅ 已实现 |
 | **Collaboration** | 团队协作：团队管理、成员邀请、角色权限 | ✅ 已实现 |
+| **Media** | 媒体生成：图片生成、视频生成、任务管理 | ✅ 已实现 |
+
+### API 架构
+
+项目采用 **Proto-first** 的接口定义方式：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  api/protobuf_spec/         定义接口、请求/响应消息          │
+│         ↓                                                    │
+│  api/pb/                    生成 Go 类型 + Gin Handler 绑定  │
+│         ↓                                                    │
+│  internal/adapter/inbound/http/xxxproto/   Handler 实现      │
+│         ↓                                                    │
+│  internal/domain/           业务逻辑 (使用 pb 消息)          │
+│         ↓                                                    │
+│  internal/model/            数据库模型 (GORM)                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| 层级 | 文件位置 | 职责 |
+|------|----------|------|
+| **接口定义** | `api/protobuf_spec/` | Proto 定义请求/响应消息、Service RPC |
+| **生成代码** | `api/pb/` | `*_pb.go` (消息类型) + `*_gin.pb.go` (路由绑定) |
+| **Handler** | `internal/adapter/inbound/http/xxxproto/` | 使用 Proto 消息，调用 Domain |
+| **Domain** | `internal/domain/` | 业务逻辑，输入输出使用 Proto 消息 |
+| **Model** | `internal/model/` | 数据库模型，仅在持久化边界使用 |
 
 ### AI 模块
 
@@ -307,15 +339,10 @@ mage test
 mage testCover
 
 # 指定模块测试
-go test -v ./internal/module/ai/routing/...
-go test -v ./internal/module/ai/provider/...
-go test -v ./internal/module/ai/task/...
+go test -v ./internal/domain/ai/...
+go test -v ./internal/domain/auth/...
+go test -v ./internal/domain/billing/...
 ```
-
-当前核心模块测试覆盖率：
-- provider: 59.1%
-- routing: 60.3%
-- task: 55.6%
 
 ## 文档
 

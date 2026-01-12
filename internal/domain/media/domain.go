@@ -56,13 +56,12 @@ func NewDomain(
 
 // GenerateImage generates images synchronously.
 func (d *Domain) GenerateImage(ctx context.Context, userID uuid.UUID, in *mediav1.GenerateImageRequest) (*mediav1.GenerateImageResponse, error) {
-	input := toGenerateImageInput(in)
-	if input.Prompt == "" {
+	if in.GetPrompt() == "" {
 		return nil, ErrInvalidInput
 	}
 
 	// Find model with image capability
-	mediaModel, provider, apiKey, err := d.findModelWithCapability(ctx, input.Model, model.MediaCapabilityImage)
+	mediaModel, provider, apiKey, err := d.findModelWithCapability(ctx, in.GetModel(), model.MediaCapabilityImage)
 	if err != nil {
 		return nil, err
 	}
@@ -73,15 +72,15 @@ func (d *Domain) GenerateImage(ctx context.Context, userID uuid.UUID, in *mediav
 		return nil, fmt.Errorf("%w: %v", ErrNoAdapterFound, err)
 	}
 
-	// Build request
+	// Build request from proto directly
 	req := &model.ImageRequest{
-		Prompt:         input.Prompt,
-		NegativePrompt: input.NegativePrompt,
-		N:              input.N,
-		Size:           input.Size,
-		Quality:        input.Quality,
-		Style:          input.Style,
-		ResponseFormat: input.ResponseFormat,
+		Prompt:         in.GetPrompt(),
+		NegativePrompt: in.GetNegativePrompt(),
+		N:              int(in.GetN()),
+		Size:           in.GetSize(),
+		Quality:        in.GetQuality(),
+		Style:          in.GetStyle(),
+		ResponseFormat: in.GetResponseFormat(),
 		Model:          mediaModel.ID,
 	}
 
@@ -97,24 +96,29 @@ func (d *Domain) GenerateImage(ctx context.Context, userID uuid.UUID, in *mediav
 		zap.Int("count", len(resp.Images)),
 	)
 
-	return toGenerateImageResponse(&model.MediaImageGenerationOutput{
-		Images:    resp.Images,
-		Model:     resp.Model,
-		Usage:     resp.Usage,
-		CreatedAt: resp.CreatedAt,
-	}), nil
+	return toGenerateImageResponseFromResult(resp), nil
 }
 
 // GenerateVideo generates videos asynchronously.
 func (d *Domain) GenerateVideo(ctx context.Context, userID uuid.UUID, in *mediav1.GenerateVideoRequest) (*mediav1.VideoGenerationStatus, error) {
-	input := toGenerateVideoInput(in)
-	// Validate input
-	if input.Prompt == "" && input.InputImage == "" && input.InputVideo == "" {
+	// Validate input from proto directly
+	if in.GetPrompt() == "" && in.GetInputImage() == "" && in.GetInputVideo() == "" {
 		return nil, ErrInvalidInput
 	}
 
-	// Serialize input
-	inputBytes, err := json.Marshal(input)
+	// Serialize input for task storage
+	inputData := &videoGenerationInput{
+		Prompt:      in.GetPrompt(),
+		InputImage:  in.GetInputImage(),
+		InputVideo:  in.GetInputVideo(),
+		Duration:    int(in.GetDuration()),
+		AspectRatio: in.GetAspectRatio(),
+		Resolution:  in.GetResolution(),
+		FPS:         int(in.GetFps()),
+		Model:       in.GetModel(),
+	}
+
+	inputBytes, err := json.Marshal(inputData)
 	if err != nil {
 		return nil, fmt.Errorf("marshal input: %w", err)
 	}
@@ -142,12 +146,7 @@ func (d *Domain) GenerateVideo(ctx context.Context, userID uuid.UUID, in *mediav
 		zap.String("user_id", userID.String()),
 	)
 
-	return toVideoStatus(&model.MediaVideoGenerationOutput{
-		TaskID:    task.ID.String(),
-		Status:    model.VideoStatePending,
-		Progress:  0,
-		CreatedAt: task.CreatedAt.Unix(),
-	}), nil
+	return toVideoStatusPending(task), nil
 }
 
 // GetVideoStatus returns the status of a video generation task.
@@ -170,27 +169,16 @@ func (d *Domain) GetVideoStatus(ctx context.Context, userID uuid.UUID, in *media
 		return nil, ErrTaskNotOwned
 	}
 
-	resp := &model.MediaVideoGenerationOutput{
-		TaskID:    task.ID.String(),
-		Status:    taskStatusToVideoState(task.Status),
-		Progress:  task.Progress,
-		CreatedAt: task.CreatedAt.Unix(),
-	}
-
 	// Parse output if completed
+	var video *model.GeneratedVideo
 	if task.Status == model.MediaTaskStatusCompleted && task.Output != nil && *task.Output != "" {
-		var video model.GeneratedVideo
-		if err := json.Unmarshal([]byte(*task.Output), &video); err == nil {
-			resp.Video = &video
+		var v model.GeneratedVideo
+		if err := json.Unmarshal([]byte(*task.Output), &v); err == nil {
+			video = &v
 		}
 	}
 
-	// Include error if failed
-	if task.Error != "" {
-		resp.Error = task.Error
-	}
-
-	return toVideoStatus(resp), nil
+	return toVideoStatusFromTask(task, video), nil
 }
 
 // GetTask returns a task by ID.
@@ -213,16 +201,7 @@ func (d *Domain) GetTask(ctx context.Context, userID uuid.UUID, in *mediav1.GetB
 		return nil, ErrTaskNotOwned
 	}
 
-	return toTask(&model.MediaTaskOutput{
-		ID:        task.ID,
-		OwnerID:   task.OwnerID,
-		Type:      task.Type,
-		Status:    task.Status,
-		Progress:  task.Progress,
-		Error:     task.Error,
-		CreatedAt: task.CreatedAt.Unix(),
-		UpdatedAt: task.UpdatedAt.Unix(),
-	}), nil
+	return toMediaTaskPB(task), nil
 }
 
 // ListTasks lists tasks for a user.
@@ -246,16 +225,7 @@ func (d *Domain) ListTasks(ctx context.Context, userID uuid.UUID, in *mediav1.Li
 
 	out := make([]*mediav1.MediaTask, 0, len(tasks))
 	for _, task := range tasks {
-		out = append(out, toTask(&model.MediaTaskOutput{
-			ID:        task.ID,
-			OwnerID:   task.OwnerID,
-			Type:      task.Type,
-			Status:    task.Status,
-			Progress:  task.Progress,
-			Error:     task.Error,
-			CreatedAt: task.CreatedAt.Unix(),
-			UpdatedAt: task.UpdatedAt.Unix(),
-		}))
+		out = append(out, toMediaTaskPB(task))
 	}
 
 	return &mediav1.ListTasksResponse{Tasks: out}, nil
@@ -456,7 +426,7 @@ func (d *Domain) ExecuteVideoTask(ctx context.Context, taskID uuid.UUID) error {
 	}
 
 	// Parse input
-	var input model.MediaVideoGenerationInput
+	var input videoGenerationInput
 	if task.Input == nil {
 		d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusFailed, 0, "", "missing input")
 		return fmt.Errorf("task input is nil")
@@ -557,6 +527,19 @@ func taskStatusToVideoState(status model.MediaTaskStatus) model.VideoState {
 	default:
 		return model.VideoStatePending
 	}
+}
+
+// videoGenerationInput is an internal struct for task storage.
+// This replaces the external model.MediaVideoGenerationInput.
+type videoGenerationInput struct {
+	Prompt      string `json:"prompt,omitempty"`
+	InputImage  string `json:"input_image,omitempty"`
+	InputVideo  string `json:"input_video,omitempty"`
+	Duration    int    `json:"duration,omitempty"`
+	AspectRatio string `json:"aspect_ratio,omitempty"`
+	Resolution  string `json:"resolution,omitempty"`
+	FPS         int    `json:"fps,omitempty"`
+	Model       string `json:"model,omitempty"`
 }
 
 // Compile-time interface check

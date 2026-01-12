@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls -lh)",
+      "Bash(go build ./internal/domain/billing/...)",
+      "Bash(go build ./...)",
+      "Bash(go build ./internal/domain/auth/...)",
+      "Bash(go build ./internal/domain/user/...)",
+      "Bash(go build ./internal/domain/auth/... ./internal/domain/user/...)",
+      "Bash(go test ./internal/domain/auth/... ./internal/domain/user/... -v)",
+      "Bash(go test ./internal/domain/user/... -v)"
+    ],
+    "additionalDirectories": [
+      "/Users/zhangfeng144/Git/uniedit-server/internal/model"
+    ]
+  }
+}

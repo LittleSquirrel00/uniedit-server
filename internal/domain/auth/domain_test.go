@@ -8,7 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/uniedit/server/internal/domain/user"
+	authv1 "github.com/uniedit/server/api/pb/auth"
+	commonv1 "github.com/uniedit/server/api/pb/common"
+	userv1 "github.com/uniedit/server/api/pb/user"
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/outbound"
 	"go.uber.org/zap"
@@ -20,117 +22,164 @@ type MockUserDomain struct {
 	mock.Mock
 }
 
-func (m *MockUserDomain) GetUser(ctx context.Context, id uuid.UUID) (*model.User, error) {
+func (m *MockUserDomain) GetUser(ctx context.Context, id uuid.UUID) (*commonv1.User, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*model.User), args.Error(1)
+	return args.Get(0).(*commonv1.User), args.Error(1)
 }
 
-func (m *MockUserDomain) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
+func (m *MockUserDomain) GetUserByEmail(ctx context.Context, email string) (*commonv1.User, error) {
 	args := m.Called(ctx, email)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*model.User), args.Error(1)
+	return args.Get(0).(*commonv1.User), args.Error(1)
 }
 
-func (m *MockUserDomain) Register(ctx context.Context, input *user.RegisterInput) (*model.User, error) {
-	args := m.Called(ctx, input)
+func (m *MockUserDomain) Register(ctx context.Context, in *userv1.RegisterRequest) (*userv1.RegisterResponse, error) {
+	args := m.Called(ctx, in)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*model.User), args.Error(1)
+	return args.Get(0).(*userv1.RegisterResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) VerifyEmail(ctx context.Context, token string) error {
-	args := m.Called(ctx, token)
-	return args.Error(0)
+func (m *MockUserDomain) VerifyEmail(ctx context.Context, in *userv1.VerifyEmailRequest) (*commonv1.MessageResponse, error) {
+	args := m.Called(ctx, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.MessageResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) GetProfile(ctx context.Context, userID uuid.UUID) (*model.Profile, error) {
+func (m *MockUserDomain) GetProfile(ctx context.Context, userID uuid.UUID) (*userv1.Profile, error) {
 	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*model.Profile), args.Error(1)
+	return args.Get(0).(*userv1.Profile), args.Error(1)
 }
 
-func (m *MockUserDomain) UpdateProfile(ctx context.Context, userID uuid.UUID, input *user.UpdateProfileInput) (*model.User, error) {
-	args := m.Called(ctx, userID, input)
+func (m *MockUserDomain) UpdateProfile(ctx context.Context, userID uuid.UUID, in *userv1.UpdateProfileRequest) (*commonv1.User, error) {
+	args := m.Called(ctx, userID, in)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*model.User), args.Error(1)
+	return args.Get(0).(*commonv1.User), args.Error(1)
 }
 
-func (m *MockUserDomain) GetPreferences(ctx context.Context, userID uuid.UUID) (*model.Preferences, error) {
+func (m *MockUserDomain) GetPreferences(ctx context.Context, userID uuid.UUID) (*userv1.Preferences, error) {
 	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*model.Preferences), args.Error(1)
+	return args.Get(0).(*userv1.Preferences), args.Error(1)
 }
 
-func (m *MockUserDomain) UpdatePreferences(ctx context.Context, userID uuid.UUID, prefs *model.Preferences) error {
-	args := m.Called(ctx, userID, prefs)
-	return args.Error(0)
+func (m *MockUserDomain) UpdatePreferences(ctx context.Context, userID uuid.UUID, in *userv1.UpdatePreferencesRequest) (*commonv1.MessageResponse, error) {
+	args := m.Called(ctx, userID, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.MessageResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) UploadAvatar(ctx context.Context, userID uuid.UUID, data []byte, contentType string) (string, error) {
-	args := m.Called(ctx, userID, data, contentType)
-	return args.String(0), args.Error(1)
+func (m *MockUserDomain) UploadAvatar(ctx context.Context, userID uuid.UUID, in *userv1.UploadAvatarRequest) (*userv1.UploadAvatarResponse, error) {
+	args := m.Called(ctx, userID, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userv1.UploadAvatarResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error {
-	args := m.Called(ctx, userID, currentPassword, newPassword)
-	return args.Error(0)
+func (m *MockUserDomain) ChangePassword(ctx context.Context, userID uuid.UUID, in *userv1.ChangePasswordRequest) (*commonv1.MessageResponse, error) {
+	args := m.Called(ctx, userID, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.MessageResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) RequestPasswordReset(ctx context.Context, email string) error {
-	args := m.Called(ctx, email)
-	return args.Error(0)
+func (m *MockUserDomain) RequestPasswordReset(ctx context.Context, in *userv1.RequestPasswordResetRequest) (*commonv1.MessageResponse, error) {
+	args := m.Called(ctx, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.MessageResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) ResetPassword(ctx context.Context, token, newPassword string) error {
-	args := m.Called(ctx, token, newPassword)
-	return args.Error(0)
+func (m *MockUserDomain) ResetPassword(ctx context.Context, in *userv1.CompletePasswordResetRequest) (*commonv1.MessageResponse, error) {
+	args := m.Called(ctx, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.MessageResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) DeleteAccount(ctx context.Context, userID uuid.UUID, password string) error {
-	args := m.Called(ctx, userID, password)
-	return args.Error(0)
+func (m *MockUserDomain) DeleteAccount(ctx context.Context, userID uuid.UUID, in *userv1.DeleteAccountRequest) (*commonv1.MessageResponse, error) {
+	args := m.Called(ctx, userID, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.MessageResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) ListUsers(ctx context.Context, filter model.UserFilter) ([]*model.User, int64, error) {
-	args := m.Called(ctx, filter)
-	return args.Get(0).([]*model.User), args.Get(1).(int64), args.Error(2)
+func (m *MockUserDomain) ListUsers(ctx context.Context, in *userv1.ListUsersRequest) (*userv1.ListUsersResponse, error) {
+	args := m.Called(ctx, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userv1.ListUsersResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) SuspendUser(ctx context.Context, userID uuid.UUID, reason string) error {
-	args := m.Called(ctx, userID, reason)
-	return args.Error(0)
+func (m *MockUserDomain) GetUserByID(ctx context.Context, in *userv1.GetByIDRequest) (*commonv1.User, error) {
+	args := m.Called(ctx, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.User), args.Error(1)
 }
 
-func (m *MockUserDomain) ReactivateUser(ctx context.Context, userID uuid.UUID) error {
-	args := m.Called(ctx, userID)
-	return args.Error(0)
+func (m *MockUserDomain) SuspendUser(ctx context.Context, in *userv1.SuspendUserRequest) (*commonv1.MessageResponse, error) {
+	args := m.Called(ctx, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.MessageResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) SetAdminStatus(ctx context.Context, id uuid.UUID, isAdmin bool) error {
-	args := m.Called(ctx, id, isAdmin)
-	return args.Error(0)
+func (m *MockUserDomain) ReactivateUser(ctx context.Context, in *userv1.GetByIDRequest) (*commonv1.MessageResponse, error) {
+	args := m.Called(ctx, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.MessageResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) AdminDeleteUser(ctx context.Context, id uuid.UUID) error {
-	args := m.Called(ctx, id)
-	return args.Error(0)
+func (m *MockUserDomain) SetAdminStatus(ctx context.Context, in *userv1.SetAdminStatusRequest) (*commonv1.MessageResponse, error) {
+	args := m.Called(ctx, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.MessageResponse), args.Error(1)
 }
 
-func (m *MockUserDomain) ResendVerification(ctx context.Context, email string) error {
-	args := m.Called(ctx, email)
-	return args.Error(0)
+func (m *MockUserDomain) AdminDeleteUser(ctx context.Context, in *userv1.GetByIDRequest) (*commonv1.MessageResponse, error) {
+	args := m.Called(ctx, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.MessageResponse), args.Error(1)
+}
+
+func (m *MockUserDomain) ResendVerification(ctx context.Context, in *userv1.ResendVerificationRequest) (*commonv1.MessageResponse, error) {
+	args := m.Called(ctx, in)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*commonv1.MessageResponse), args.Error(1)
 }
 
 type MockRefreshTokenDB struct {
@@ -406,12 +455,12 @@ func TestAuthDomain_InitiateLogin(t *testing.T) {
 		mockStateStore.On("Set", mock.Anything, mock.AnythingOfType("string"), "github").Return(nil)
 		mockOAuthProvider.On("GetAuthURL", mock.AnythingOfType("string")).Return("https://github.com/login/oauth/authorize?state=xxx")
 
-		resp, err := domain.InitiateLogin(context.Background(), model.OAuthProviderGitHub)
+		resp, err := domain.InitiateLogin(context.Background(), &authv1.InitiateLoginRequest{Provider: "github"})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, resp)
-		assert.NotEmpty(t, resp.AuthURL)
-		assert.NotEmpty(t, resp.State)
+		assert.NotEmpty(t, resp.GetAuthUrl())
+		assert.NotEmpty(t, resp.GetState())
 		mockOAuthRegistry.AssertExpectations(t)
 		mockStateStore.AssertExpectations(t)
 	})
@@ -419,14 +468,14 @@ func TestAuthDomain_InitiateLogin(t *testing.T) {
 	t.Run("invalid provider", func(t *testing.T) {
 		domain := NewAuthDomain(nil, nil, nil, nil, nil, nil, nil, nil, nil, logger)
 
-		resp, err := domain.InitiateLogin(context.Background(), "invalid")
+		resp, err := domain.InitiateLogin(context.Background(), &authv1.InitiateLoginRequest{Provider: "invalid"})
 
 		assert.ErrorIs(t, err, ErrInvalidOAuthProvider)
 		assert.Nil(t, resp)
 	})
 }
 
-func TestAuthDomain_RefreshTokens(t *testing.T) {
+func TestAuthDomain_RefreshToken(t *testing.T) {
 	logger := zap.NewNop()
 
 	t.Run("success", func(t *testing.T) {
@@ -459,8 +508,8 @@ func TestAuthDomain_RefreshTokens(t *testing.T) {
 			ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 		}
 
-		expectedUser := &model.User{
-			ID:    userID,
+		expectedUser := &commonv1.User{
+			Id:    userID.String(),
 			Email: "test@example.com",
 		}
 
@@ -473,12 +522,12 @@ func TestAuthDomain_RefreshTokens(t *testing.T) {
 		mockJWT.On("GetAccessTokenExpiry").Return(time.Hour)
 		mockRefreshTokenDB.On("Create", mock.Anything, mock.AnythingOfType("*model.RefreshToken")).Return(nil)
 
-		tokenPair, err := domain.RefreshTokens(context.Background(), refreshToken, "Mozilla/5.0", "127.0.0.1")
+		tokenPair, err := domain.RefreshToken(context.Background(), &authv1.RefreshTokenRequest{RefreshToken: refreshToken}, "Mozilla/5.0", "127.0.0.1")
 
 		assert.NoError(t, err)
 		assert.NotNil(t, tokenPair)
-		assert.Equal(t, "new-access-token", tokenPair.AccessToken)
-		assert.Equal(t, "new-refresh-token", tokenPair.RefreshToken)
+		assert.Equal(t, "new-access-token", tokenPair.GetAccessToken())
+		assert.Equal(t, "new-refresh-token", tokenPair.GetRefreshToken())
 		mockJWT.AssertExpectations(t)
 		mockRefreshTokenDB.AssertExpectations(t)
 	})
@@ -503,7 +552,7 @@ func TestAuthDomain_RefreshTokens(t *testing.T) {
 		mockJWT.On("HashRefreshToken", "invalid-token").Return("invalid-hash")
 		mockRefreshTokenDB.On("GetByHash", mock.Anything, "invalid-hash").Return(nil, ErrInvalidToken)
 
-		tokenPair, err := domain.RefreshTokens(context.Background(), "invalid-token", "", "")
+		tokenPair, err := domain.RefreshToken(context.Background(), &authv1.RefreshTokenRequest{RefreshToken: "invalid-token"}, "", "")
 
 		assert.ErrorIs(t, err, ErrInvalidToken)
 		assert.Nil(t, tokenPair)
@@ -536,7 +585,7 @@ func TestAuthDomain_RefreshTokens(t *testing.T) {
 		mockJWT.On("HashRefreshToken", "expired-token").Return("hash")
 		mockRefreshTokenDB.On("GetByHash", mock.Anything, "hash").Return(expiredToken, nil)
 
-		tokenPair, err := domain.RefreshTokens(context.Background(), "expired-token", "", "")
+		tokenPair, err := domain.RefreshToken(context.Background(), &authv1.RefreshTokenRequest{RefreshToken: "expired-token"}, "", "")
 
 		assert.ErrorIs(t, err, ErrExpiredToken)
 		assert.Nil(t, tokenPair)
@@ -565,9 +614,10 @@ func TestAuthDomain_Logout(t *testing.T) {
 		userID := uuid.New()
 		mockRefreshTokenDB.On("RevokeAllForUser", mock.Anything, userID).Return(nil)
 
-		err := domain.Logout(context.Background(), userID)
+		resp, err := domain.Logout(context.Background(), userID)
 
 		assert.NoError(t, err)
+		assert.NotNil(t, resp)
 		mockRefreshTokenDB.AssertExpectations(t)
 	})
 }
@@ -593,24 +643,24 @@ func TestAuthDomain_CreateUserAPIKey(t *testing.T) {
 		)
 
 		userID := uuid.New()
-		input := &CreateUserAPIKeyInput{
+		in := &authv1.CreateUserAPIKeyRequest{
 			Provider: "openai",
 			Name:     "My OpenAI Key",
-			APIKey:   "sk-1234567890",
+			ApiKey:   "sk-1234567890",
 			Scopes:   []string{"chat", "embedding"},
 		}
 
 		mockUserAPIKeyDB.On("GetByUserAndProvider", mock.Anything, userID, "openai").Return(nil, ErrAPIKeyNotFound)
-		mockCrypto.On("Encrypt", input.APIKey).Return("encrypted-key", nil)
+		mockCrypto.On("Encrypt", in.GetApiKey()).Return("encrypted-key", nil)
 		mockUserAPIKeyDB.On("Create", mock.Anything, mock.AnythingOfType("*model.UserAPIKey")).Return(nil)
 
-		apiKey, err := domain.CreateUserAPIKey(context.Background(), userID, input)
+		apiKey, err := domain.CreateUserAPIKey(context.Background(), userID, in)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, apiKey)
-		assert.Equal(t, "openai", apiKey.Provider)
-		assert.Equal(t, "My OpenAI Key", apiKey.Name)
-		assert.Equal(t, "sk-1234", apiKey.KeyPrefix)
+		assert.Equal(t, "openai", apiKey.GetProvider())
+		assert.Equal(t, "My OpenAI Key", apiKey.GetName())
+		assert.Equal(t, "sk-1234", apiKey.GetKeyPrefix())
 		mockUserAPIKeyDB.AssertExpectations(t)
 		mockCrypto.AssertExpectations(t)
 	})
@@ -640,10 +690,10 @@ func TestAuthDomain_CreateUserAPIKey(t *testing.T) {
 
 		mockUserAPIKeyDB.On("GetByUserAndProvider", mock.Anything, userID, "openai").Return(existingKey, nil)
 
-		apiKey, err := domain.CreateUserAPIKey(context.Background(), userID, &CreateUserAPIKeyInput{
+		apiKey, err := domain.CreateUserAPIKey(context.Background(), userID, &authv1.CreateUserAPIKeyRequest{
 			Provider: "openai",
 			Name:     "Test",
-			APIKey:   "sk-123",
+			ApiKey:   "sk-123",
 		})
 
 		assert.ErrorIs(t, err, ErrAPIKeyAlreadyExists)
@@ -671,7 +721,7 @@ func TestAuthDomain_CreateSystemAPIKey(t *testing.T) {
 		)
 
 		userID := uuid.New()
-		input := &CreateSystemAPIKeyInput{
+		in := &authv1.CreateSystemAPIKeyRequest{
 			Name:   "My API Key",
 			Scopes: []string{"chat"},
 		}
@@ -679,13 +729,13 @@ func TestAuthDomain_CreateSystemAPIKey(t *testing.T) {
 		mockSystemAPIKeyDB.On("CountByUser", mock.Anything, userID).Return(int64(0), nil)
 		mockSystemAPIKeyDB.On("Create", mock.Anything, mock.AnythingOfType("*model.SystemAPIKey")).Return(nil)
 
-		result, err := domain.CreateSystemAPIKey(context.Background(), userID, input)
+		result, err := domain.CreateSystemAPIKey(context.Background(), userID, in)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.NotEmpty(t, result.RawAPIKey)
-		assert.True(t, len(result.RawAPIKey) > 10)
-		assert.Equal(t, "My API Key", result.Key.Name)
+		assert.NotEmpty(t, result.GetApiKey())
+		assert.True(t, len(result.GetApiKey()) > 10)
+		assert.Equal(t, "My API Key", result.GetKeyDetails().GetName())
 		mockSystemAPIKeyDB.AssertExpectations(t)
 	})
 
@@ -708,7 +758,7 @@ func TestAuthDomain_CreateSystemAPIKey(t *testing.T) {
 		userID := uuid.New()
 		mockSystemAPIKeyDB.On("CountByUser", mock.Anything, userID).Return(int64(5), nil)
 
-		result, err := domain.CreateSystemAPIKey(context.Background(), userID, &CreateSystemAPIKeyInput{
+		result, err := domain.CreateSystemAPIKey(context.Background(), userID, &authv1.CreateSystemAPIKeyRequest{
 			Name: "Test Key",
 		})
 
@@ -933,10 +983,10 @@ func TestAuthDomain_ListUserAPIKeys(t *testing.T) {
 
 		mockUserAPIKeyDB.On("ListByUser", mock.Anything, userID).Return(expectedKeys, nil)
 
-		keys, err := domain.ListUserAPIKeys(context.Background(), userID)
+		resp, err := domain.ListUserAPIKeys(context.Background(), userID)
 
 		assert.NoError(t, err)
-		assert.Len(t, keys, 2)
+		assert.Len(t, resp.GetApiKeys(), 2)
 		mockUserAPIKeyDB.AssertExpectations(t)
 	})
 }
@@ -970,9 +1020,10 @@ func TestAuthDomain_DeleteUserAPIKey(t *testing.T) {
 		mockUserAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(existingKey, nil)
 		mockUserAPIKeyDB.On("Delete", mock.Anything, keyID).Return(nil)
 
-		err := domain.DeleteUserAPIKey(context.Background(), userID, keyID)
+		resp, err := domain.DeleteUserAPIKey(context.Background(), userID, &authv1.GetByIDRequest{Id: keyID.String()})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, resp)
 		mockUserAPIKeyDB.AssertExpectations(t)
 	})
 
@@ -997,9 +1048,10 @@ func TestAuthDomain_DeleteUserAPIKey(t *testing.T) {
 
 		mockUserAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(nil, ErrAPIKeyNotFound)
 
-		err := domain.DeleteUserAPIKey(context.Background(), userID, keyID)
+		resp, err := domain.DeleteUserAPIKey(context.Background(), userID, &authv1.GetByIDRequest{Id: keyID.String()})
 
 		assert.ErrorIs(t, err, ErrAPIKeyNotFound)
+		assert.Nil(t, resp)
 	})
 
 	t.Run("not owned by user", func(t *testing.T) {
@@ -1028,9 +1080,10 @@ func TestAuthDomain_DeleteUserAPIKey(t *testing.T) {
 
 		mockUserAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(existingKey, nil)
 
-		err := domain.DeleteUserAPIKey(context.Background(), userID, keyID)
+		resp, err := domain.DeleteUserAPIKey(context.Background(), userID, &authv1.GetByIDRequest{Id: keyID.String()})
 
 		assert.ErrorIs(t, err, ErrForbidden)
+		assert.Nil(t, resp)
 	})
 }
 
@@ -1129,10 +1182,10 @@ func TestAuthDomain_ListSystemAPIKeys(t *testing.T) {
 
 		mockSystemAPIKeyDB.On("ListByUser", mock.Anything, userID).Return(expectedKeys, nil)
 
-		keys, err := domain.ListSystemAPIKeys(context.Background(), userID)
+		resp, err := domain.ListSystemAPIKeys(context.Background(), userID)
 
 		assert.NoError(t, err)
-		assert.Len(t, keys, 2)
+		assert.Len(t, resp.GetApiKeys(), 2)
 		mockSystemAPIKeyDB.AssertExpectations(t)
 	})
 }
@@ -1166,10 +1219,10 @@ func TestAuthDomain_GetSystemAPIKey(t *testing.T) {
 
 		mockSystemAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(existingKey, nil)
 
-		key, err := domain.GetSystemAPIKey(context.Background(), userID, keyID)
+		key, err := domain.GetSystemAPIKey(context.Background(), userID, &authv1.GetByIDRequest{Id: keyID.String()})
 
 		assert.NoError(t, err)
-		assert.Equal(t, "My Key", key.Name)
+		assert.Equal(t, "My Key", key.GetName())
 		mockSystemAPIKeyDB.AssertExpectations(t)
 	})
 
@@ -1194,7 +1247,7 @@ func TestAuthDomain_GetSystemAPIKey(t *testing.T) {
 
 		mockSystemAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(nil, ErrSystemAPIKeyNotFound)
 
-		key, err := domain.GetSystemAPIKey(context.Background(), userID, keyID)
+		key, err := domain.GetSystemAPIKey(context.Background(), userID, &authv1.GetByIDRequest{Id: keyID.String()})
 
 		assert.ErrorIs(t, err, ErrSystemAPIKeyNotFound)
 		assert.Nil(t, key)
@@ -1226,7 +1279,7 @@ func TestAuthDomain_GetSystemAPIKey(t *testing.T) {
 
 		mockSystemAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(existingKey, nil)
 
-		key, err := domain.GetSystemAPIKey(context.Background(), userID, keyID)
+		key, err := domain.GetSystemAPIKey(context.Background(), userID, &authv1.GetByIDRequest{Id: keyID.String()})
 
 		assert.ErrorIs(t, err, ErrForbidden)
 		assert.Nil(t, key)
@@ -1262,9 +1315,10 @@ func TestAuthDomain_DeleteSystemAPIKey(t *testing.T) {
 		mockSystemAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(existingKey, nil)
 		mockSystemAPIKeyDB.On("Delete", mock.Anything, keyID).Return(nil)
 
-		err := domain.DeleteSystemAPIKey(context.Background(), userID, keyID)
+		resp, err := domain.DeleteSystemAPIKey(context.Background(), userID, &authv1.GetByIDRequest{Id: keyID.String()})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, resp)
 		mockSystemAPIKeyDB.AssertExpectations(t)
 	})
 
@@ -1289,9 +1343,10 @@ func TestAuthDomain_DeleteSystemAPIKey(t *testing.T) {
 
 		mockSystemAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(nil, ErrSystemAPIKeyNotFound)
 
-		err := domain.DeleteSystemAPIKey(context.Background(), userID, keyID)
+		resp, err := domain.DeleteSystemAPIKey(context.Background(), userID, &authv1.GetByIDRequest{Id: keyID.String()})
 
 		assert.ErrorIs(t, err, ErrSystemAPIKeyNotFound)
+		assert.Nil(t, resp)
 	})
 }
 
@@ -1326,18 +1381,17 @@ func TestAuthDomain_UpdateSystemAPIKey(t *testing.T) {
 		mockSystemAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(existingKey, nil)
 		mockSystemAPIKeyDB.On("Update", mock.Anything, mock.AnythingOfType("*model.SystemAPIKey")).Return(nil)
 
-		newName := "New Name"
-		isActive := false
-		input := &UpdateSystemAPIKeyInput{
-			Name:     &newName,
-			IsActive: &isActive,
+		in := &authv1.UpdateSystemAPIKeyRequest{
+			Id:       keyID.String(),
+			Name:     &commonv1.StringValue{Value: "New Name"},
+			IsActive: &commonv1.BoolValue{Value: false},
 		}
 
-		key, err := domain.UpdateSystemAPIKey(context.Background(), userID, keyID, input)
+		key, err := domain.UpdateSystemAPIKey(context.Background(), userID, in)
 
 		assert.NoError(t, err)
-		assert.Equal(t, "New Name", key.Name)
-		assert.False(t, key.IsActive)
+		assert.Equal(t, "New Name", key.GetName())
+		assert.False(t, key.GetIsActive())
 		mockSystemAPIKeyDB.AssertExpectations(t)
 	})
 
@@ -1362,7 +1416,7 @@ func TestAuthDomain_UpdateSystemAPIKey(t *testing.T) {
 
 		mockSystemAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(nil, ErrSystemAPIKeyNotFound)
 
-		key, err := domain.UpdateSystemAPIKey(context.Background(), userID, keyID, &UpdateSystemAPIKeyInput{})
+		key, err := domain.UpdateSystemAPIKey(context.Background(), userID, &authv1.UpdateSystemAPIKeyRequest{Id: keyID.String()})
 
 		assert.ErrorIs(t, err, ErrSystemAPIKeyNotFound)
 		assert.Nil(t, key)
@@ -1390,11 +1444,14 @@ func TestAuthDomain_CompleteLogin(t *testing.T) {
 
 		mockStateStore.On("Get", mock.Anything, "invalid-state").Return("", ErrInvalidOAuthState)
 
-		tokenPair, user, err := domain.CompleteLogin(context.Background(), model.OAuthProviderGitHub, "code", "invalid-state", "Mozilla/5.0", "127.0.0.1")
+		resp, err := domain.CompleteLogin(context.Background(), &authv1.CompleteLoginRequest{
+			Provider: "github",
+			Code:     "code",
+			State:    "invalid-state",
+		}, "Mozilla/5.0", "127.0.0.1")
 
 		assert.ErrorIs(t, err, ErrInvalidOAuthState)
-		assert.Nil(t, tokenPair)
-		assert.Nil(t, user)
+		assert.Nil(t, resp)
 	})
 
 	t.Run("provider mismatch", func(t *testing.T) {
@@ -1416,11 +1473,14 @@ func TestAuthDomain_CompleteLogin(t *testing.T) {
 		mockStateStore.On("Get", mock.Anything, "valid-state").Return("google", nil) // stored provider is google
 		mockStateStore.On("Delete", mock.Anything, "valid-state").Return(nil)
 
-		tokenPair, user, err := domain.CompleteLogin(context.Background(), model.OAuthProviderGitHub, "code", "valid-state", "Mozilla/5.0", "127.0.0.1")
+		resp, err := domain.CompleteLogin(context.Background(), &authv1.CompleteLoginRequest{
+			Provider: "github",
+			Code:     "code",
+			State:    "valid-state",
+		}, "Mozilla/5.0", "127.0.0.1")
 
 		assert.ErrorIs(t, err, ErrInvalidOAuthState)
-		assert.Nil(t, tokenPair)
-		assert.Nil(t, user)
+		assert.Nil(t, resp)
 	})
 
 	t.Run("invalid oauth provider", func(t *testing.T) {
@@ -1444,11 +1504,14 @@ func TestAuthDomain_CompleteLogin(t *testing.T) {
 		mockStateStore.On("Delete", mock.Anything, "valid-state").Return(nil)
 		mockOAuthRegistry.On("Get", "github").Return(nil, ErrInvalidOAuthProvider)
 
-		tokenPair, user, err := domain.CompleteLogin(context.Background(), model.OAuthProviderGitHub, "code", "valid-state", "Mozilla/5.0", "127.0.0.1")
+		resp, err := domain.CompleteLogin(context.Background(), &authv1.CompleteLoginRequest{
+			Provider: "github",
+			Code:     "code",
+			State:    "valid-state",
+		}, "Mozilla/5.0", "127.0.0.1")
 
 		assert.ErrorIs(t, err, ErrInvalidOAuthProvider)
-		assert.Nil(t, tokenPair)
-		assert.Nil(t, user)
+		assert.Nil(t, resp)
 	})
 
 	t.Run("invalid oauth code", func(t *testing.T) {
@@ -1474,11 +1537,14 @@ func TestAuthDomain_CompleteLogin(t *testing.T) {
 		mockOAuthRegistry.On("Get", "github").Return(mockOAuthProvider, nil)
 		mockOAuthProvider.On("Exchange", mock.Anything, "invalid-code").Return("", ErrInvalidOAuthCode)
 
-		tokenPair, user, err := domain.CompleteLogin(context.Background(), model.OAuthProviderGitHub, "invalid-code", "valid-state", "Mozilla/5.0", "127.0.0.1")
+		resp, err := domain.CompleteLogin(context.Background(), &authv1.CompleteLoginRequest{
+			Provider: "github",
+			Code:     "invalid-code",
+			State:    "valid-state",
+		}, "Mozilla/5.0", "127.0.0.1")
 
 		assert.ErrorIs(t, err, ErrInvalidOAuthCode)
-		assert.Nil(t, tokenPair)
-		assert.Nil(t, user)
+		assert.Nil(t, resp)
 	})
 
 	t.Run("get user info failed", func(t *testing.T) {
@@ -1505,11 +1571,14 @@ func TestAuthDomain_CompleteLogin(t *testing.T) {
 		mockOAuthProvider.On("Exchange", mock.Anything, "valid-code").Return("access-token", nil)
 		mockOAuthProvider.On("GetUserInfo", mock.Anything, "access-token").Return(nil, ErrOAuthFailed)
 
-		tokenPair, user, err := domain.CompleteLogin(context.Background(), model.OAuthProviderGitHub, "valid-code", "valid-state", "Mozilla/5.0", "127.0.0.1")
+		resp, err := domain.CompleteLogin(context.Background(), &authv1.CompleteLoginRequest{
+			Provider: "github",
+			Code:     "valid-code",
+			State:    "valid-state",
+		}, "Mozilla/5.0", "127.0.0.1")
 
 		assert.ErrorIs(t, err, ErrOAuthFailed)
-		assert.Nil(t, tokenPair)
-		assert.Nil(t, user)
+		assert.Nil(t, resp)
 	})
 }
 
@@ -1546,11 +1615,13 @@ func TestAuthDomain_RotateUserAPIKey(t *testing.T) {
 		mockCrypto.On("Encrypt", "new-api-key").Return("new-encrypted-key", nil)
 		mockUserAPIKeyDB.On("Update", mock.Anything, mock.AnythingOfType("*model.UserAPIKey")).Return(nil)
 
-		key, err := domain.RotateUserAPIKey(context.Background(), userID, keyID, "new-api-key")
+		key, err := domain.RotateUserAPIKey(context.Background(), userID, &authv1.RotateUserAPIKeyRequest{
+			Id:        keyID.String(),
+			NewApiKey: "new-api-key",
+		})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, key)
-		assert.Equal(t, "new-encrypted-key", key.EncryptedKey)
 		mockUserAPIKeyDB.AssertExpectations(t)
 		mockCrypto.AssertExpectations(t)
 	})
@@ -1576,7 +1647,10 @@ func TestAuthDomain_RotateUserAPIKey(t *testing.T) {
 
 		mockUserAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(nil, ErrAPIKeyNotFound)
 
-		key, err := domain.RotateUserAPIKey(context.Background(), userID, keyID, "new-api-key")
+		key, err := domain.RotateUserAPIKey(context.Background(), userID, &authv1.RotateUserAPIKeyRequest{
+			Id:        keyID.String(),
+			NewApiKey: "new-api-key",
+		})
 
 		assert.ErrorIs(t, err, ErrAPIKeyNotFound)
 		assert.Nil(t, key)
@@ -1608,7 +1682,10 @@ func TestAuthDomain_RotateUserAPIKey(t *testing.T) {
 
 		mockUserAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(existingKey, nil)
 
-		key, err := domain.RotateUserAPIKey(context.Background(), userID, keyID, "new-api-key")
+		key, err := domain.RotateUserAPIKey(context.Background(), userID, &authv1.RotateUserAPIKeyRequest{
+			Id:        keyID.String(),
+			NewApiKey: "new-api-key",
+		})
 
 		assert.ErrorIs(t, err, ErrForbidden)
 		assert.Nil(t, key)
@@ -1641,7 +1718,10 @@ func TestAuthDomain_RotateUserAPIKey(t *testing.T) {
 		mockUserAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(existingKey, nil)
 		mockCrypto.On("Encrypt", "new-api-key").Return("", ErrEncryptionFailed)
 
-		key, err := domain.RotateUserAPIKey(context.Background(), userID, keyID, "new-api-key")
+		key, err := domain.RotateUserAPIKey(context.Background(), userID, &authv1.RotateUserAPIKeyRequest{
+			Id:        keyID.String(),
+			NewApiKey: "new-api-key",
+		})
 
 		assert.ErrorIs(t, err, ErrEncryptionFailed)
 		assert.Nil(t, key)
@@ -1680,12 +1760,12 @@ func TestAuthDomain_RotateSystemAPIKey(t *testing.T) {
 		mockSystemAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(existingKey, nil)
 		mockSystemAPIKeyDB.On("Update", mock.Anything, mock.AnythingOfType("*model.SystemAPIKey")).Return(nil)
 
-		result, err := domain.RotateSystemAPIKey(context.Background(), userID, keyID)
+		result, err := domain.RotateSystemAPIKey(context.Background(), userID, &authv1.GetByIDRequest{Id: keyID.String()})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.NotEmpty(t, result.RawAPIKey)
-		assert.Equal(t, "My Key", result.Key.Name)
+		assert.NotEmpty(t, result.GetApiKey())
+		assert.Equal(t, "My Key", result.GetKeyDetails().GetName())
 		mockSystemAPIKeyDB.AssertExpectations(t)
 	})
 
@@ -1710,7 +1790,7 @@ func TestAuthDomain_RotateSystemAPIKey(t *testing.T) {
 
 		mockSystemAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(nil, ErrSystemAPIKeyNotFound)
 
-		result, err := domain.RotateSystemAPIKey(context.Background(), userID, keyID)
+		result, err := domain.RotateSystemAPIKey(context.Background(), userID, &authv1.GetByIDRequest{Id: keyID.String()})
 
 		assert.ErrorIs(t, err, ErrSystemAPIKeyNotFound)
 		assert.Nil(t, result)
@@ -1742,7 +1822,7 @@ func TestAuthDomain_RotateSystemAPIKey(t *testing.T) {
 
 		mockSystemAPIKeyDB.On("GetByID", mock.Anything, keyID).Return(existingKey, nil)
 
-		result, err := domain.RotateSystemAPIKey(context.Background(), userID, keyID)
+		result, err := domain.RotateSystemAPIKey(context.Background(), userID, &authv1.GetByIDRequest{Id: keyID.String()})
 
 		assert.ErrorIs(t, err, ErrForbidden)
 		assert.Nil(t, result)

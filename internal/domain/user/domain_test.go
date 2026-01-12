@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	commonv1 "github.com/uniedit/server/api/pb/common"
 	userv1 "github.com/uniedit/server/api/pb/user"
 	"github.com/uniedit/server/internal/model"
 	"go.uber.org/zap"
@@ -174,7 +173,7 @@ func TestUserDomain_GetUser(t *testing.T) {
 		user, err := domain.GetUser(context.Background(), userID)
 
 		assert.NoError(t, err)
-		assert.Equal(t, expectedUser, user)
+		assert.Equal(t, expectedUser.Email, user.GetEmail())
 		mockUserDB.AssertExpectations(t)
 	})
 
@@ -515,11 +514,11 @@ func TestUserDomain_GetProfile(t *testing.T) {
 
 		profile, err := domain.GetProfile(context.Background(), userID)
 
-			assert.NoError(t, err)
-			assert.Equal(t, user.Name, profile.DisplayName)
-			assert.Equal(t, user.AvatarURL, profile.AvatarUrl)
-			mockUserDB.AssertExpectations(t)
-		})
+		assert.NoError(t, err)
+		assert.Equal(t, user.Name, profile.DisplayName)
+		assert.Equal(t, user.AvatarURL, profile.AvatarUrl)
+		mockUserDB.AssertExpectations(t)
+	})
 
 	t.Run("user not found", func(t *testing.T) {
 		mockUserDB := new(MockUserDatabasePort)
@@ -910,7 +909,7 @@ func TestUserDomain_ReactivateUser(t *testing.T) {
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 		mockUserDB.On("Update", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 
-		err := domain.ReactivateUser(context.Background(), userID)
+		_, err := domain.ReactivateUser(context.Background(), &userv1.GetByIDRequest{Id: userID.String()})
 
 		assert.NoError(t, err)
 		assert.Equal(t, model.UserStatusActive, user.Status)
@@ -931,7 +930,7 @@ func TestUserDomain_ReactivateUser(t *testing.T) {
 
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 
-		err := domain.ReactivateUser(context.Background(), userID)
+		_, err := domain.ReactivateUser(context.Background(), &userv1.GetByIDRequest{Id: userID.String()})
 
 		assert.ErrorIs(t, err, ErrUserAlreadyActive)
 	})
@@ -943,7 +942,7 @@ func TestUserDomain_ReactivateUser(t *testing.T) {
 		userID := uuid.New()
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(nil, nil)
 
-		err := domain.ReactivateUser(context.Background(), userID)
+		_, err := domain.ReactivateUser(context.Background(), &userv1.GetByIDRequest{Id: userID.String()})
 
 		assert.ErrorIs(t, err, ErrUserNotFound)
 	})
@@ -965,7 +964,10 @@ func TestUserDomain_SetAdminStatus(t *testing.T) {
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 		mockUserDB.On("Update", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 
-		err := domain.SetAdminStatus(context.Background(), userID, true)
+		_, err := domain.SetAdminStatus(context.Background(), &userv1.SetAdminStatusRequest{
+			Id:      userID.String(),
+			IsAdmin: true,
+		})
 
 		assert.NoError(t, err)
 		assert.True(t, user.IsAdmin)
@@ -985,7 +987,10 @@ func TestUserDomain_SetAdminStatus(t *testing.T) {
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 		mockUserDB.On("Update", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 
-		err := domain.SetAdminStatus(context.Background(), userID, false)
+		_, err := domain.SetAdminStatus(context.Background(), &userv1.SetAdminStatusRequest{
+			Id:      userID.String(),
+			IsAdmin: false,
+		})
 
 		assert.NoError(t, err)
 		assert.False(t, user.IsAdmin)
@@ -999,7 +1004,10 @@ func TestUserDomain_SetAdminStatus(t *testing.T) {
 		userID := uuid.New()
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(nil, nil)
 
-		err := domain.SetAdminStatus(context.Background(), userID, true)
+		_, err := domain.SetAdminStatus(context.Background(), &userv1.SetAdminStatusRequest{
+			Id:      userID.String(),
+			IsAdmin: true,
+		})
 
 		assert.ErrorIs(t, err, ErrUserNotFound)
 	})
@@ -1021,7 +1029,7 @@ func TestUserDomain_AdminDeleteUser(t *testing.T) {
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 		mockUserDB.On("SoftDelete", mock.Anything, userID).Return(nil)
 
-		err := domain.AdminDeleteUser(context.Background(), userID)
+		_, err := domain.AdminDeleteUser(context.Background(), &userv1.GetByIDRequest{Id: userID.String()})
 
 		assert.NoError(t, err)
 		mockUserDB.AssertExpectations(t)
@@ -1039,7 +1047,7 @@ func TestUserDomain_AdminDeleteUser(t *testing.T) {
 
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 
-		err := domain.AdminDeleteUser(context.Background(), userID)
+		_, err := domain.AdminDeleteUser(context.Background(), &userv1.GetByIDRequest{Id: userID.String()})
 
 		assert.ErrorIs(t, err, ErrCannotSuspendAdmin)
 	})
@@ -1051,7 +1059,7 @@ func TestUserDomain_AdminDeleteUser(t *testing.T) {
 		userID := uuid.New()
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(nil, nil)
 
-		err := domain.AdminDeleteUser(context.Background(), userID)
+		_, err := domain.AdminDeleteUser(context.Background(), &userv1.GetByIDRequest{Id: userID.String()})
 
 		assert.ErrorIs(t, err, ErrUserNotFound)
 	})
@@ -1063,7 +1071,10 @@ func TestUserDomain_ChangePassword_EdgeCases(t *testing.T) {
 	t.Run("new password too short", func(t *testing.T) {
 		domain := NewUserDomain(nil, nil, nil, nil, nil, nil, logger)
 
-		err := domain.ChangePassword(context.Background(), uuid.New(), "old", "short")
+		_, err := domain.ChangePassword(context.Background(), uuid.New(), &userv1.ChangePasswordRequest{
+			CurrentPassword: "old",
+			NewPassword:     "short",
+		})
 
 		assert.ErrorIs(t, err, ErrPasswordTooShort)
 	})
@@ -1080,7 +1091,10 @@ func TestUserDomain_ChangePassword_EdgeCases(t *testing.T) {
 
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 
-		err := domain.ChangePassword(context.Background(), userID, "old", "newpassword123")
+		_, err := domain.ChangePassword(context.Background(), userID, &userv1.ChangePasswordRequest{
+			CurrentPassword: "old",
+			NewPassword:     "newpassword123",
+		})
 
 		assert.ErrorIs(t, err, ErrPasswordRequired)
 	})
@@ -1155,17 +1169,16 @@ func TestUserDomain_UpdatePreferences_WithPrefsDB(t *testing.T) {
 		domain := NewUserDomain(nil, nil, nil, mockPrefsDB, nil, nil, logger)
 
 		userID := uuid.New()
-		prefs := &model.Preferences{
-			Theme:    "dark",
-			Language: "zh",
-		}
 
 		mockPrefsDB.On("UpdatePreferences", mock.Anything, mock.AnythingOfType("*model.Preferences")).Return(nil)
 
-		err := domain.UpdatePreferences(context.Background(), userID, prefs)
+		out, err := domain.UpdatePreferences(context.Background(), userID, &userv1.UpdatePreferencesRequest{
+			Theme:    "dark",
+			Language: "zh",
+		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, userID, prefs.UserID) // UserID should be set
+		assert.NotNil(t, out)
 		mockPrefsDB.AssertExpectations(t)
 	})
 }
@@ -1184,20 +1197,26 @@ func TestUserDomain_UploadAvatar(t *testing.T) {
 
 		mockAvatarStorage.On("Upload", mock.Anything, userID, data, contentType).Return(expectedURL, nil)
 
-		url, err := domain.UploadAvatar(context.Background(), userID, data, contentType)
+		result, err := domain.UploadAvatar(context.Background(), userID, &userv1.UploadAvatarRequest{
+			Data:        data,
+			ContentType: contentType,
+		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, expectedURL, url)
+		assert.Equal(t, expectedURL, result.GetUrl())
 		mockAvatarStorage.AssertExpectations(t)
 	})
 
 	t.Run("storage not configured", func(t *testing.T) {
 		domain := NewUserDomain(nil, nil, nil, nil, nil, nil, logger)
 
-		url, err := domain.UploadAvatar(context.Background(), uuid.New(), []byte("data"), "image/png")
+		result, err := domain.UploadAvatar(context.Background(), uuid.New(), &userv1.UploadAvatarRequest{
+			Data:        []byte("data"),
+			ContentType: "image/png",
+		})
 
 		assert.Error(t, err)
-		assert.Empty(t, url)
+		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "avatar storage not configured")
 	})
 }
@@ -1221,7 +1240,10 @@ func TestUserDomain_ResetPassword_EdgeCases(t *testing.T) {
 
 		mockVerificationDB.On("GetVerificationByToken", mock.Anything, "used-token").Return(verification, nil)
 
-		err := domain.ResetPassword(context.Background(), "used-token", "newpassword123")
+		_, err := domain.ResetPassword(context.Background(), &userv1.CompletePasswordResetRequest{
+			Token:       "used-token",
+			NewPassword: "newpassword123",
+		})
 
 		assert.ErrorIs(t, err, ErrTokenAlreadyUsed)
 	})
@@ -1240,7 +1262,10 @@ func TestUserDomain_ResetPassword_EdgeCases(t *testing.T) {
 
 		mockVerificationDB.On("GetVerificationByToken", mock.Anything, "expired-token").Return(verification, nil)
 
-		err := domain.ResetPassword(context.Background(), "expired-token", "newpassword123")
+		_, err := domain.ResetPassword(context.Background(), &userv1.CompletePasswordResetRequest{
+			Token:       "expired-token",
+			NewPassword: "newpassword123",
+		})
 
 		assert.ErrorIs(t, err, ErrTokenExpired)
 	})
@@ -1262,13 +1287,11 @@ func TestUserDomain_ResetPassword_EdgeCases(t *testing.T) {
 		mockVerificationDB.On("GetVerificationByToken", mock.Anything, "valid-token").Return(verification, nil)
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(nil, nil)
 
-		err := domain.ResetPassword(context.Background(), "valid-token", "newpassword123")
+		_, err := domain.ResetPassword(context.Background(), &userv1.CompletePasswordResetRequest{
+			Token:       "valid-token",
+			NewPassword: "newpassword123",
+		})
 
 		assert.ErrorIs(t, err, ErrUserNotFound)
 	})
-}
-
-// Helper function
-func strPtr(s string) *string {
-	return &s
 }

@@ -8,51 +8,19 @@ import (
 	"github.com/uniedit/server/internal/model"
 )
 
-func toGenerateImageInput(in *mediav1.GenerateImageRequest) *model.MediaImageGenerationInput {
-	if in == nil {
-		return &model.MediaImageGenerationInput{}
-	}
-	return &model.MediaImageGenerationInput{
-		Prompt:         in.GetPrompt(),
-		NegativePrompt: in.GetNegativePrompt(),
-		N:              int(in.GetN()),
-		Size:           in.GetSize(),
-		Quality:        in.GetQuality(),
-		Style:          in.GetStyle(),
-		Model:          in.GetModel(),
-		ResponseFormat: in.GetResponseFormat(),
-	}
-}
-
-func toGenerateVideoInput(in *mediav1.GenerateVideoRequest) *model.MediaVideoGenerationInput {
-	if in == nil {
-		return &model.MediaVideoGenerationInput{}
-	}
-	return &model.MediaVideoGenerationInput{
-		Prompt:      in.GetPrompt(),
-		InputImage:  in.GetInputImage(),
-		InputVideo:  in.GetInputVideo(),
-		Duration:    int(in.GetDuration()),
-		AspectRatio: in.GetAspectRatio(),
-		Resolution:  in.GetResolution(),
-		FPS:         int(in.GetFps()),
-		Model:       in.GetModel(),
-	}
-}
-
-func toGenerateImageResponse(in *model.MediaImageGenerationOutput) *mediav1.GenerateImageResponse {
-	if in == nil {
+// toGenerateImageResponseFromResult builds a GenerateImageResponse from adapter result.
+func toGenerateImageResponseFromResult(resp *model.ImageResponse) *mediav1.GenerateImageResponse {
+	if resp == nil {
 		return nil
 	}
 
 	out := &mediav1.GenerateImageResponse{
-		Model:     in.Model,
-		CreatedAt: in.CreatedAt,
-		TaskId:    in.TaskID,
-		Images:    make([]*mediav1.GeneratedImage, 0, len(in.Images)),
+		Model:     resp.Model,
+		CreatedAt: resp.CreatedAt,
+		Images:    make([]*mediav1.GeneratedImage, 0, len(resp.Images)),
 	}
 
-	for _, img := range in.Images {
+	for _, img := range resp.Images {
 		if img == nil {
 			continue
 		}
@@ -63,57 +31,72 @@ func toGenerateImageResponse(in *model.MediaImageGenerationOutput) *mediav1.Gene
 		})
 	}
 
-	if in.Usage != nil {
+	if resp.Usage != nil {
 		out.Usage = &mediav1.ImageUsage{
-			TotalImages: int32(in.Usage.TotalImages),
-			CostUsd:     in.Usage.CostUSD,
+			TotalImages: int32(resp.Usage.TotalImages),
+			CostUsd:     resp.Usage.CostUSD,
 		}
 	}
 
 	return out
 }
 
-func toVideoStatus(in *model.MediaVideoGenerationOutput) *mediav1.VideoGenerationStatus {
-	if in == nil {
+// toVideoStatusFromTask builds a VideoGenerationStatus from a MediaTask.
+func toVideoStatusFromTask(task *model.MediaTask, video *model.GeneratedVideo) *mediav1.VideoGenerationStatus {
+	if task == nil {
 		return nil
 	}
 
 	out := &mediav1.VideoGenerationStatus{
-		TaskId:    in.TaskID,
-		Status:    string(in.Status),
-		Progress:  int32(in.Progress),
-		Error:     in.Error,
-		CreatedAt: in.CreatedAt,
+		TaskId:    task.ID.String(),
+		Status:    string(taskStatusToVideoState(task.Status)),
+		Progress:  int32(task.Progress),
+		CreatedAt: task.CreatedAt.Unix(),
 	}
 
-	if in.Video != nil {
+	if task.Error != "" {
+		out.Error = task.Error
+	}
+
+	if video != nil {
 		out.Video = &mediav1.GeneratedVideo{
-			Url:      in.Video.URL,
-			Duration: int32(in.Video.Duration),
-			Width:    int32(in.Video.Width),
-			Height:   int32(in.Video.Height),
-			Fps:      int32(in.Video.FPS),
-			FileSize: in.Video.FileSize,
-			Format:   in.Video.Format,
+			Url:      video.URL,
+			Duration: int32(video.Duration),
+			Width:    int32(video.Width),
+			Height:   int32(video.Height),
+			Fps:      int32(video.FPS),
+			FileSize: video.FileSize,
+			Format:   video.Format,
 		}
 	}
 
 	return out
 }
 
-func toTask(in *model.MediaTaskOutput) *mediav1.MediaTask {
-	if in == nil {
+// toVideoStatusPending builds a pending VideoGenerationStatus.
+func toVideoStatusPending(task *model.MediaTask) *mediav1.VideoGenerationStatus {
+	return &mediav1.VideoGenerationStatus{
+		TaskId:    task.ID.String(),
+		Status:    string(model.VideoStatePending),
+		Progress:  0,
+		CreatedAt: task.CreatedAt.Unix(),
+	}
+}
+
+// toMediaTaskPB converts a MediaTask model to proto.
+func toMediaTaskPB(task *model.MediaTask) *mediav1.MediaTask {
+	if task == nil {
 		return nil
 	}
 	return &mediav1.MediaTask{
-		Id:        in.ID.String(),
-		OwnerId:   in.OwnerID.String(),
-		Type:      in.Type,
-		Status:    string(in.Status),
-		Progress:  int32(in.Progress),
-		Error:     in.Error,
-		CreatedAt: in.CreatedAt,
-		UpdatedAt: in.UpdatedAt,
+		Id:        task.ID.String(),
+		OwnerId:   task.OwnerID.String(),
+		Type:      task.Type,
+		Status:    string(task.Status),
+		Progress:  int32(task.Progress),
+		Error:     task.Error,
+		CreatedAt: task.CreatedAt.Unix(),
+		UpdatedAt: task.UpdatedAt.Unix(),
 	}
 }
 
@@ -161,4 +144,3 @@ func formatTime(t time.Time) string {
 	}
 	return t.UTC().Format(time.RFC3339Nano)
 }
-
