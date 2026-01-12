@@ -8,6 +8,8 @@ import (
 
 // Domain errors for collaboration module.
 var (
+	ErrInvalidRequest = errors.New("invalid request")
+
 	// Team errors - reuse from outbound port for adapter compatibility
 	ErrTeamNotFound      = outbound.ErrTeamNotFound
 	ErrSlugAlreadyExists = errors.New("slug already exists")

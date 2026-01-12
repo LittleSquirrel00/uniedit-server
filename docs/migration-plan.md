@@ -139,7 +139,7 @@ import (
     "github.com/uniedit/server/internal/domain/billing"
     // ... 其他 domain
 
-    aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
+    aiproto "github.com/uniedit/server/internal/adapter/inbound/http/aiproto"
     githttp "github.com/uniedit/server/internal/adapter/http"
     // ... 其他适配器
 
@@ -161,8 +161,8 @@ type AppV2 struct {
     billingDomain billing.BillingDomain
     // ...
 
-    // HTTP Handlers (入站适配器)
-    aiChatHandler    *aihttp.ChatHandler
+    // Proto Handlers (入站适配器)
+    aiProtoHandler   *aiproto.Handler
     gitHandler       *githttp.GitHandler
     // ...
 }

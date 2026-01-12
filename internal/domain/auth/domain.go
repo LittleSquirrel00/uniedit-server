@@ -5,9 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	authv1 "github.com/uniedit/server/api/pb/auth"
+	commonv1 "github.com/uniedit/server/api/pb/common"
 	"github.com/uniedit/server/internal/domain/user"
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/outbound"
@@ -17,67 +20,31 @@ import (
 // AuthDomain defines authentication domain service interface.
 type AuthDomain interface {
 	// OAuth operations
-	InitiateLogin(ctx context.Context, provider model.OAuthProvider) (*LoginResponse, error)
-	CompleteLogin(ctx context.Context, provider model.OAuthProvider, code, state, userAgent, ipAddress string) (*model.TokenPair, *model.User, error)
+	InitiateLogin(ctx context.Context, in *authv1.InitiateLoginRequest) (*authv1.InitiateLoginResponse, error)
+	CompleteLogin(ctx context.Context, in *authv1.CompleteLoginRequest, userAgent, ipAddress string) (*authv1.CompleteLoginResponse, error)
 
 	// Token operations
-	RefreshTokens(ctx context.Context, refreshToken, userAgent, ipAddress string) (*model.TokenPair, error)
-	Logout(ctx context.Context, userID uuid.UUID) error
+	RefreshToken(ctx context.Context, in *authv1.RefreshTokenRequest, userAgent, ipAddress string) (*authv1.TokenPairResponse, error)
+	GetMe(ctx context.Context, token string) (*authv1.GetMeResponse, error)
+	Logout(ctx context.Context, userID uuid.UUID) (*commonv1.MessageResponse, error)
 	ValidateAccessToken(token string) (*outbound.JWTClaims, error)
 
 	// User API key operations
-	CreateUserAPIKey(ctx context.Context, userID uuid.UUID, input *CreateUserAPIKeyInput) (*model.UserAPIKey, error)
-	ListUserAPIKeys(ctx context.Context, userID uuid.UUID) ([]*model.UserAPIKey, error)
-	DeleteUserAPIKey(ctx context.Context, userID, keyID uuid.UUID) error
+	CreateUserAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.CreateUserAPIKeyRequest) (*authv1.UserAPIKey, error)
+	ListUserAPIKeys(ctx context.Context, userID uuid.UUID) (*authv1.ListUserAPIKeysResponse, error)
+	GetUserAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.GetByIDRequest) (*authv1.UserAPIKey, error)
+	DeleteUserAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.GetByIDRequest) (*commonv1.MessageResponse, error)
 	GetDecryptedAPIKey(ctx context.Context, userID uuid.UUID, provider string) (string, error)
-	RotateUserAPIKey(ctx context.Context, userID, keyID uuid.UUID, newKey string) (*model.UserAPIKey, error)
+	RotateUserAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.RotateUserAPIKeyRequest) (*authv1.UserAPIKey, error)
 
 	// System API key operations
-	CreateSystemAPIKey(ctx context.Context, userID uuid.UUID, input *CreateSystemAPIKeyInput) (*SystemAPIKeyCreateResult, error)
-	ListSystemAPIKeys(ctx context.Context, userID uuid.UUID) ([]*model.SystemAPIKey, error)
-	GetSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID) (*model.SystemAPIKey, error)
-	UpdateSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID, input *UpdateSystemAPIKeyInput) (*model.SystemAPIKey, error)
-	DeleteSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID) error
-	RotateSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID) (*SystemAPIKeyCreateResult, error)
+	CreateSystemAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.CreateSystemAPIKeyRequest) (*authv1.CreateSystemAPIKeyResponse, error)
+	ListSystemAPIKeys(ctx context.Context, userID uuid.UUID) (*authv1.ListSystemAPIKeysResponse, error)
+	GetSystemAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.GetByIDRequest) (*authv1.SystemAPIKey, error)
+	UpdateSystemAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.UpdateSystemAPIKeyRequest) (*authv1.SystemAPIKey, error)
+	DeleteSystemAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.GetByIDRequest) (*commonv1.MessageResponse, error)
+	RotateSystemAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.GetByIDRequest) (*authv1.CreateSystemAPIKeyResponse, error)
 	ValidateSystemAPIKey(ctx context.Context, apiKey string) (*model.SystemAPIKey, error)
-}
-
-// LoginResponse contains OAuth authorization URL.
-type LoginResponse struct {
-	AuthURL string
-	State   string
-}
-
-// CreateUserAPIKeyInput represents input for creating a user API key.
-type CreateUserAPIKeyInput struct {
-	Provider string
-	Name     string
-	APIKey   string
-	Scopes   []string
-}
-
-// CreateSystemAPIKeyInput represents input for creating a system API key.
-type CreateSystemAPIKeyInput struct {
-	Name          string
-	Scopes        []string
-	RateLimitRPM  *int
-	RateLimitTPM  *int
-	ExpiresInDays *int
-}
-
-// UpdateSystemAPIKeyInput represents input for updating a system API key.
-type UpdateSystemAPIKeyInput struct {
-	Name         *string
-	Scopes       []string
-	RateLimitRPM *int
-	RateLimitTPM *int
-	IsActive     *bool
-}
-
-// SystemAPIKeyCreateResult includes the full key (only on creation/rotation).
-type SystemAPIKeyCreateResult struct {
-	Key       *model.SystemAPIKey
-	RawAPIKey string
 }
 
 // authDomain implements AuthDomain.
@@ -138,7 +105,12 @@ func NewAuthDomain(
 
 // --- OAuth Operations ---
 
-func (d *authDomain) InitiateLogin(ctx context.Context, provider model.OAuthProvider) (*LoginResponse, error) {
+func (d *authDomain) InitiateLogin(ctx context.Context, in *authv1.InitiateLoginRequest) (*authv1.InitiateLoginResponse, error) {
+	if in == nil {
+		return nil, ErrInvalidOAuthProvider
+	}
+
+	provider := model.OAuthProvider(in.GetProvider())
 	if !provider.IsValid() {
 		return nil, ErrInvalidOAuthProvider
 	}
@@ -158,72 +130,89 @@ func (d *authDomain) InitiateLogin(ctx context.Context, provider model.OAuthProv
 
 	authURL := oauthProvider.GetAuthURL(state)
 
-	return &LoginResponse{
-		AuthURL: authURL,
-		State:   state,
-	}, nil
+	return &authv1.InitiateLoginResponse{AuthUrl: authURL, State: state}, nil
 }
 
-func (d *authDomain) CompleteLogin(ctx context.Context, provider model.OAuthProvider, code, state, userAgent, ipAddress string) (*model.TokenPair, *model.User, error) {
+func (d *authDomain) CompleteLogin(ctx context.Context, in *authv1.CompleteLoginRequest, userAgent, ipAddress string) (*authv1.CompleteLoginResponse, error) {
+	if in == nil {
+		return nil, ErrInvalidOAuthProvider
+	}
+
+	provider := model.OAuthProvider(in.GetProvider())
+	if !provider.IsValid() {
+		return nil, ErrInvalidOAuthProvider
+	}
+
+	code := in.GetCode()
+	state := in.GetState()
+
 	// Verify state
 	storedProvider, err := d.stateStore.Get(ctx, state)
 	if err != nil {
-		return nil, nil, ErrInvalidOAuthState
+		return nil, ErrInvalidOAuthState
 	}
 	defer d.stateStore.Delete(ctx, state)
 
 	if storedProvider != provider.String() {
-		return nil, nil, ErrInvalidOAuthState
+		return nil, ErrInvalidOAuthState
 	}
 
 	// Get OAuth provider
 	oauthProvider, err := d.oauthRegistry.Get(provider.String())
 	if err != nil {
-		return nil, nil, ErrInvalidOAuthProvider
+		return nil, ErrInvalidOAuthProvider
 	}
 
 	// Exchange code for token
 	token, err := oauthProvider.Exchange(ctx, code)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidOAuthCode, err)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidOAuthCode, err)
 	}
 
 	// Get user info from provider
 	userInfo, err := oauthProvider.GetUserInfo(ctx, token)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w: %v", ErrOAuthFailed, err)
+		return nil, fmt.Errorf("%w: %v", ErrOAuthFailed, err)
 	}
 
-	// Find or create user
-	u, err := d.findOrCreateUser(ctx, provider, userInfo)
+	u, err := d.findExistingUserByEmail(ctx, userInfo.Email)
 	if err != nil {
-		return nil, nil, fmt.Errorf("find or create user: %w", err)
+		return nil, fmt.Errorf("find user: %w", err)
 	}
 
-	// Generate tokens
-	tokenPair, err := d.generateTokenPair(ctx, u, userAgent, ipAddress)
+	userID, err := uuid.Parse(u.GetId())
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate tokens: %w", err)
+		return nil, fmt.Errorf("invalid user id: %w", err)
 	}
 
-	return tokenPair, u, nil
+	tokenPair, err := d.generateTokenPair(ctx, userID, u.GetEmail(), userAgent, ipAddress)
+	if err != nil {
+		return nil, fmt.Errorf("generate tokens: %w", err)
+	}
+
+	return &authv1.CompleteLoginResponse{
+		Token: toTokenPairPB(tokenPair),
+		User:  u,
+	}, nil
 }
 
-func (d *authDomain) findOrCreateUser(ctx context.Context, provider model.OAuthProvider, info *model.OAuthUserInfo) (*model.User, error) {
-	// Try to find existing user by email
-	u, err := d.userDomain.GetUserByEmail(ctx, info.Email)
+func (d *authDomain) findExistingUserByEmail(ctx context.Context, email string) (*commonv1.User, error) {
+	u, err := d.userDomain.GetUserByEmail(ctx, email)
 	if err == nil {
 		return u, nil
 	}
-
-	// Create new user via user domain - this is handled by registration
-	// For OAuth users, we create them directly
 	return nil, fmt.Errorf("user creation via OAuth not yet implemented in new architecture")
 }
 
 // --- Token Operations ---
 
-func (d *authDomain) RefreshTokens(ctx context.Context, refreshToken, userAgent, ipAddress string) (*model.TokenPair, error) {
+func (d *authDomain) RefreshToken(ctx context.Context, in *authv1.RefreshTokenRequest, userAgent, ipAddress string) (*authv1.TokenPairResponse, error) {
+	if in == nil {
+		return nil, ErrInvalidToken
+	}
+
+	refreshToken := in.GetRefreshToken()
+
 	// Hash the token to look it up
 	tokenHash := d.jwt.HashRefreshToken(refreshToken)
 
@@ -252,24 +241,38 @@ func (d *authDomain) RefreshTokens(ctx context.Context, refreshToken, userAgent,
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
-	// Generate new token pair
-	return d.generateTokenPair(ctx, u, userAgent, ipAddress)
+	tokenPair, err := d.generateTokenPair(ctx, storedToken.UserID, u.GetEmail(), userAgent, ipAddress)
+	if err != nil {
+		return nil, err
+	}
+	return toTokenPairPB(tokenPair), nil
 }
 
-func (d *authDomain) Logout(ctx context.Context, userID uuid.UUID) error {
-	if err := d.tokenRepo.RevokeAllForUser(ctx, userID); err != nil {
-		return fmt.Errorf("revoke tokens: %w", err)
+func (d *authDomain) GetMe(ctx context.Context, token string) (*authv1.GetMeResponse, error) {
+	claims, err := d.ValidateAccessToken(token)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	return &authv1.GetMeResponse{
+		UserId: claims.UserID.String(),
+		Email:  claims.Email,
+	}, nil
+}
+
+func (d *authDomain) Logout(ctx context.Context, userID uuid.UUID) (*commonv1.MessageResponse, error) {
+	if err := d.tokenRepo.RevokeAllForUser(ctx, userID); err != nil {
+		return nil, fmt.Errorf("revoke tokens: %w", err)
+	}
+	return &commonv1.MessageResponse{Message: "logged out"}, nil
 }
 
 func (d *authDomain) ValidateAccessToken(token string) (*outbound.JWTClaims, error) {
 	return d.jwt.ValidateAccessToken(token)
 }
 
-func (d *authDomain) generateTokenPair(ctx context.Context, u *model.User, userAgent, ipAddress string) (*model.TokenPair, error) {
+func (d *authDomain) generateTokenPair(ctx context.Context, userID uuid.UUID, email, userAgent, ipAddress string) (*model.TokenPair, error) {
 	// Generate access token
-	accessToken, expiresAt, err := d.jwt.GenerateAccessToken(u.ID, u.Email)
+	accessToken, expiresAt, err := d.jwt.GenerateAccessToken(userID, email)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
@@ -283,7 +286,7 @@ func (d *authDomain) generateTokenPair(ctx context.Context, u *model.User, userA
 	// Store refresh token
 	refreshTokenRecord := &model.RefreshToken{
 		ID:        uuid.New(),
-		UserID:    u.ID,
+		UserID:    userID,
 		TokenHash: tokenHash,
 		ExpiresAt: refreshExpiresAt,
 		UserAgent: userAgent,
@@ -305,15 +308,19 @@ func (d *authDomain) generateTokenPair(ctx context.Context, u *model.User, userA
 
 // --- User API Key Operations ---
 
-func (d *authDomain) CreateUserAPIKey(ctx context.Context, userID uuid.UUID, input *CreateUserAPIKeyInput) (*model.UserAPIKey, error) {
+func (d *authDomain) CreateUserAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.CreateUserAPIKeyRequest) (*authv1.UserAPIKey, error) {
+	if in == nil {
+		return nil, ErrInvalidOAuthProvider
+	}
+
 	// Check if key already exists for this provider
-	existing, err := d.userAPIKeyRepo.GetByUserAndProvider(ctx, userID, input.Provider)
+	existing, err := d.userAPIKeyRepo.GetByUserAndProvider(ctx, userID, in.GetProvider())
 	if err == nil && existing != nil {
 		return nil, ErrAPIKeyAlreadyExists
 	}
 
 	// Encrypt the API key
-	encryptedKey, err := d.crypto.Encrypt(input.APIKey)
+	encryptedKey, err := d.crypto.Encrypt(in.GetApiKey())
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrEncryptionFailed, err)
 	}
@@ -322,35 +329,83 @@ func (d *authDomain) CreateUserAPIKey(ctx context.Context, userID uuid.UUID, inp
 	apiKey := &model.UserAPIKey{
 		ID:           uuid.New(),
 		UserID:       userID,
-		Provider:     input.Provider,
-		Name:         input.Name,
+		Provider:     in.GetProvider(),
+		Name:         in.GetName(),
 		EncryptedKey: encryptedKey,
-		KeyPrefix:    getKeyPrefix(input.APIKey, 7),
-		Scopes:       input.Scopes,
+		KeyPrefix:    getKeyPrefix(in.GetApiKey(), 7),
+		Scopes:       pq.StringArray(in.GetScopes()),
 	}
 
 	if err := d.userAPIKeyRepo.Create(ctx, apiKey); err != nil {
 		return nil, fmt.Errorf("create api key: %w", err)
 	}
 
-	return apiKey, nil
+	return toUserAPIKeyPB(apiKey), nil
 }
 
-func (d *authDomain) ListUserAPIKeys(ctx context.Context, userID uuid.UUID) ([]*model.UserAPIKey, error) {
-	return d.userAPIKeyRepo.ListByUser(ctx, userID)
+func (d *authDomain) ListUserAPIKeys(ctx context.Context, userID uuid.UUID) (*authv1.ListUserAPIKeysResponse, error) {
+	keys, err := d.userAPIKeyRepo.ListByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*authv1.UserAPIKey, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, toUserAPIKeyPB(k))
+	}
+	return &authv1.ListUserAPIKeysResponse{ApiKeys: out}, nil
 }
 
-func (d *authDomain) DeleteUserAPIKey(ctx context.Context, userID, keyID uuid.UUID) error {
-	// Verify ownership
+func (d *authDomain) GetUserAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.GetByIDRequest) (*authv1.UserAPIKey, error) {
+	if in == nil || in.GetId() == "" {
+		return nil, ErrAPIKeyNotFound
+	}
+
+	keyID, err := uuid.Parse(in.GetId())
+	if err != nil {
+		return nil, ErrAPIKeyNotFound
+	}
+
 	key, err := d.userAPIKeyRepo.GetByID(ctx, keyID)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	if key == nil {
+		return nil, ErrAPIKeyNotFound
 	}
 	if key.UserID != userID {
-		return ErrForbidden
+		return nil, ErrForbidden
 	}
 
-	return d.userAPIKeyRepo.Delete(ctx, keyID)
+	return toUserAPIKeyPB(key), nil
+}
+
+func (d *authDomain) DeleteUserAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.GetByIDRequest) (*commonv1.MessageResponse, error) {
+	if in == nil || in.GetId() == "" {
+		return nil, ErrAPIKeyNotFound
+	}
+
+	keyID, err := uuid.Parse(in.GetId())
+	if err != nil {
+		return nil, ErrAPIKeyNotFound
+	}
+
+	key, err := d.userAPIKeyRepo.GetByID(ctx, keyID)
+	if err != nil {
+		return nil, err
+	}
+	if key == nil {
+		return nil, ErrAPIKeyNotFound
+	}
+	if key.UserID != userID {
+		return nil, ErrForbidden
+	}
+
+	if err := d.userAPIKeyRepo.Delete(ctx, keyID); err != nil {
+		return nil, err
+	}
+
+	return &commonv1.MessageResponse{Message: "API key deleted"}, nil
 }
 
 func (d *authDomain) GetDecryptedAPIKey(ctx context.Context, userID uuid.UUID, provider string) (string, error) {
@@ -371,11 +426,22 @@ func (d *authDomain) GetDecryptedAPIKey(ctx context.Context, userID uuid.UUID, p
 	return decrypted, nil
 }
 
-func (d *authDomain) RotateUserAPIKey(ctx context.Context, userID, keyID uuid.UUID, newKey string) (*model.UserAPIKey, error) {
-	// Get existing key
+func (d *authDomain) RotateUserAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.RotateUserAPIKeyRequest) (*authv1.UserAPIKey, error) {
+	if in == nil || in.GetId() == "" {
+		return nil, ErrAPIKeyNotFound
+	}
+
+	keyID, err := uuid.Parse(in.GetId())
+	if err != nil {
+		return nil, ErrAPIKeyNotFound
+	}
+
 	key, err := d.userAPIKeyRepo.GetByID(ctx, keyID)
 	if err != nil {
 		return nil, err
+	}
+	if key == nil {
+		return nil, ErrAPIKeyNotFound
 	}
 
 	// Verify ownership
@@ -384,25 +450,25 @@ func (d *authDomain) RotateUserAPIKey(ctx context.Context, userID, keyID uuid.UU
 	}
 
 	// Encrypt new key
-	encryptedKey, err := d.crypto.Encrypt(newKey)
+	encryptedKey, err := d.crypto.Encrypt(in.GetNewApiKey())
 	if err != nil {
 		return nil, ErrEncryptionFailed
 	}
 
 	// Update
 	key.EncryptedKey = encryptedKey
-	key.KeyPrefix = getKeyPrefix(newKey, 7)
+	key.KeyPrefix = getKeyPrefix(in.GetNewApiKey(), 7)
 
 	if err := d.userAPIKeyRepo.Update(ctx, key); err != nil {
 		return nil, fmt.Errorf("update api key: %w", err)
 	}
 
-	return key, nil
+	return toUserAPIKeyPB(key), nil
 }
 
 // --- System API Key Operations ---
 
-func (d *authDomain) CreateSystemAPIKey(ctx context.Context, userID uuid.UUID, input *CreateSystemAPIKeyInput) (*SystemAPIKeyCreateResult, error) {
+func (d *authDomain) CreateSystemAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.CreateSystemAPIKeyRequest) (*authv1.CreateSystemAPIKeyResponse, error) {
 	// Check limit
 	count, err := d.systemAPIKeyRepo.CountByUser(ctx, userID)
 	if err != nil {
@@ -418,57 +484,96 @@ func (d *authDomain) CreateSystemAPIKey(ctx context.Context, userID uuid.UUID, i
 	// Set defaults
 	rateLimitRPM := 60
 	rateLimitTPM := 100000
-	if input.RateLimitRPM != nil && *input.RateLimitRPM > 0 {
-		rateLimitRPM = *input.RateLimitRPM
+	if in != nil && in.GetRateLimitRpm() > 0 {
+		rateLimitRPM = int(in.GetRateLimitRpm())
 	}
-	if input.RateLimitTPM != nil && *input.RateLimitTPM > 0 {
-		rateLimitTPM = *input.RateLimitTPM
+	if in != nil && in.GetRateLimitTpm() > 0 {
+		rateLimitTPM = int(in.GetRateLimitTpm())
 	}
 
 	// Create record
 	apiKey := &model.SystemAPIKey{
 		ID:           uuid.New(),
 		UserID:       userID,
-		Name:         input.Name,
+		Name:         "",
 		KeyHash:      keyHash,
 		KeyPrefix:    keyPrefix,
-		Scopes:       pq.StringArray(input.Scopes),
+		Scopes:       nil,
 		RateLimitRPM: rateLimitRPM,
 		RateLimitTPM: rateLimitTPM,
 		IsActive:     true,
+	}
+	if in != nil {
+		apiKey.Name = in.GetName()
+		apiKey.Scopes = pq.StringArray(in.GetScopes())
+		if in.GetExpiresInDays() > 0 {
+			t := time.Now().Add(time.Duration(in.GetExpiresInDays()) * 24 * time.Hour)
+			apiKey.ExpiresAt = &t
+		}
 	}
 
 	if err := d.systemAPIKeyRepo.Create(ctx, apiKey); err != nil {
 		return nil, fmt.Errorf("create system api key: %w", err)
 	}
 
-	return &SystemAPIKeyCreateResult{
-		Key:       apiKey,
-		RawAPIKey: rawKey,
+	return &authv1.CreateSystemAPIKeyResponse{
+		ApiKey:      rawKey,
+		KeyDetails:  toSystemAPIKeyPB(apiKey),
 	}, nil
 }
 
-func (d *authDomain) ListSystemAPIKeys(ctx context.Context, userID uuid.UUID) ([]*model.SystemAPIKey, error) {
-	return d.systemAPIKeyRepo.ListByUser(ctx, userID)
+func (d *authDomain) ListSystemAPIKeys(ctx context.Context, userID uuid.UUID) (*authv1.ListSystemAPIKeysResponse, error) {
+	keys, err := d.systemAPIKeyRepo.ListByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*authv1.SystemAPIKey, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, toSystemAPIKeyPB(k))
+	}
+	return &authv1.ListSystemAPIKeysResponse{ApiKeys: out}, nil
 }
 
-func (d *authDomain) GetSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID) (*model.SystemAPIKey, error) {
+func (d *authDomain) GetSystemAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.GetByIDRequest) (*authv1.SystemAPIKey, error) {
+	if in == nil || in.GetId() == "" {
+		return nil, ErrSystemAPIKeyNotFound
+	}
+	keyID, err := uuid.Parse(in.GetId())
+	if err != nil {
+		return nil, ErrSystemAPIKeyNotFound
+	}
+
 	key, err := d.systemAPIKeyRepo.GetByID(ctx, keyID)
 	if err != nil {
 		return nil, err
+	}
+	if key == nil {
+		return nil, ErrSystemAPIKeyNotFound
 	}
 
 	if key.UserID != userID {
 		return nil, ErrForbidden
 	}
 
-	return key, nil
+	return toSystemAPIKeyPB(key), nil
 }
 
-func (d *authDomain) UpdateSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID, input *UpdateSystemAPIKeyInput) (*model.SystemAPIKey, error) {
+func (d *authDomain) UpdateSystemAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.UpdateSystemAPIKeyRequest) (*authv1.SystemAPIKey, error) {
+	if in == nil || in.GetId() == "" {
+		return nil, ErrSystemAPIKeyNotFound
+	}
+	keyID, err := uuid.Parse(in.GetId())
+	if err != nil {
+		return nil, ErrSystemAPIKeyNotFound
+	}
+
 	key, err := d.systemAPIKeyRepo.GetByID(ctx, keyID)
 	if err != nil {
 		return nil, err
+	}
+	if key == nil {
+		return nil, ErrSystemAPIKeyNotFound
 	}
 
 	if key.UserID != userID {
@@ -476,46 +581,71 @@ func (d *authDomain) UpdateSystemAPIKey(ctx context.Context, userID, keyID uuid.
 	}
 
 	// Apply updates
-	if input.Name != nil {
-		key.Name = *input.Name
+	if in.GetName() != nil {
+		key.Name = in.GetName().GetValue()
 	}
-	if len(input.Scopes) > 0 {
-		key.Scopes = pq.StringArray(input.Scopes)
+	if in.GetScopes() != nil {
+		key.Scopes = pq.StringArray(in.GetScopes().GetValues())
 	}
-	if input.RateLimitRPM != nil {
-		key.RateLimitRPM = *input.RateLimitRPM
+	if in.GetRateLimitRpm() != nil {
+		key.RateLimitRPM = int(in.GetRateLimitRpm().GetValue())
 	}
-	if input.RateLimitTPM != nil {
-		key.RateLimitTPM = *input.RateLimitTPM
+	if in.GetRateLimitTpm() != nil {
+		key.RateLimitTPM = int(in.GetRateLimitTpm().GetValue())
 	}
-	if input.IsActive != nil {
-		key.IsActive = *input.IsActive
+	if in.GetIsActive() != nil {
+		key.IsActive = in.GetIsActive().GetValue()
 	}
 
 	if err := d.systemAPIKeyRepo.Update(ctx, key); err != nil {
 		return nil, fmt.Errorf("update system api key: %w", err)
 	}
 
-	return key, nil
+	return toSystemAPIKeyPB(key), nil
 }
 
-func (d *authDomain) DeleteSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID) error {
-	key, err := d.systemAPIKeyRepo.GetByID(ctx, keyID)
+func (d *authDomain) DeleteSystemAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.GetByIDRequest) (*commonv1.MessageResponse, error) {
+	if in == nil || in.GetId() == "" {
+		return nil, ErrSystemAPIKeyNotFound
+	}
+	keyID, err := uuid.Parse(in.GetId())
 	if err != nil {
-		return err
+		return nil, ErrSystemAPIKeyNotFound
 	}
 
-	if key.UserID != userID {
-		return ErrForbidden
-	}
-
-	return d.systemAPIKeyRepo.Delete(ctx, keyID)
-}
-
-func (d *authDomain) RotateSystemAPIKey(ctx context.Context, userID, keyID uuid.UUID) (*SystemAPIKeyCreateResult, error) {
 	key, err := d.systemAPIKeyRepo.GetByID(ctx, keyID)
 	if err != nil {
 		return nil, err
+	}
+	if key == nil {
+		return nil, ErrSystemAPIKeyNotFound
+	}
+
+	if key.UserID != userID {
+		return nil, ErrForbidden
+	}
+
+	if err := d.systemAPIKeyRepo.Delete(ctx, keyID); err != nil {
+		return nil, err
+	}
+	return &commonv1.MessageResponse{Message: "API key deleted"}, nil
+}
+
+func (d *authDomain) RotateSystemAPIKey(ctx context.Context, userID uuid.UUID, in *authv1.GetByIDRequest) (*authv1.CreateSystemAPIKeyResponse, error) {
+	if in == nil || in.GetId() == "" {
+		return nil, ErrSystemAPIKeyNotFound
+	}
+	keyID, err := uuid.Parse(in.GetId())
+	if err != nil {
+		return nil, ErrSystemAPIKeyNotFound
+	}
+
+	key, err := d.systemAPIKeyRepo.GetByID(ctx, keyID)
+	if err != nil {
+		return nil, err
+	}
+	if key == nil {
+		return nil, ErrSystemAPIKeyNotFound
 	}
 
 	if key.UserID != userID {
@@ -533,9 +663,9 @@ func (d *authDomain) RotateSystemAPIKey(ctx context.Context, userID, keyID uuid.
 		return nil, fmt.Errorf("update system api key: %w", err)
 	}
 
-	return &SystemAPIKeyCreateResult{
-		Key:       key,
-		RawAPIKey: rawKey,
+	return &authv1.CreateSystemAPIKeyResponse{
+		ApiKey:     rawKey,
+		KeyDetails: toSystemAPIKeyPB(key),
 	}, nil
 }
 

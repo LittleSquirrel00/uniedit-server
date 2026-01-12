@@ -14,25 +14,18 @@ import (
 	// Domains
 	"github.com/uniedit/server/internal/domain/ai"
 	"github.com/uniedit/server/internal/domain/auth"
-	"github.com/uniedit/server/internal/domain/billing"
 	"github.com/uniedit/server/internal/domain/order"
 	"github.com/uniedit/server/internal/domain/payment"
 	"github.com/uniedit/server/internal/domain/user"
 
 	// Inbound adapters (HTTP handlers)
-	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
 	"github.com/uniedit/server/internal/adapter/inbound/http/aiproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/authproto"
-	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
 	"github.com/uniedit/server/internal/adapter/inbound/http/billingproto"
-	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
 	"github.com/uniedit/server/internal/adapter/inbound/http/collaborationproto"
-	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
 	"github.com/uniedit/server/internal/adapter/inbound/http/gitproto"
-	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
 	"github.com/uniedit/server/internal/adapter/inbound/http/mediaproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/orderproto"
-	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
 	"github.com/uniedit/server/internal/adapter/inbound/http/paymentproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/pingproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/userproto"
@@ -71,19 +64,13 @@ type App struct {
 	// Domain services
 	userDomain          user.UserDomain
 	authDomain          auth.AuthDomain
-	billingDomain       billing.BillingDomain
+	billingDomain       inbound.BillingDomain
 	orderDomain         order.OrderDomain
 	paymentDomain       payment.PaymentDomain
 	aiDomain            ai.AIDomain
 	gitDomain           inbound.GitDomain
 	collaborationDomain inbound.CollaborationDomain
 	mediaDomain         inbound.MediaDomain
-
-	// AI HTTP handlers
-	aiChatHandler          *aihttp.ChatHandler
-	aiProviderAdminHandler *aihttp.ProviderAdminHandler
-	aiModelAdminHandler    *aihttp.ModelAdminHandler
-	aiPublicHandler        *aihttp.PublicHandler
 
 	// Proto-defined HTTP handlers (from ./api/protobuf_spec)
 	pingProtoHandler  *pingproto.Handler
@@ -96,29 +83,6 @@ type App struct {
 	paymentProtoHandler *paymentproto.Handler
 	gitProtoHandler     *gitproto.Handler
 	mediaProtoHandler   *mediaproto.Handler
-
-	// Billing HTTP handlers
-	subscriptionHandler *billinghttp.SubscriptionHandler
-	quotaHandler        *billinghttp.QuotaHandler
-	creditsHandler      *billinghttp.CreditsHandler
-	usageHandler        *billinghttp.UsageHandler
-
-	// Order HTTP handlers
-	// (migrated to proto routes)
-
-	// Payment HTTP handlers
-	paymentHandler *paymenthttp.PaymentHandler
-	refundHandler  *paymenthttp.RefundHandler
-	webhookHandler *paymenthttp.WebhookHandler
-
-	// Git HTTP handlers
-	gitHandler *githttp.Handler
-
-	// Collaboration HTTP handlers
-	collaborationHandler *collaborationhttp.Handler
-
-	// Media HTTP handlers
-	mediaHandler *mediahttp.Handler
 
 	// Cleanup functions
 	cleanupFuncs []func()
@@ -149,11 +113,6 @@ func New(cfg *config.Config) (*App, error) {
 		gitDomain:           deps.GitDomain,
 		collaborationDomain: deps.CollaborationDomain,
 		mediaDomain:         deps.MediaDomain,
-		// AI HTTP handlers
-		aiChatHandler:          deps.AIChatHandler,
-		aiProviderAdminHandler: deps.AIProviderAdminHandler,
-		aiModelAdminHandler:    deps.AIModelAdminHandler,
-		aiPublicHandler:        deps.AIPublicHandler,
 		pingProtoHandler:       deps.PingProtoHandler,
 		authProtoHandler:       deps.AuthProtoHandler,
 		userProtoHandler:       deps.UserProtoHandler,
@@ -164,16 +123,6 @@ func New(cfg *config.Config) (*App, error) {
 		paymentProtoHandler:    deps.PaymentProtoHandler,
 		gitProtoHandler:        deps.GitProtoHandler,
 		mediaProtoHandler:      deps.MediaProtoHandler,
-		subscriptionHandler:    deps.SubscriptionHandler,
-		quotaHandler:           deps.QuotaHandler,
-		creditsHandler:         deps.CreditsHandler,
-		usageHandler:           deps.UsageHandler,
-		paymentHandler:         deps.PaymentHandler,
-		refundHandler:          deps.RefundHandler,
-		webhookHandler:         deps.WebhookHandler,
-		gitHandler:             deps.GitHandler,
-		collaborationHandler:   deps.CollaborationHandler,
-		mediaHandler:           deps.MediaHandler,
 		cleanupFuncs:           []func(){cleanup},
 	}
 
@@ -373,15 +322,16 @@ func (a *orderReaderAdapter) SetStripePaymentIntentID(ctx context.Context, order
 
 // billingReaderAdapter adapts BillingDomain to outbound.BillingReaderPort.
 type billingReaderAdapter struct {
-	domain billing.BillingDomain
+	subscriptionDB outbound.SubscriptionDatabasePort
+	logger         *zap.Logger
 }
 
-func newBillingReaderAdapter(domain billing.BillingDomain) outbound.BillingReaderPort {
-	return &billingReaderAdapter{domain: domain}
+func newBillingReaderAdapter(subscriptionDB outbound.SubscriptionDatabasePort, logger *zap.Logger) outbound.BillingReaderPort {
+	return &billingReaderAdapter{subscriptionDB: subscriptionDB, logger: logger}
 }
 
 func (a *billingReaderAdapter) GetSubscription(ctx context.Context, userID uuid.UUID) (*outbound.PaymentSubscriptionInfo, error) {
-	sub, err := a.domain.GetSubscription(ctx, userID)
+	sub, err := a.subscriptionDB.GetByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +347,27 @@ func (a *billingReaderAdapter) GetSubscription(ctx context.Context, userID uuid.
 }
 
 func (a *billingReaderAdapter) AddCredits(ctx context.Context, userID uuid.UUID, amount int64, source string) error {
-	return a.domain.AddCredits(ctx, userID, amount, source)
+	if amount <= 0 {
+		return fmt.Errorf("invalid credits amount: %d", amount)
+	}
+	sub, err := a.subscriptionDB.GetByUserID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("get subscription: %w", err)
+	}
+	if sub == nil {
+		return fmt.Errorf("subscription not found")
+	}
+	if err := a.subscriptionDB.UpdateCredits(ctx, userID, amount); err != nil {
+		return fmt.Errorf("update credits: %w", err)
+	}
+	if a.logger != nil {
+		a.logger.Info("credits added",
+			zap.String("user_id", userID.String()),
+			zap.Int64("amount", amount),
+			zap.String("source", source),
+		)
+	}
+	return nil
 }
 
 // noOpEventPublisher is a no-op implementation of outbound.EventPublisherPort.

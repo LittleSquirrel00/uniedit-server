@@ -7,6 +7,8 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/google/uuid"
+	commonv1 "github.com/uniedit/server/api/pb/common"
+	gitv1 "github.com/uniedit/server/api/pb/git"
 	"github.com/uniedit/server/internal/model"
 )
 
@@ -14,35 +16,25 @@ import (
 
 // GitDomain defines the main Git domain operations.
 type GitDomain interface {
-	// Repository operations
-	CreateRepo(ctx context.Context, ownerID uuid.UUID, input *GitCreateRepoInput) (*model.GitRepo, error)
-	GetRepo(ctx context.Context, id uuid.UUID) (*model.GitRepo, error)
-	GetRepoByOwnerAndSlug(ctx context.Context, ownerID uuid.UUID, slug string) (*model.GitRepo, error)
-	ListRepos(ctx context.Context, ownerID uuid.UUID, filter *GitRepoFilter) ([]*model.GitRepo, int64, error)
-	ListPublicRepos(ctx context.Context, filter *GitRepoFilter) ([]*model.GitRepo, int64, error)
-	UpdateRepo(ctx context.Context, id uuid.UUID, userID uuid.UUID, input *GitUpdateRepoInput) (*model.GitRepo, error)
-	DeleteRepo(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	// GitService
+	CreateRepo(ctx context.Context, ownerID uuid.UUID, in *gitv1.CreateRepoRequest) (*gitv1.Repo, error)
+	ListRepos(ctx context.Context, ownerID uuid.UUID, in *gitv1.ListReposRequest) (*gitv1.ListReposResponse, error)
+	GetRepo(ctx context.Context, userID uuid.UUID, in *gitv1.GetByIDRequest) (*gitv1.Repo, error)
+	UpdateRepo(ctx context.Context, userID uuid.UUID, in *gitv1.UpdateRepoRequest) (*gitv1.Repo, error)
+	DeleteRepo(ctx context.Context, userID uuid.UUID, in *gitv1.GetByIDRequest) (*commonv1.Empty, error)
+	GetStorageStats(ctx context.Context, userID uuid.UUID, in *gitv1.GetByIDRequest) (*gitv1.StorageStats, error)
+	AddCollaborator(ctx context.Context, userID uuid.UUID, in *gitv1.AddCollaboratorRequest) (*commonv1.Empty, error)
+	ListCollaborators(ctx context.Context, userID uuid.UUID, in *gitv1.GetByIDRequest) (*gitv1.ListCollaboratorsResponse, error)
+	UpdateCollaborator(ctx context.Context, userID uuid.UUID, in *gitv1.UpdateCollaboratorRequest) (*commonv1.Empty, error)
+	RemoveCollaborator(ctx context.Context, userID uuid.UUID, in *gitv1.RemoveCollaboratorRequest) (*commonv1.Empty, error)
+	CreatePR(ctx context.Context, userID uuid.UUID, in *gitv1.CreatePRRequest) (*gitv1.PullRequest, error)
+	ListPRs(ctx context.Context, userID uuid.UUID, in *gitv1.ListPRsRequest) (*gitv1.ListPRsResponse, error)
+	GetPR(ctx context.Context, userID uuid.UUID, in *gitv1.GetPRRequest) (*gitv1.PullRequest, error)
+	UpdatePR(ctx context.Context, userID uuid.UUID, in *gitv1.UpdatePRRequest) (*gitv1.PullRequest, error)
+	MergePR(ctx context.Context, userID uuid.UUID, in *gitv1.GetPRRequest) (*gitv1.PullRequest, error)
 
-	// Access control
-	CheckAccess(ctx context.Context, repoID, userID uuid.UUID, required model.GitPermission) error
-	CanAccess(ctx context.Context, repoID uuid.UUID, userID *uuid.UUID, required model.GitPermission) (bool, error)
-
-	// Collaborator operations
-	AddCollaborator(ctx context.Context, repoID, ownerID, targetUserID uuid.UUID, permission model.GitPermission) error
-	ListCollaborators(ctx context.Context, repoID uuid.UUID) ([]*model.GitRepoCollaborator, error)
-	UpdateCollaborator(ctx context.Context, repoID, ownerID, targetUserID uuid.UUID, permission model.GitPermission) error
-	RemoveCollaborator(ctx context.Context, repoID, ownerID, targetUserID uuid.UUID) error
-
-	// Pull request operations
-	CreatePR(ctx context.Context, repoID, authorID uuid.UUID, input *GitCreatePRInput) (*model.GitPullRequest, error)
-	GetPR(ctx context.Context, repoID uuid.UUID, number int) (*model.GitPullRequest, error)
-	ListPRs(ctx context.Context, repoID uuid.UUID, status *model.GitPRStatus, limit, offset int) ([]*model.GitPullRequest, int64, error)
-	UpdatePR(ctx context.Context, repoID uuid.UUID, number int, userID uuid.UUID, input *GitUpdatePRInput) (*model.GitPullRequest, error)
-	MergePR(ctx context.Context, repoID uuid.UUID, number int, userID uuid.UUID) (*model.GitPullRequest, error)
-
-	// Storage operations
-	GetStorageStats(ctx context.Context, repoID uuid.UUID) (*GitStorageStats, error)
-	GetUserStorageStats(ctx context.Context, userID uuid.UUID) (*GitUserStorageStats, error)
+	// GitPublicService
+	ListPublicRepos(ctx context.Context, in *gitv1.ListReposRequest) (*gitv1.ListReposResponse, error)
 
 	// Filesystem access
 	GetFilesystem(ctx context.Context, repoID uuid.UUID) (billy.Filesystem, error)
@@ -87,66 +79,7 @@ type GitLFSLockDomain interface {
 }
 
 // ===== Input Types =====
-
-// GitCreateRepoInput represents input for creating a repository.
-type GitCreateRepoInput struct {
-	Name        string
-	Type        model.GitRepoType
-	Visibility  model.GitVisibility
-	Description string
-	LFSEnabled  bool
-}
-
-// GitUpdateRepoInput represents input for updating a repository.
-type GitUpdateRepoInput struct {
-	Name          string
-	Description   string
-	Visibility    model.GitVisibility
-	DefaultBranch string
-	LFSEnabled    *bool
-}
-
-// GitRepoFilter represents repository query filters.
-type GitRepoFilter struct {
-	Type       *model.GitRepoType
-	Visibility *model.GitVisibility
-	Search     string
-	Page       int
-	PageSize   int
-}
-
-// GitCreatePRInput represents input for creating a pull request.
-type GitCreatePRInput struct {
-	Title        string
-	Description  string
-	SourceBranch string
-	TargetBranch string
-}
-
-// GitUpdatePRInput represents input for updating a pull request.
-type GitUpdatePRInput struct {
-	Title       string
-	Description string
-	Status      string // "open" or "closed"
-}
-
 // ===== Output Types =====
-
-// GitStorageStats represents repository storage statistics.
-type GitStorageStats struct {
-	RepoSizeBytes  int64
-	LFSSizeBytes   int64
-	TotalSizeBytes int64
-	LFSObjectCount int
-}
-
-// GitUserStorageStats represents user-level storage statistics.
-type GitUserStorageStats struct {
-	TotalUsedBytes int64
-	QuotaBytes     int64
-	RemainingBytes int64
-	RepoCount      int
-}
 
 // GitPresignedURLResult represents a presigned URL result.
 type GitPresignedURLResult struct {

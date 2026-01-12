@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	commonv1 "github.com/uniedit/server/api/pb/common"
+	userv1 "github.com/uniedit/server/api/pb/user"
 	"github.com/uniedit/server/internal/model"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -203,25 +205,22 @@ func TestUserDomain_Register(t *testing.T) {
 
 		domain := NewUserDomain(mockUserDB, mockVerificationDB, nil, nil, nil, mockEmailSender, logger)
 
-		input := &RegisterInput{
-			Email:    "test@example.com",
-			Password: "password123",
-			Name:     "Test User",
-		}
+		in := &userv1.RegisterRequest{Email: "test@example.com", Password: "password123", Name: "Test User"}
 
-		mockUserDB.On("FindByEmail", mock.Anything, input.Email).Return(nil, ErrUserNotFound)
+		mockUserDB.On("FindByEmail", mock.Anything, in.GetEmail()).Return(nil, ErrUserNotFound)
 		mockUserDB.On("Create", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 		mockVerificationDB.On("CreateVerification", mock.Anything, mock.AnythingOfType("*model.EmailVerification")).Return(nil)
-		mockEmailSender.On("SendVerificationEmail", mock.Anything, input.Email, input.Name, mock.AnythingOfType("string")).Return(nil)
+		mockEmailSender.On("SendVerificationEmail", mock.Anything, in.GetEmail(), in.GetName(), mock.AnythingOfType("string")).Return(nil)
 
-		user, err := domain.Register(context.Background(), input)
+		out, err := domain.Register(context.Background(), in)
 
 		assert.NoError(t, err)
-		assert.NotNil(t, user)
-		assert.Equal(t, input.Email, user.Email)
-		assert.Equal(t, input.Name, user.Name)
-		assert.Equal(t, model.UserStatusPending, user.Status)
-		assert.False(t, user.EmailVerified)
+		assert.NotNil(t, out)
+		assert.NotNil(t, out.GetUser())
+		assert.Equal(t, in.GetEmail(), out.GetUser().GetEmail())
+		assert.Equal(t, in.GetName(), out.GetUser().GetName())
+		assert.Equal(t, string(model.UserStatusPending), out.GetUser().GetStatus())
+		assert.False(t, out.GetUser().GetEmailVerified())
 		mockUserDB.AssertExpectations(t)
 		mockVerificationDB.AssertExpectations(t)
 	})
@@ -232,19 +231,15 @@ func TestUserDomain_Register(t *testing.T) {
 
 		domain := NewUserDomain(mockUserDB, mockVerificationDB, nil, nil, nil, nil, logger)
 
-		input := &RegisterInput{
-			Email:    "test@example.com",
-			Password: "password123",
-			Name:     "Test User",
-		}
+		in := &userv1.RegisterRequest{Email: "test@example.com", Password: "password123", Name: "Test User"}
 
-		existingUser := &model.User{ID: uuid.New(), Email: input.Email}
-		mockUserDB.On("FindByEmail", mock.Anything, input.Email).Return(existingUser, nil)
+		existingUser := &model.User{ID: uuid.New(), Email: in.GetEmail()}
+		mockUserDB.On("FindByEmail", mock.Anything, in.GetEmail()).Return(existingUser, nil)
 
-		user, err := domain.Register(context.Background(), input)
+		out, err := domain.Register(context.Background(), in)
 
 		assert.ErrorIs(t, err, ErrEmailAlreadyExists)
-		assert.Nil(t, user)
+		assert.Nil(t, out)
 		mockUserDB.AssertExpectations(t)
 	})
 
@@ -254,18 +249,14 @@ func TestUserDomain_Register(t *testing.T) {
 
 		domain := NewUserDomain(mockUserDB, mockVerificationDB, nil, nil, nil, nil, logger)
 
-		input := &RegisterInput{
-			Email:    "test@example.com",
-			Password: "short",
-			Name:     "Test User",
-		}
+		in := &userv1.RegisterRequest{Email: "test@example.com", Password: "short", Name: "Test User"}
 
-		mockUserDB.On("FindByEmail", mock.Anything, input.Email).Return(nil, ErrUserNotFound)
+		mockUserDB.On("FindByEmail", mock.Anything, in.GetEmail()).Return(nil, ErrUserNotFound)
 
-		user, err := domain.Register(context.Background(), input)
+		out, err := domain.Register(context.Background(), in)
 
 		assert.ErrorIs(t, err, ErrPasswordTooShort)
-		assert.Nil(t, user)
+		assert.Nil(t, out)
 	})
 }
 
@@ -301,9 +292,10 @@ func TestUserDomain_VerifyEmail(t *testing.T) {
 		mockVerificationDB.On("MarkVerificationUsed", mock.Anything, verificationID).Return(nil)
 		mockUserDB.On("Update", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 
-		err := domain.VerifyEmail(context.Background(), token)
+		out, err := domain.VerifyEmail(context.Background(), &userv1.VerifyEmailRequest{Token: token})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, out)
 		assert.True(t, user.EmailVerified)
 		assert.Equal(t, model.UserStatusActive, user.Status)
 		mockVerificationDB.AssertExpectations(t)
@@ -327,7 +319,7 @@ func TestUserDomain_VerifyEmail(t *testing.T) {
 
 		mockVerificationDB.On("GetVerificationByToken", mock.Anything, token).Return(verification, nil)
 
-		err := domain.VerifyEmail(context.Background(), token)
+		_, err := domain.VerifyEmail(context.Background(), &userv1.VerifyEmailRequest{Token: token})
 
 		assert.ErrorIs(t, err, ErrTokenExpired)
 	})
@@ -351,7 +343,7 @@ func TestUserDomain_VerifyEmail(t *testing.T) {
 
 		mockVerificationDB.On("GetVerificationByToken", mock.Anything, token).Return(verification, nil)
 
-		err := domain.VerifyEmail(context.Background(), token)
+		_, err := domain.VerifyEmail(context.Background(), &userv1.VerifyEmailRequest{Token: token})
 
 		assert.ErrorIs(t, err, ErrTokenAlreadyUsed)
 	})
@@ -381,7 +373,10 @@ func TestUserDomain_ChangePassword(t *testing.T) {
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 		mockUserDB.On("Update", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 
-		err := domain.ChangePassword(context.Background(), userID, currentPassword, newPassword)
+		_, err := domain.ChangePassword(context.Background(), userID, &userv1.ChangePasswordRequest{
+			CurrentPassword: currentPassword,
+			NewPassword:     newPassword,
+		})
 
 		assert.NoError(t, err)
 		mockUserDB.AssertExpectations(t)
@@ -407,7 +402,10 @@ func TestUserDomain_ChangePassword(t *testing.T) {
 
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 
-		err := domain.ChangePassword(context.Background(), userID, currentPassword, newPassword)
+		_, err := domain.ChangePassword(context.Background(), userID, &userv1.ChangePasswordRequest{
+			CurrentPassword: currentPassword,
+			NewPassword:     newPassword,
+		})
 
 		assert.ErrorIs(t, err, ErrIncorrectPassword)
 	})
@@ -432,7 +430,10 @@ func TestUserDomain_SuspendUser(t *testing.T) {
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 		mockUserDB.On("Update", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 
-		err := domain.SuspendUser(context.Background(), userID, "violation of terms")
+		_, err := domain.SuspendUser(context.Background(), &userv1.SuspendUserRequest{
+			Id:     userID.String(),
+			Reason: "violation of terms",
+		})
 
 		assert.NoError(t, err)
 		assert.Equal(t, model.UserStatusSuspended, user.Status)
@@ -456,7 +457,10 @@ func TestUserDomain_SuspendUser(t *testing.T) {
 
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 
-		err := domain.SuspendUser(context.Background(), userID, "any reason")
+		_, err := domain.SuspendUser(context.Background(), &userv1.SuspendUserRequest{
+			Id:     userID.String(),
+			Reason: "any reason",
+		})
 
 		assert.ErrorIs(t, err, ErrCannotSuspendAdmin)
 	})
@@ -471,25 +475,21 @@ func TestUserDomain_ListUsers(t *testing.T) {
 
 		domain := NewUserDomain(mockUserDB, mockVerificationDB, nil, nil, nil, nil, logger)
 
-		filter := model.UserFilter{
-			PaginationRequest: model.PaginationRequest{
-				Page:     1,
-				PageSize: 20,
-			},
-		}
+		in := &userv1.ListUsersRequest{Page: 1, PageSize: 20}
 
 		expectedUsers := []*model.User{
 			{ID: uuid.New(), Email: "user1@example.com"},
 			{ID: uuid.New(), Email: "user2@example.com"},
 		}
 
-		mockUserDB.On("FindByFilter", mock.Anything, filter).Return(expectedUsers, int64(2), nil)
+		mockUserDB.On("FindByFilter", mock.Anything, mock.AnythingOfType("model.UserFilter")).Return(expectedUsers, int64(2), nil)
 
-		users, total, err := domain.ListUsers(context.Background(), filter)
+		out, err := domain.ListUsers(context.Background(), in)
 
 		assert.NoError(t, err)
-		assert.Equal(t, expectedUsers, users)
-		assert.Equal(t, int64(2), total)
+		assert.NotNil(t, out)
+		assert.Len(t, out.GetData(), 2)
+		assert.Equal(t, int64(2), out.GetTotal())
 		mockUserDB.AssertExpectations(t)
 	})
 }
@@ -515,11 +515,11 @@ func TestUserDomain_GetProfile(t *testing.T) {
 
 		profile, err := domain.GetProfile(context.Background(), userID)
 
-		assert.NoError(t, err)
-		assert.Equal(t, user.Name, profile.DisplayName)
-		assert.Equal(t, user.AvatarURL, profile.AvatarURL)
-		mockUserDB.AssertExpectations(t)
-	})
+			assert.NoError(t, err)
+			assert.Equal(t, user.Name, profile.DisplayName)
+			assert.Equal(t, user.AvatarURL, profile.AvatarUrl)
+			mockUserDB.AssertExpectations(t)
+		})
 
 	t.Run("user not found", func(t *testing.T) {
 		mockUserDB := new(MockUserDatabasePort)
@@ -551,15 +551,10 @@ func TestUserDomain_UpdateProfile(t *testing.T) {
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 		mockUserDB.On("Update", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 
-		newName := "New Name"
-		input := &UpdateProfileInput{
-			Name: &newName,
-		}
-
-		result, err := domain.UpdateProfile(context.Background(), userID, input)
+		result, err := domain.UpdateProfile(context.Background(), userID, &userv1.UpdateProfileRequest{Name: "New Name"})
 
 		assert.NoError(t, err)
-		assert.Equal(t, "New Name", result.Name)
+		assert.Equal(t, "New Name", result.GetName())
 		mockUserDB.AssertExpectations(t)
 	})
 
@@ -570,7 +565,7 @@ func TestUserDomain_UpdateProfile(t *testing.T) {
 		userID := uuid.New()
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(nil, nil)
 
-		result, err := domain.UpdateProfile(context.Background(), userID, &UpdateProfileInput{})
+		result, err := domain.UpdateProfile(context.Background(), userID, &userv1.UpdateProfileRequest{})
 
 		assert.ErrorIs(t, err, ErrUserNotFound)
 		assert.Nil(t, result)
@@ -602,13 +597,10 @@ func TestUserDomain_UpdatePreferences(t *testing.T) {
 		domain := NewUserDomain(nil, nil, nil, nil, nil, nil, logger)
 
 		userID := uuid.New()
-		prefs := &model.Preferences{
-			Theme: "dark",
-		}
-
-		err := domain.UpdatePreferences(context.Background(), userID, prefs)
+		out, err := domain.UpdatePreferences(context.Background(), userID, &userv1.UpdatePreferencesRequest{Theme: "dark"})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, out)
 	})
 }
 
@@ -630,7 +622,7 @@ func TestUserDomain_GetUserByEmail(t *testing.T) {
 		result, err := domain.GetUserByEmail(context.Background(), email)
 
 		assert.NoError(t, err)
-		assert.Equal(t, email, result.Email)
+		assert.Equal(t, email, result.GetEmail())
 		mockUserDB.AssertExpectations(t)
 	})
 
@@ -667,9 +659,10 @@ func TestUserDomain_DeleteAccount(t *testing.T) {
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 		mockUserDB.On("SoftDelete", mock.Anything, userID).Return(nil)
 
-		err := domain.DeleteAccount(context.Background(), userID, password)
+		out, err := domain.DeleteAccount(context.Background(), userID, &userv1.DeleteAccountRequest{Password: password})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, out)
 		mockUserDB.AssertExpectations(t)
 	})
 
@@ -688,7 +681,7 @@ func TestUserDomain_DeleteAccount(t *testing.T) {
 
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 
-		err := domain.DeleteAccount(context.Background(), userID, "wrongpassword")
+		_, err := domain.DeleteAccount(context.Background(), userID, &userv1.DeleteAccountRequest{Password: "wrongpassword"})
 
 		assert.ErrorIs(t, err, ErrIncorrectPassword)
 	})
@@ -706,7 +699,7 @@ func TestUserDomain_DeleteAccount(t *testing.T) {
 
 		mockUserDB.On("FindByID", mock.Anything, userID).Return(user, nil)
 
-		err := domain.DeleteAccount(context.Background(), userID, "")
+		_, err := domain.DeleteAccount(context.Background(), userID, &userv1.DeleteAccountRequest{Password: ""})
 
 		assert.ErrorIs(t, err, ErrPasswordRequired)
 	})
@@ -721,9 +714,10 @@ func TestUserDomain_ResendVerification(t *testing.T) {
 
 		mockUserDB.On("FindByEmail", mock.Anything, "notfound@example.com").Return(nil, nil)
 
-		err := domain.ResendVerification(context.Background(), "notfound@example.com")
+		out, err := domain.ResendVerification(context.Background(), &userv1.ResendVerificationRequest{Email: "notfound@example.com"})
 
 		assert.NoError(t, err) // Returns nil to not reveal if email exists
+		assert.NotNil(t, out)
 	})
 
 	t.Run("already verified returns nil", func(t *testing.T) {
@@ -738,9 +732,10 @@ func TestUserDomain_ResendVerification(t *testing.T) {
 
 		mockUserDB.On("FindByEmail", mock.Anything, "verified@example.com").Return(user, nil)
 
-		err := domain.ResendVerification(context.Background(), "verified@example.com")
+		out, err := domain.ResendVerification(context.Background(), &userv1.ResendVerificationRequest{Email: "verified@example.com"})
 
 		assert.NoError(t, err) // Returns nil for already verified
+		assert.NotNil(t, out)
 	})
 
 	t.Run("sends verification email", func(t *testing.T) {
@@ -761,9 +756,10 @@ func TestUserDomain_ResendVerification(t *testing.T) {
 		mockVerificationDB.On("CreateVerification", mock.Anything, mock.AnythingOfType("*model.EmailVerification")).Return(nil)
 		mockEmailSender.On("SendVerificationEmail", mock.Anything, user.Email, user.Name, mock.AnythingOfType("string")).Return(nil)
 
-		err := domain.ResendVerification(context.Background(), "test@example.com")
+		out, err := domain.ResendVerification(context.Background(), &userv1.ResendVerificationRequest{Email: "test@example.com"})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, out)
 		mockEmailSender.AssertExpectations(t)
 	})
 }
@@ -777,9 +773,10 @@ func TestUserDomain_RequestPasswordReset(t *testing.T) {
 
 		mockUserDB.On("FindByEmail", mock.Anything, "notfound@example.com").Return(nil, nil)
 
-		err := domain.RequestPasswordReset(context.Background(), "notfound@example.com")
+		out, err := domain.RequestPasswordReset(context.Background(), &userv1.RequestPasswordResetRequest{Email: "notfound@example.com"})
 
 		assert.NoError(t, err) // Returns nil to not reveal if email exists
+		assert.NotNil(t, out)
 	})
 
 	t.Run("oauth user returns nil", func(t *testing.T) {
@@ -795,9 +792,10 @@ func TestUserDomain_RequestPasswordReset(t *testing.T) {
 
 		mockUserDB.On("FindByEmail", mock.Anything, "oauth@example.com").Return(user, nil)
 
-		err := domain.RequestPasswordReset(context.Background(), "oauth@example.com")
+		out, err := domain.RequestPasswordReset(context.Background(), &userv1.RequestPasswordResetRequest{Email: "oauth@example.com"})
 
 		assert.NoError(t, err) // Returns nil for OAuth user
+		assert.NotNil(t, out)
 	})
 
 	t.Run("sends reset email", func(t *testing.T) {
@@ -819,9 +817,10 @@ func TestUserDomain_RequestPasswordReset(t *testing.T) {
 		mockVerificationDB.On("CreateVerification", mock.Anything, mock.AnythingOfType("*model.EmailVerification")).Return(nil)
 		mockEmailSender.On("SendPasswordResetEmail", mock.Anything, user.Email, user.Name, mock.AnythingOfType("string")).Return(nil)
 
-		err := domain.RequestPasswordReset(context.Background(), "test@example.com")
+		out, err := domain.RequestPasswordReset(context.Background(), &userv1.RequestPasswordResetRequest{Email: "test@example.com"})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, out)
 		mockEmailSender.AssertExpectations(t)
 	})
 }
@@ -854,9 +853,10 @@ func TestUserDomain_ResetPassword(t *testing.T) {
 		mockVerificationDB.On("MarkVerificationUsed", mock.Anything, verificationID).Return(nil)
 		mockUserDB.On("Update", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 
-		err := domain.ResetPassword(context.Background(), "valid-token", "newpassword123")
+		out, err := domain.ResetPassword(context.Background(), &userv1.CompletePasswordResetRequest{Token: "valid-token", NewPassword: "newpassword123"})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, out)
 		assert.NotNil(t, user.PasswordHash)
 		mockVerificationDB.AssertExpectations(t)
 		mockUserDB.AssertExpectations(t)
@@ -865,7 +865,7 @@ func TestUserDomain_ResetPassword(t *testing.T) {
 	t.Run("password too short", func(t *testing.T) {
 		domain := NewUserDomain(nil, nil, nil, nil, nil, nil, logger)
 
-		err := domain.ResetPassword(context.Background(), "token", "short")
+		_, err := domain.ResetPassword(context.Background(), &userv1.CompletePasswordResetRequest{Token: "token", NewPassword: "short"})
 
 		assert.ErrorIs(t, err, ErrPasswordTooShort)
 	})
@@ -884,7 +884,7 @@ func TestUserDomain_ResetPassword(t *testing.T) {
 
 		mockVerificationDB.On("GetVerificationByToken", mock.Anything, "token").Return(verification, nil)
 
-		err := domain.ResetPassword(context.Background(), "token", "newpassword123")
+		_, err := domain.ResetPassword(context.Background(), &userv1.CompletePasswordResetRequest{Token: "token", NewPassword: "newpassword123"})
 
 		assert.ErrorIs(t, err, ErrInvalidToken)
 	})

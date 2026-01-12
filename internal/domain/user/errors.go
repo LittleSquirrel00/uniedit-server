@@ -4,6 +4,9 @@ import "errors"
 
 // Domain errors.
 var (
+	// Request errors
+	ErrInvalidRequest = errors.New("invalid request")
+
 	// User errors
 	ErrUserNotFound       = errors.New("user not found")
 	ErrEmailAlreadyExists = errors.New("email already registered")

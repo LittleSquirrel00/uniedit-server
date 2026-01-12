@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	billingv1 "github.com/uniedit/server/api/pb/billing"
 	"github.com/uniedit/server/internal/model"
 	"go.uber.org/zap"
 )
@@ -160,11 +161,11 @@ func TestBillingDomain_ListPlans(t *testing.T) {
 
 		mockPlanDB.On("ListActive", mock.Anything).Return(expectedPlans, nil)
 
-		plans, err := domain.ListPlans(context.Background())
+		out, err := domain.ListPlans(context.Background())
 
 		assert.NoError(t, err)
-		assert.Len(t, plans, 2)
-		assert.Equal(t, "free", plans[0].ID)
+		assert.Len(t, out.GetPlans(), 2)
+		assert.Equal(t, "free", out.GetPlans()[0].GetId())
 		mockPlanDB.AssertExpectations(t)
 	})
 }
@@ -181,10 +182,10 @@ func TestBillingDomain_GetPlan(t *testing.T) {
 
 		mockPlanDB.On("GetByID", mock.Anything, "pro").Return(expectedPlan, nil)
 
-		plan, err := domain.GetPlan(context.Background(), "pro")
+		plan, err := domain.GetPlan(context.Background(), &billingv1.GetByIDRequest{Id: "pro"})
 
 		assert.NoError(t, err)
-		assert.Equal(t, "pro", plan.ID)
+		assert.Equal(t, "pro", plan.GetId())
 		mockPlanDB.AssertExpectations(t)
 	})
 
@@ -195,7 +196,7 @@ func TestBillingDomain_GetPlan(t *testing.T) {
 
 		mockPlanDB.On("GetByID", mock.Anything, "nonexistent").Return(nil, nil)
 
-		plan, err := domain.GetPlan(context.Background(), "nonexistent")
+		plan, err := domain.GetPlan(context.Background(), &billingv1.GetByIDRequest{Id: "nonexistent"})
 
 		assert.ErrorIs(t, err, ErrPlanNotFound)
 		assert.Nil(t, plan)
@@ -226,11 +227,11 @@ func TestBillingDomain_CreateSubscription(t *testing.T) {
 		mockSubDB.On("Create", mock.Anything, mock.AnythingOfType("*model.Subscription")).Return(nil)
 		mockSubDB.On("GetByUserIDWithPlan", mock.Anything, userID).Return(createdSub, nil)
 
-		sub, err := domain.CreateSubscription(context.Background(), userID, "pro")
+		sub, err := domain.CreateSubscription(context.Background(), userID, &billingv1.CreateSubscriptionRequest{PlanId: "pro"})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, sub)
-		assert.Equal(t, "pro", sub.PlanID)
+		assert.Equal(t, "pro", sub.GetPlanId())
 		mockSubDB.AssertExpectations(t)
 		mockPlanDB.AssertExpectations(t)
 	})
@@ -250,7 +251,7 @@ func TestBillingDomain_CreateSubscription(t *testing.T) {
 
 		mockSubDB.On("GetByUserID", mock.Anything, userID).Return(existingSub, nil)
 
-		sub, err := domain.CreateSubscription(context.Background(), userID, "pro")
+		sub, err := domain.CreateSubscription(context.Background(), userID, &billingv1.CreateSubscriptionRequest{PlanId: "pro"})
 
 		assert.ErrorIs(t, err, ErrSubscriptionExists)
 		assert.Nil(t, sub)
@@ -267,7 +268,7 @@ func TestBillingDomain_CreateSubscription(t *testing.T) {
 		mockSubDB.On("GetByUserID", mock.Anything, userID).Return(nil, nil)
 		mockPlanDB.On("GetByID", mock.Anything, "nonexistent").Return(nil, nil)
 
-		sub, err := domain.CreateSubscription(context.Background(), userID, "nonexistent")
+		sub, err := domain.CreateSubscription(context.Background(), userID, &billingv1.CreateSubscriptionRequest{PlanId: "nonexistent"})
 
 		assert.ErrorIs(t, err, ErrPlanNotFound)
 		assert.Nil(t, sub)
@@ -285,7 +286,7 @@ func TestBillingDomain_CreateSubscription(t *testing.T) {
 		mockSubDB.On("GetByUserID", mock.Anything, userID).Return(nil, nil)
 		mockPlanDB.On("GetByID", mock.Anything, "legacy").Return(inactivePlan, nil)
 
-		sub, err := domain.CreateSubscription(context.Background(), userID, "legacy")
+		sub, err := domain.CreateSubscription(context.Background(), userID, &billingv1.CreateSubscriptionRequest{PlanId: "legacy"})
 
 		assert.ErrorIs(t, err, ErrPlanNotActive)
 		assert.Nil(t, sub)
@@ -311,11 +312,11 @@ func TestBillingDomain_CancelSubscription(t *testing.T) {
 		mockSubDB.On("GetByUserIDWithPlan", mock.Anything, userID).Return(sub, nil)
 		mockSubDB.On("Update", mock.Anything, mock.AnythingOfType("*model.Subscription")).Return(nil)
 
-		result, err := domain.CancelSubscription(context.Background(), userID, false)
+		result, err := domain.CancelSubscription(context.Background(), userID, &billingv1.CancelSubscriptionRequest{Immediately: false})
 
 		assert.NoError(t, err)
-		assert.True(t, result.CancelAtPeriodEnd)
-		assert.NotNil(t, result.CanceledAt)
+		assert.True(t, result.GetCancelAtPeriodEnd())
+		assert.NotEmpty(t, result.GetCanceledAt())
 		mockSubDB.AssertExpectations(t)
 	})
 
@@ -335,11 +336,11 @@ func TestBillingDomain_CancelSubscription(t *testing.T) {
 		mockSubDB.On("GetByUserIDWithPlan", mock.Anything, userID).Return(sub, nil)
 		mockSubDB.On("Update", mock.Anything, mock.AnythingOfType("*model.Subscription")).Return(nil)
 
-		result, err := domain.CancelSubscription(context.Background(), userID, true)
+		result, err := domain.CancelSubscription(context.Background(), userID, &billingv1.CancelSubscriptionRequest{Immediately: true})
 
 		assert.NoError(t, err)
-		assert.Equal(t, model.SubscriptionStatusCanceled, result.Status)
-		assert.Equal(t, "free", result.PlanID)
+		assert.Equal(t, string(model.SubscriptionStatusCanceled), result.GetStatus())
+		assert.Equal(t, "free", result.GetPlanId())
 		mockSubDB.AssertExpectations(t)
 	})
 
@@ -358,7 +359,7 @@ func TestBillingDomain_CancelSubscription(t *testing.T) {
 
 		mockSubDB.On("GetByUserIDWithPlan", mock.Anything, userID).Return(sub, nil)
 
-		result, err := domain.CancelSubscription(context.Background(), userID, false)
+		result, err := domain.CancelSubscription(context.Background(), userID, &billingv1.CancelSubscriptionRequest{Immediately: false})
 
 		assert.ErrorIs(t, err, ErrSubscriptionCanceled)
 		assert.Nil(t, result)
@@ -393,7 +394,7 @@ func TestBillingDomain_CheckQuota(t *testing.T) {
 		mockQuotaCache.On("GetTokensUsed", mock.Anything, userID, mock.AnythingOfType("time.Time")).Return(int64(500000), nil)
 		mockQuotaCache.On("GetRequestsToday", mock.Anything, userID).Return(500, nil)
 
-		err := domain.CheckQuota(context.Background(), userID, "chat")
+		err := domain.CheckQuota(context.Background(), userID, &billingv1.CheckQuotaRequest{TaskType: "chat"})
 
 		assert.NoError(t, err)
 		mockSubDB.AssertExpectations(t)
@@ -424,7 +425,7 @@ func TestBillingDomain_CheckQuota(t *testing.T) {
 		mockSubDB.On("GetByUserIDWithPlan", mock.Anything, userID).Return(sub, nil)
 		mockQuotaCache.On("GetTokensUsed", mock.Anything, userID, mock.AnythingOfType("time.Time")).Return(int64(100000), nil)
 
-		err := domain.CheckQuota(context.Background(), userID, "chat")
+		err := domain.CheckQuota(context.Background(), userID, &billingv1.CheckQuotaRequest{TaskType: "chat"})
 
 		assert.ErrorIs(t, err, ErrTokenLimitReached)
 	})
@@ -454,7 +455,7 @@ func TestBillingDomain_CheckQuota(t *testing.T) {
 		mockQuotaCache.On("GetTokensUsed", mock.Anything, userID, mock.AnythingOfType("time.Time")).Return(int64(50000), nil)
 		mockQuotaCache.On("GetRequestsToday", mock.Anything, userID).Return(100, nil)
 
-		err := domain.CheckQuota(context.Background(), userID, "chat")
+		err := domain.CheckQuota(context.Background(), userID, &billingv1.CheckQuotaRequest{TaskType: "chat"})
 
 		assert.ErrorIs(t, err, ErrRequestLimitReached)
 	})
@@ -482,7 +483,7 @@ func TestBillingDomain_CheckQuota(t *testing.T) {
 
 		mockSubDB.On("GetByUserIDWithPlan", mock.Anything, userID).Return(sub, nil)
 
-		err := domain.CheckQuota(context.Background(), userID, "chat")
+		err := domain.CheckQuota(context.Background(), userID, &billingv1.CheckQuotaRequest{TaskType: "chat"})
 
 		assert.NoError(t, err)
 		mockSubDB.AssertExpectations(t)
@@ -507,16 +508,25 @@ func TestBillingDomain_AddCredits(t *testing.T) {
 		mockSubDB.On("GetByUserID", mock.Anything, userID).Return(sub, nil)
 		mockSubDB.On("Update", mock.Anything, mock.AnythingOfType("*model.Subscription")).Return(nil)
 
-		err := domain.AddCredits(context.Background(), userID, 500, "purchase")
+		out, err := domain.AddCredits(context.Background(), &billingv1.AddCreditsRequest{
+			UserId: userID.String(),
+			Amount: 500,
+			Source: "purchase",
+		})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, out)
 		mockSubDB.AssertExpectations(t)
 	})
 
 	t.Run("invalid amount", func(t *testing.T) {
 		domain := NewBillingDomain(nil, nil, nil, nil, logger)
 
-		err := domain.AddCredits(context.Background(), uuid.New(), -100, "refund")
+		_, err := domain.AddCredits(context.Background(), &billingv1.AddCreditsRequest{
+			UserId: uuid.New().String(),
+			Amount: -100,
+			Source: "refund",
+		})
 
 		assert.ErrorIs(t, err, ErrInvalidCreditsAmount)
 	})
@@ -588,7 +598,7 @@ func TestBillingDomain_GetSubscription(t *testing.T) {
 		result, err := domain.GetSubscription(context.Background(), userID)
 
 		assert.NoError(t, err)
-		assert.Equal(t, "pro", result.PlanID)
+		assert.Equal(t, "pro", result.GetPlanId())
 		mockSubDB.AssertExpectations(t)
 	})
 
@@ -639,10 +649,10 @@ func TestBillingDomain_GetQuotaStatus(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, int64(1000000), result.TokensLimit)
-		assert.Equal(t, int64(500000), result.TokensUsed)
-		assert.Equal(t, 1000, result.RequestsLimit)
-		assert.Equal(t, 500, result.RequestsToday)
+		assert.Equal(t, int64(1000000), result.GetTokensLimit())
+		assert.Equal(t, int64(500000), result.GetTokensUsed())
+		assert.Equal(t, int32(1000), result.GetRequestsLimit())
+		assert.Equal(t, int32(500), result.GetRequestsToday())
 		mockSubDB.AssertExpectations(t)
 		mockQuotaCache.AssertExpectations(t)
 	})
@@ -694,11 +704,11 @@ func TestBillingDomain_GetUsageStats(t *testing.T) {
 
 		mockUsageDB.On("GetStats", mock.Anything, userID, mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).Return(stats, nil)
 
-		result, err := domain.GetUsageStats(context.Background(), userID, "month", nil, nil)
+		result, err := domain.GetUsageStats(context.Background(), userID, &billingv1.GetUsageStatsRequest{Period: "month"})
 
 		assert.NoError(t, err)
-		assert.Equal(t, 1000, result.TotalRequests)
-		assert.Equal(t, int64(1000000), result.TotalTokens)
+		assert.Equal(t, int32(1000), result.GetTotalRequests())
+		assert.Equal(t, int64(1000000), result.GetTotalTokens())
 		mockUsageDB.AssertExpectations(t)
 	})
 
@@ -716,10 +726,13 @@ func TestBillingDomain_GetUsageStats(t *testing.T) {
 
 		mockUsageDB.On("GetStats", mock.Anything, userID, mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).Return(stats, nil)
 
-		result, err := domain.GetUsageStats(context.Background(), userID, "", &start, &end)
+		result, err := domain.GetUsageStats(context.Background(), userID, &billingv1.GetUsageStatsRequest{
+			Start: start.UTC().Format(time.RFC3339),
+			End:   end.UTC().Format(time.RFC3339),
+		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, 500, result.TotalRequests)
+		assert.Equal(t, int32(500), result.GetTotalRequests())
 		mockUsageDB.AssertExpectations(t)
 	})
 }
@@ -735,14 +748,14 @@ func TestBillingDomain_RecordUsage(t *testing.T) {
 
 		userID := uuid.New()
 		providerID := uuid.New()
-		input := &RecordUsageInput{
-			RequestID:    "req_123",
+		in := &billingv1.RecordUsageRequest{
+			RequestId:    "req_123",
 			TaskType:     "chat",
-			ProviderID:   providerID,
-			ModelID:      "gpt-4",
+			ProviderId:   providerID.String(),
+			ModelId:      "gpt-4",
 			InputTokens:  100,
 			OutputTokens: 200,
-			CostUSD:      0.07,
+			CostUsd:      0.07,
 			LatencyMs:    500,
 			Success:      true,
 		}
@@ -759,9 +772,10 @@ func TestBillingDomain_RecordUsage(t *testing.T) {
 		mockQuotaCache.On("IncrementTokens", mock.Anything, userID, mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time"), int64(300)).Return(int64(300), nil)
 		mockQuotaCache.On("IncrementRequests", mock.Anything, userID).Return(1, nil)
 
-		err := domain.RecordUsage(context.Background(), userID, input)
+		out, err := domain.RecordUsage(context.Background(), userID, in)
 
 		assert.NoError(t, err)
+		assert.NotNil(t, out)
 		mockUsageDB.AssertExpectations(t)
 	})
 
@@ -771,23 +785,24 @@ func TestBillingDomain_RecordUsage(t *testing.T) {
 
 		userID := uuid.New()
 		providerID := uuid.New()
-		input := &RecordUsageInput{
-			RequestID:    "req_456",
+		in := &billingv1.RecordUsageRequest{
+			RequestId:    "req_456",
 			TaskType:     "chat",
-			ProviderID:   providerID,
-			ModelID:      "gpt-4",
+			ProviderId:   providerID.String(),
+			ModelId:      "gpt-4",
 			InputTokens:  100,
 			OutputTokens: 0,
-			CostUSD:      0,
+			CostUsd:      0,
 			LatencyMs:    100,
 			Success:      false,
 		}
 
 		mockUsageDB.On("Create", mock.Anything, mock.AnythingOfType("*model.UsageRecord")).Return(nil)
 
-		err := domain.RecordUsage(context.Background(), userID, input)
+		out, err := domain.RecordUsage(context.Background(), userID, in)
 
 		assert.NoError(t, err)
+		assert.NotNil(t, out)
 		mockUsageDB.AssertExpectations(t)
 	})
 }
@@ -808,10 +823,10 @@ func TestBillingDomain_GetBalance(t *testing.T) {
 
 		mockSubDB.On("GetByUserID", mock.Anything, userID).Return(sub, nil)
 
-		balance, err := domain.GetBalance(context.Background(), userID)
+		out, err := domain.GetBalance(context.Background(), userID)
 
 		assert.NoError(t, err)
-		assert.Equal(t, int64(5000), balance)
+		assert.Equal(t, int64(5000), out.GetBalance())
 		mockSubDB.AssertExpectations(t)
 	})
 
@@ -822,10 +837,10 @@ func TestBillingDomain_GetBalance(t *testing.T) {
 		userID := uuid.New()
 		mockSubDB.On("GetByUserID", mock.Anything, userID).Return(nil, nil)
 
-		balance, err := domain.GetBalance(context.Background(), userID)
+		out, err := domain.GetBalance(context.Background(), userID)
 
 		assert.ErrorIs(t, err, ErrSubscriptionNotFound)
-		assert.Equal(t, int64(0), balance)
+		assert.Nil(t, out)
 	})
 }
 
@@ -921,10 +936,10 @@ func TestBillingDomain_GetUsageStats_Periods(t *testing.T) {
 
 		mockUsageDB.On("GetStats", mock.Anything, userID, mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).Return(stats, nil)
 
-		result, err := domain.GetUsageStats(context.Background(), userID, "day", nil, nil)
+		result, err := domain.GetUsageStats(context.Background(), userID, &billingv1.GetUsageStatsRequest{Period: "day"})
 
 		assert.NoError(t, err)
-		assert.Equal(t, 100, result.TotalRequests)
+		assert.Equal(t, int32(100), result.GetTotalRequests())
 		mockUsageDB.AssertExpectations(t)
 	})
 
@@ -940,10 +955,10 @@ func TestBillingDomain_GetUsageStats_Periods(t *testing.T) {
 
 		mockUsageDB.On("GetStats", mock.Anything, userID, mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).Return(stats, nil)
 
-		result, err := domain.GetUsageStats(context.Background(), userID, "week", nil, nil)
+		result, err := domain.GetUsageStats(context.Background(), userID, &billingv1.GetUsageStatsRequest{Period: "week"})
 
 		assert.NoError(t, err)
-		assert.Equal(t, 500, result.TotalRequests)
+		assert.Equal(t, int32(500), result.GetTotalRequests())
 		mockUsageDB.AssertExpectations(t)
 	})
 }
@@ -982,7 +997,11 @@ func TestBillingDomain_AddCredits_ErrorCases(t *testing.T) {
 		userID := uuid.New()
 		mockSubDB.On("GetByUserID", mock.Anything, userID).Return(nil, nil)
 
-		err := domain.AddCredits(context.Background(), userID, 500, "purchase")
+		_, err := domain.AddCredits(context.Background(), &billingv1.AddCreditsRequest{
+			UserId: userID.String(),
+			Amount: 500,
+			Source: "purchase",
+		})
 
 		assert.ErrorIs(t, err, ErrSubscriptionNotFound)
 	})
@@ -1004,7 +1023,7 @@ func TestBillingDomain_CheckQuota_ErrorCases(t *testing.T) {
 
 		mockSubDB.On("GetByUserIDWithPlan", mock.Anything, userID).Return(sub, nil)
 
-		err := domain.CheckQuota(context.Background(), userID, "chat")
+		err := domain.CheckQuota(context.Background(), userID, &billingv1.CheckQuotaRequest{TaskType: "chat"})
 
 		assert.ErrorIs(t, err, ErrQuotaExceeded)
 	})
@@ -1016,7 +1035,7 @@ func TestBillingDomain_CheckQuota_ErrorCases(t *testing.T) {
 		userID := uuid.New()
 		mockSubDB.On("GetByUserIDWithPlan", mock.Anything, userID).Return(nil, nil)
 
-		err := domain.CheckQuota(context.Background(), userID, "chat")
+		err := domain.CheckQuota(context.Background(), userID, &billingv1.CheckQuotaRequest{TaskType: "chat"})
 
 		assert.ErrorIs(t, err, ErrQuotaExceeded)
 	})

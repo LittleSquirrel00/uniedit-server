@@ -11,8 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	collabv1 "github.com/uniedit/server/api/pb/collaboration"
+	commonv1 "github.com/uniedit/server/api/pb/common"
 	"github.com/uniedit/server/internal/model"
-	"github.com/uniedit/server/internal/port/inbound"
 )
 
 // Mock implementations
@@ -230,20 +231,17 @@ func TestDomain_CreateTeam(t *testing.T) {
 		teamDB.On("Create", ctx, mock.AnythingOfType("*model.Team")).Return(nil)
 		memberDB.On("Add", ctx, mock.AnythingOfType("*model.TeamMember")).Return(nil)
 
-		input := &inbound.CreateTeamInput{
+		output, err := domain.CreateTeam(ctx, ownerID, &collabv1.CreateTeamRequest{
 			Name:        "My Team",
 			Description: "Test team",
-		}
-
-		output, err := domain.CreateTeam(ctx, ownerID, input)
+		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, output)
-		assert.Equal(t, "My Team", output.Name)
-		assert.Equal(t, "my-team", output.Slug)
-		assert.Equal(t, ownerID, output.OwnerID)
-		assert.NotNil(t, output.MyRole)
-		assert.Equal(t, model.TeamRoleOwner, *output.MyRole)
+		assert.Equal(t, "My Team", output.GetName())
+		assert.Equal(t, "my-team", output.GetSlug())
+		assert.Equal(t, ownerID.String(), output.GetOwnerId())
+		assert.Equal(t, string(model.TeamRoleOwner), output.GetMyRole())
 
 		teamDB.AssertExpectations(t)
 		memberDB.AssertExpectations(t)
@@ -257,14 +255,10 @@ func TestDomain_CreateTeam(t *testing.T) {
 		existingTeam := &model.Team{ID: uuid.New(), Name: "My Team"}
 		teamDB.On("FindByOwnerAndSlug", ctx, ownerID, "my-team").Return(existingTeam, nil)
 
-		input := &inbound.CreateTeamInput{
-			Name: "My Team",
-		}
-
-		output, err := domain.CreateTeam(ctx, ownerID, input)
+		output, err := domain.CreateTeam(ctx, ownerID, &collabv1.CreateTeamRequest{Name: "My Team"})
 
 		assert.Nil(t, output)
-		assert.Equal(t, ErrSlugAlreadyExists, err)
+		assert.ErrorIs(t, err, ErrSlugAlreadyExists)
 	})
 }
 
@@ -293,13 +287,16 @@ func TestDomain_GetTeam(t *testing.T) {
 		memberDB.On("Find", ctx, teamID, requesterID).Return(member, nil)
 		memberDB.On("Count", ctx, teamID).Return(3, nil)
 
-		output, err := domain.GetTeam(ctx, ownerID, "test-team", &requesterID)
+		output, err := domain.GetTeam(ctx, requesterID, &collabv1.GetTeamRequest{
+			Slug:    "test-team",
+			OwnerId: ownerID.String(),
+		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, output)
-		assert.Equal(t, "Test Team", output.Name)
-		assert.Equal(t, model.TeamRoleMember, *output.MyRole)
-		assert.Equal(t, 3, output.MemberCount)
+		assert.Equal(t, "Test Team", output.GetName())
+		assert.Equal(t, string(model.TeamRoleMember), output.GetMyRole())
+		assert.Equal(t, int32(3), output.GetMemberCount())
 	})
 
 	t.Run("private_team_non_member", func(t *testing.T) {
@@ -318,7 +315,10 @@ func TestDomain_GetTeam(t *testing.T) {
 		teamDB.On("FindByOwnerAndSlug", ctx, ownerID, "test-team").Return(team, nil)
 		memberDB.On("Find", ctx, teamID, requesterID).Return(nil, ErrMemberNotFound)
 
-		output, err := domain.GetTeam(ctx, ownerID, "test-team", &requesterID)
+		output, err := domain.GetTeam(ctx, requesterID, &collabv1.GetTeamRequest{
+			Slug:    "test-team",
+			OwnerId: ownerID.String(),
+		})
 
 		assert.Nil(t, output)
 		assert.Equal(t, ErrTeamNotFound, err)
@@ -327,11 +327,18 @@ func TestDomain_GetTeam(t *testing.T) {
 
 func TestDomain_UpdateMemberRole(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		requesterID := uuid.New()
 		targetID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, requesterID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: requesterID,
+			Slug:    slug,
+		}, nil)
 
 		requester := &model.TeamMember{
 			TeamID: teamID,
@@ -348,18 +355,30 @@ func TestDomain_UpdateMemberRole(t *testing.T) {
 		memberDB.On("Find", ctx, teamID, targetID).Return(target, nil)
 		memberDB.On("UpdateRole", ctx, teamID, targetID, model.TeamRoleAdmin).Return(nil)
 
-		err := domain.UpdateMemberRole(ctx, teamID, targetID, requesterID, model.TeamRoleAdmin)
+		out, err := domain.UpdateMemberRole(ctx, requesterID, &collabv1.UpdateMemberRoleRequest{
+			Slug:   slug,
+			UserId: targetID.String(),
+			Role:   string(model.TeamRoleAdmin),
+		})
 
 		require.NoError(t, err)
+		assert.NotNil(t, out)
 		memberDB.AssertExpectations(t)
 	})
 
 	t.Run("cannot_change_owner", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		requesterID := uuid.New()
 		targetID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, requesterID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: requesterID,
+			Slug:    slug,
+		}, nil)
 
 		requester := &model.TeamMember{
 			TeamID: teamID,
@@ -375,16 +394,28 @@ func TestDomain_UpdateMemberRole(t *testing.T) {
 		memberDB.On("Find", ctx, teamID, requesterID).Return(requester, nil)
 		memberDB.On("Find", ctx, teamID, targetID).Return(target, nil)
 
-		err := domain.UpdateMemberRole(ctx, teamID, targetID, requesterID, model.TeamRoleMember)
+		out, err := domain.UpdateMemberRole(ctx, requesterID, &collabv1.UpdateMemberRoleRequest{
+			Slug:   slug,
+			UserId: targetID.String(),
+			Role:   string(model.TeamRoleMember),
+		})
 
-		assert.Equal(t, ErrCannotChangeOwner, err)
+		assert.Nil(t, out)
+		assert.ErrorIs(t, err, ErrCannotChangeOwner)
 	})
 
 	t.Run("insufficient_permission", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		requesterID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, requesterID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: requesterID,
+			Slug:    slug,
+		}, nil)
 
 		requester := &model.TeamMember{
 			TeamID: teamID,
@@ -394,19 +425,31 @@ func TestDomain_UpdateMemberRole(t *testing.T) {
 
 		memberDB.On("Find", ctx, teamID, requesterID).Return(requester, nil)
 
-		err := domain.UpdateMemberRole(ctx, teamID, uuid.New(), requesterID, model.TeamRoleAdmin)
+		out, err := domain.UpdateMemberRole(ctx, requesterID, &collabv1.UpdateMemberRoleRequest{
+			Slug:   slug,
+			UserId: uuid.New().String(),
+			Role:   string(model.TeamRoleAdmin),
+		})
 
-		assert.Equal(t, ErrInsufficientPermission, err)
+		assert.Nil(t, out)
+		assert.ErrorIs(t, err, ErrInsufficientPermission)
 	})
 }
 
 func TestDomain_RemoveMember(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		requesterID := uuid.New()
 		targetID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, requesterID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: requesterID,
+			Slug:    slug,
+		}, nil)
 
 		requester := &model.TeamMember{
 			TeamID: teamID,
@@ -423,18 +466,29 @@ func TestDomain_RemoveMember(t *testing.T) {
 		memberDB.On("Find", ctx, teamID, requesterID).Return(requester, nil)
 		memberDB.On("Remove", ctx, teamID, targetID).Return(nil)
 
-		err := domain.RemoveMember(ctx, teamID, targetID, requesterID)
+		out, err := domain.RemoveMember(ctx, requesterID, &collabv1.RemoveMemberRequest{
+			Slug:   slug,
+			UserId: targetID.String(),
+		})
 
 		require.NoError(t, err)
+		assert.NotNil(t, out)
 		memberDB.AssertExpectations(t)
 	})
 
 	t.Run("cannot_remove_owner", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		requesterID := uuid.New()
 		ownerID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, requesterID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: requesterID,
+			Slug:    slug,
+		}, nil)
 
 		owner := &model.TeamMember{
 			TeamID: teamID,
@@ -444,16 +498,27 @@ func TestDomain_RemoveMember(t *testing.T) {
 
 		memberDB.On("Find", ctx, teamID, ownerID).Return(owner, nil)
 
-		err := domain.RemoveMember(ctx, teamID, ownerID, requesterID)
+		out, err := domain.RemoveMember(ctx, requesterID, &collabv1.RemoveMemberRequest{
+			Slug:   slug,
+			UserId: ownerID.String(),
+		})
 
-		assert.Equal(t, ErrCannotRemoveOwner, err)
+		assert.Nil(t, out)
+		assert.ErrorIs(t, err, ErrCannotRemoveOwner)
 	})
 
 	t.Run("self_leave_allowed", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		userID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, userID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: userID,
+			Slug:    slug,
+		}, nil)
 
 		member := &model.TeamMember{
 			TeamID: teamID,
@@ -465,9 +530,13 @@ func TestDomain_RemoveMember(t *testing.T) {
 		memberDB.On("Remove", ctx, teamID, userID).Return(nil)
 
 		// User can remove themselves without needing admin permission
-		err := domain.RemoveMember(ctx, teamID, userID, userID)
+		out, err := domain.RemoveMember(ctx, userID, &collabv1.RemoveMemberRequest{
+			Slug:   slug,
+			UserId: userID.String(),
+		})
 
 		require.NoError(t, err)
+		assert.NotNil(t, out)
 	})
 }
 
@@ -477,9 +546,12 @@ func TestDomain_SendInvitation(t *testing.T) {
 		ctx := context.Background()
 		teamID := uuid.New()
 		inviterID := uuid.New()
+		slug := "test-team"
 
 		team := &model.Team{
 			ID:          teamID,
+			OwnerID:     inviterID,
+			Slug:        slug,
 			MemberLimit: 10,
 		}
 		inviter := &model.TeamMember{
@@ -488,26 +560,25 @@ func TestDomain_SendInvitation(t *testing.T) {
 			Role:   model.TeamRoleAdmin,
 		}
 
+		teamDB.On("FindByOwnerAndSlug", ctx, inviterID, slug).Return(team, nil)
 		memberDB.On("Find", ctx, teamID, inviterID).Return(inviter, nil)
-		teamDB.On("FindByID", ctx, teamID).Return(team, nil)
 		memberDB.On("Count", ctx, teamID).Return(3, nil)
 		userLookup.On("FindByEmail", ctx, "test@example.com").Return(nil, nil)
 		invitationDB.On("FindPendingByEmail", ctx, teamID, "test@example.com").Return(nil, nil)
 		invitationDB.On("Create", ctx, mock.AnythingOfType("*model.TeamInvitation")).Return(nil)
 		userLookup.On("FindByID", ctx, inviterID).Return(&model.User{ID: inviterID, Name: "Inviter"}, nil)
 
-		input := &inbound.InviteInput{
+		output, err := domain.SendInvitation(ctx, inviterID, &collabv1.SendInvitationRequest{
+			Slug:  slug,
 			Email: "test@example.com",
-			Role:  model.TeamRoleMember,
-		}
-
-		output, err := domain.SendInvitation(ctx, teamID, inviterID, input)
+			Role:  string(model.TeamRoleMember),
+		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, output)
-		assert.Equal(t, "test@example.com", output.InviteeEmail)
-		assert.Equal(t, model.TeamRoleMember, output.Role)
-		assert.Equal(t, model.InvitationStatusPending, output.Status)
+		assert.Equal(t, "test@example.com", output.GetInviteeEmail())
+		assert.Equal(t, string(model.TeamRoleMember), output.GetRole())
+		assert.Equal(t, string(model.InvitationStatusPending), output.GetStatus())
 	})
 
 	t.Run("already_member", func(t *testing.T) {
@@ -516,9 +587,12 @@ func TestDomain_SendInvitation(t *testing.T) {
 		teamID := uuid.New()
 		inviterID := uuid.New()
 		existingUserID := uuid.New()
+		slug := "test-team"
 
 		team := &model.Team{
 			ID:          teamID,
+			OwnerID:     inviterID,
+			Slug:        slug,
 			MemberLimit: 10,
 		}
 		inviter := &model.TeamMember{
@@ -535,21 +609,20 @@ func TestDomain_SendInvitation(t *testing.T) {
 			UserID: existingUserID,
 		}
 
+		teamDB.On("FindByOwnerAndSlug", ctx, inviterID, slug).Return(team, nil)
 		memberDB.On("Find", ctx, teamID, inviterID).Return(inviter, nil)
-		teamDB.On("FindByID", ctx, teamID).Return(team, nil)
 		memberDB.On("Count", ctx, teamID).Return(3, nil)
 		userLookup.On("FindByEmail", ctx, "test@example.com").Return(existingUser, nil)
 		memberDB.On("Find", ctx, teamID, existingUserID).Return(existingMember, nil)
 
-		input := &inbound.InviteInput{
+		output, err := domain.SendInvitation(ctx, inviterID, &collabv1.SendInvitationRequest{
+			Slug:  slug,
 			Email: "test@example.com",
-			Role:  model.TeamRoleMember,
-		}
-
-		output, err := domain.SendInvitation(ctx, teamID, inviterID, input)
+			Role:  string(model.TeamRoleMember),
+		})
 
 		assert.Nil(t, output)
-		assert.Equal(t, ErrAlreadyMember, err)
+		assert.ErrorIs(t, err, ErrAlreadyMember)
 	})
 
 	t.Run("member_limit_exceeded", func(t *testing.T) {
@@ -557,9 +630,12 @@ func TestDomain_SendInvitation(t *testing.T) {
 		ctx := context.Background()
 		teamID := uuid.New()
 		inviterID := uuid.New()
+		slug := "test-team"
 
 		team := &model.Team{
 			ID:          teamID,
+			OwnerID:     inviterID,
+			Slug:        slug,
 			MemberLimit: 5,
 		}
 		inviter := &model.TeamMember{
@@ -568,19 +644,18 @@ func TestDomain_SendInvitation(t *testing.T) {
 			Role:   model.TeamRoleAdmin,
 		}
 
+		teamDB.On("FindByOwnerAndSlug", ctx, inviterID, slug).Return(team, nil)
 		memberDB.On("Find", ctx, teamID, inviterID).Return(inviter, nil)
-		teamDB.On("FindByID", ctx, teamID).Return(team, nil)
 		memberDB.On("Count", ctx, teamID).Return(5, nil) // At limit
 
-		input := &inbound.InviteInput{
+		output, err := domain.SendInvitation(ctx, inviterID, &collabv1.SendInvitationRequest{
+			Slug:  slug,
 			Email: "test@example.com",
-			Role:  model.TeamRoleMember,
-		}
-
-		output, err := domain.SendInvitation(ctx, teamID, inviterID, input)
+			Role:  string(model.TeamRoleMember),
+		})
 
 		assert.Nil(t, output)
-		assert.Equal(t, ErrMemberLimitExceeded, err)
+		assert.ErrorIs(t, err, ErrMemberLimitExceeded)
 	})
 }
 
@@ -611,11 +686,13 @@ func TestDomain_AcceptInvitation(t *testing.T) {
 		memberDB.On("Add", ctx, mock.AnythingOfType("*model.TeamMember")).Return(nil)
 		invitationDB.On("UpdateStatus", ctx, invitation.ID, model.InvitationStatusAccepted).Return(nil)
 
-		output, err := domain.AcceptInvitation(ctx, "test-token", userID, "user@example.com")
+		output, err := domain.AcceptInvitation(ctx, userID, "user@example.com", &collabv1.InvitationTokenRequest{Token: "test-token"})
 
 		require.NoError(t, err)
 		assert.NotNil(t, output)
-		assert.Equal(t, "Test Team", output.Name)
+		assert.Equal(t, "Invitation accepted", output.GetMessage())
+		assert.Equal(t, "Test Team", output.GetTeam().GetName())
+		assert.Equal(t, string(model.TeamRoleMember), output.GetTeam().GetMyRole())
 	})
 
 	t.Run("invitation_expired", func(t *testing.T) {
@@ -633,7 +710,7 @@ func TestDomain_AcceptInvitation(t *testing.T) {
 		invitationDB.On("FindByToken", ctx, "test-token").Return(invitation, nil)
 		invitationDB.On("UpdateStatus", ctx, invitation.ID, model.InvitationStatusExpired).Return(nil)
 
-		output, err := domain.AcceptInvitation(ctx, "test-token", userID, "user@example.com")
+		output, err := domain.AcceptInvitation(ctx, userID, "user@example.com", &collabv1.InvitationTokenRequest{Token: "test-token"})
 
 		assert.Nil(t, output)
 		assert.Equal(t, ErrInvitationExpired, err)
@@ -653,7 +730,7 @@ func TestDomain_AcceptInvitation(t *testing.T) {
 
 		invitationDB.On("FindByToken", ctx, "test-token").Return(invitation, nil)
 
-		output, err := domain.AcceptInvitation(ctx, "test-token", userID, "user@example.com")
+		output, err := domain.AcceptInvitation(ctx, userID, "user@example.com", &collabv1.InvitationTokenRequest{Token: "test-token"})
 
 		assert.Nil(t, output)
 		assert.Equal(t, ErrInvitationNotForYou, err)
@@ -666,6 +743,13 @@ func TestDomain_DeleteTeam(t *testing.T) {
 		ctx := context.Background()
 		teamID := uuid.New()
 		ownerID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, ownerID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: ownerID,
+			Slug:    slug,
+		}, nil)
 
 		owner := &model.TeamMember{
 			TeamID: teamID,
@@ -677,18 +761,30 @@ func TestDomain_DeleteTeam(t *testing.T) {
 		invitationDB.On("CancelPendingByTeam", ctx, teamID).Return(nil)
 		teamDB.On("Delete", ctx, teamID).Return(nil)
 
-		err := domain.DeleteTeam(ctx, teamID, ownerID)
+		out, err := domain.DeleteTeam(ctx, ownerID, &collabv1.GetTeamRequest{
+			Slug:    slug,
+			OwnerId: ownerID.String(),
+		})
 
 		require.NoError(t, err)
+		assert.NotNil(t, out)
 		teamDB.AssertExpectations(t)
 		invitationDB.AssertExpectations(t)
 	})
 
 	t.Run("only_owner_can_delete", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
+		ownerID := uuid.New()
 		adminID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, ownerID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: ownerID,
+			Slug:    slug,
+		}, nil)
 
 		admin := &model.TeamMember{
 			TeamID: teamID,
@@ -698,9 +794,13 @@ func TestDomain_DeleteTeam(t *testing.T) {
 
 		memberDB.On("Find", ctx, teamID, adminID).Return(admin, nil)
 
-		err := domain.DeleteTeam(ctx, teamID, adminID)
+		out, err := domain.DeleteTeam(ctx, adminID, &collabv1.GetTeamRequest{
+			Slug:    slug,
+			OwnerId: ownerID.String(),
+		})
 
-		assert.Equal(t, ErrOnlyOwnerCanDelete, err)
+		assert.Nil(t, out)
+		assert.ErrorIs(t, err, ErrOnlyOwnerCanDelete)
 	})
 }
 
@@ -822,10 +922,10 @@ func TestDomain_ListMyTeams(t *testing.T) {
 		memberDB.On("Find", ctx, teams[0].ID, userID).Return(member, nil)
 		memberDB.On("Find", ctx, teams[1].ID, userID).Return(member, nil)
 
-		result, err := domain.ListMyTeams(ctx, userID, 20, 0)
+		result, err := domain.ListMyTeams(ctx, userID, &collabv1.ListMyTeamsRequest{Limit: 20, Offset: 0})
 
 		require.NoError(t, err)
-		assert.Len(t, result, 2)
+		assert.Len(t, result.GetTeams(), 2)
 		teamDB.AssertExpectations(t)
 	})
 
@@ -836,7 +936,7 @@ func TestDomain_ListMyTeams(t *testing.T) {
 
 		teamDB.On("FindByUser", ctx, userID, 100, 0).Return([]*model.Team{}, nil)
 
-		_, err := domain.ListMyTeams(ctx, userID, 200, 0) // Should be capped at 100
+		_, err := domain.ListMyTeams(ctx, userID, &collabv1.ListMyTeamsRequest{Limit: 200, Offset: 0}) // Should be capped at 100
 
 		require.NoError(t, err)
 		teamDB.AssertExpectations(t)
@@ -849,6 +949,7 @@ func TestDomain_UpdateTeam(t *testing.T) {
 		ctx := context.Background()
 		teamID := uuid.New()
 		requesterID := uuid.New()
+		slug := "test-team"
 
 		member := &model.TeamMember{
 			TeamID: teamID,
@@ -857,6 +958,8 @@ func TestDomain_UpdateTeam(t *testing.T) {
 		}
 		team := &model.Team{
 			ID:          teamID,
+			OwnerID:     requesterID,
+			Slug:        slug,
 			Name:        "Old Name",
 			Description: "Old Description",
 		}
@@ -864,27 +967,33 @@ func TestDomain_UpdateTeam(t *testing.T) {
 		newName := "New Name"
 		newDesc := "New Description"
 
+		teamDB.On("FindByOwnerAndSlug", ctx, requesterID, slug).Return(team, nil)
 		memberDB.On("Find", ctx, teamID, requesterID).Return(member, nil)
-		teamDB.On("FindByID", ctx, teamID).Return(team, nil)
 		teamDB.On("Update", ctx, mock.AnythingOfType("*model.Team")).Return(nil)
 		memberDB.On("Count", ctx, teamID).Return(3, nil)
 
-		input := &inbound.UpdateTeamInput{
-			Name:        &newName,
-			Description: &newDesc,
-		}
-
-		output, err := domain.UpdateTeam(ctx, teamID, requesterID, input)
+		output, err := domain.UpdateTeam(ctx, requesterID, &collabv1.UpdateTeamRequest{
+			Slug:        slug,
+			Name:        &commonv1.StringValue{Value: newName},
+			Description: &commonv1.StringValue{Value: newDesc},
+		})
 
 		require.NoError(t, err)
-		assert.Equal(t, newName, output.Name)
+		assert.Equal(t, newName, output.GetName())
 	})
 
 	t.Run("insufficient_permission", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		requesterID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, requesterID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: requesterID,
+			Slug:    slug,
+		}, nil)
 
 		member := &model.TeamMember{
 			TeamID: teamID,
@@ -894,8 +1003,7 @@ func TestDomain_UpdateTeam(t *testing.T) {
 
 		memberDB.On("Find", ctx, teamID, requesterID).Return(member, nil)
 
-		input := &inbound.UpdateTeamInput{}
-		output, err := domain.UpdateTeam(ctx, teamID, requesterID, input)
+		output, err := domain.UpdateTeam(ctx, requesterID, &collabv1.UpdateTeamRequest{Slug: slug})
 
 		assert.ErrorIs(t, err, ErrInsufficientPermission)
 		assert.Nil(t, output)
@@ -904,10 +1012,17 @@ func TestDomain_UpdateTeam(t *testing.T) {
 
 func TestDomain_ListMembers(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		requesterID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, requesterID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: requesterID,
+			Slug:    slug,
+		}, nil)
 
 		requester := &model.TeamMember{
 			TeamID: teamID,
@@ -938,21 +1053,28 @@ func TestDomain_ListMembers(t *testing.T) {
 		memberDB.On("Find", ctx, teamID, requesterID).Return(requester, nil)
 		memberDB.On("FindByTeamWithUsers", ctx, teamID).Return(members, nil)
 
-		result, err := domain.ListMembers(ctx, teamID, requesterID)
+		result, err := domain.ListMembers(ctx, requesterID, &collabv1.GetTeamRequest{Slug: slug})
 
 		require.NoError(t, err)
-		assert.Len(t, result, 2)
+		assert.Len(t, result.GetMembers(), 2)
 	})
 
 	t.Run("not_member", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		requesterID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, requesterID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: requesterID,
+			Slug:    slug,
+		}, nil)
 
 		memberDB.On("Find", ctx, teamID, requesterID).Return(nil, ErrMemberNotFound)
 
-		result, err := domain.ListMembers(ctx, teamID, requesterID)
+		result, err := domain.ListMembers(ctx, requesterID, &collabv1.GetTeamRequest{Slug: slug})
 
 		assert.ErrorIs(t, err, ErrInsufficientPermission)
 		assert.Nil(t, result)
@@ -961,10 +1083,17 @@ func TestDomain_ListMembers(t *testing.T) {
 
 func TestDomain_LeaveTeam(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		userID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, userID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: userID,
+			Slug:    slug,
+		}, nil)
 
 		member := &model.TeamMember{
 			TeamID: teamID,
@@ -975,16 +1104,24 @@ func TestDomain_LeaveTeam(t *testing.T) {
 		memberDB.On("Find", ctx, teamID, userID).Return(member, nil)
 		memberDB.On("Remove", ctx, teamID, userID).Return(nil)
 
-		err := domain.LeaveTeam(ctx, teamID, userID)
+		out, err := domain.LeaveTeam(ctx, userID, &collabv1.GetTeamRequest{Slug: slug})
 
 		require.NoError(t, err)
+		assert.NotNil(t, out)
 	})
 
 	t.Run("owner_cannot_leave", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		ownerID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, ownerID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: ownerID,
+			Slug:    slug,
+		}, nil)
 
 		owner := &model.TeamMember{
 			TeamID: teamID,
@@ -994,8 +1131,9 @@ func TestDomain_LeaveTeam(t *testing.T) {
 
 		memberDB.On("Find", ctx, teamID, ownerID).Return(owner, nil)
 
-		err := domain.LeaveTeam(ctx, teamID, ownerID)
+		out, err := domain.LeaveTeam(ctx, ownerID, &collabv1.GetTeamRequest{Slug: slug})
 
+		assert.Nil(t, out)
 		assert.ErrorIs(t, err, ErrCannotRemoveOwner)
 	})
 }
@@ -1039,10 +1177,17 @@ func TestDomain_GetMember(t *testing.T) {
 
 func TestDomain_ListTeamInvitations(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		domain, _, memberDB, invitationDB, _, _ := setupDomain()
+		domain, teamDB, memberDB, invitationDB, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		requesterID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, requesterID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: requesterID,
+			Slug:    slug,
+		}, nil)
 
 		requester := &model.TeamMember{
 			TeamID: teamID,
@@ -1061,17 +1206,28 @@ func TestDomain_ListTeamInvitations(t *testing.T) {
 		memberDB.On("Find", ctx, teamID, requesterID).Return(requester, nil)
 		invitationDB.On("FindByTeam", ctx, teamID, (*model.InvitationStatus)(nil), 20, 0).Return(invitations, nil)
 
-		result, err := domain.ListTeamInvitations(ctx, teamID, requesterID, nil, 20, 0)
+		result, err := domain.ListTeamInvitations(ctx, requesterID, &collabv1.ListTeamInvitationsRequest{
+			Slug:   slug,
+			Limit:  20,
+			Offset: 0,
+		})
 
 		require.NoError(t, err)
-		assert.Len(t, result, 1)
+		assert.Len(t, result.GetInvitations(), 1)
 	})
 
 	t.Run("insufficient_permission", func(t *testing.T) {
-		domain, _, memberDB, _, _, _ := setupDomain()
+		domain, teamDB, memberDB, _, _, _ := setupDomain()
 		ctx := context.Background()
 		teamID := uuid.New()
 		requesterID := uuid.New()
+		slug := "test-team"
+
+		teamDB.On("FindByOwnerAndSlug", ctx, requesterID, slug).Return(&model.Team{
+			ID:      teamID,
+			OwnerID: requesterID,
+			Slug:    slug,
+		}, nil)
 
 		member := &model.TeamMember{
 			TeamID: teamID,
@@ -1081,7 +1237,11 @@ func TestDomain_ListTeamInvitations(t *testing.T) {
 
 		memberDB.On("Find", ctx, teamID, requesterID).Return(member, nil)
 
-		result, err := domain.ListTeamInvitations(ctx, teamID, requesterID, nil, 20, 0)
+		result, err := domain.ListTeamInvitations(ctx, requesterID, &collabv1.ListTeamInvitationsRequest{
+			Slug:   slug,
+			Limit:  20,
+			Offset: 0,
+		})
 
 		assert.ErrorIs(t, err, ErrInsufficientPermission)
 		assert.Nil(t, result)
@@ -1116,10 +1276,10 @@ func TestDomain_ListMyInvitations(t *testing.T) {
 		status := model.InvitationStatusPending
 		invitationDB.On("FindByEmail", ctx, email, &status, 20, 0).Return(invitations, nil)
 
-		result, err := domain.ListMyInvitations(ctx, email, 20, 0)
+		result, err := domain.ListMyInvitations(ctx, email, &collabv1.ListMyInvitationsRequest{Limit: 20, Offset: 0})
 
 		require.NoError(t, err)
-		assert.Len(t, result, 1)
+		assert.Len(t, result.GetInvitations(), 1)
 	})
 }
 
@@ -1140,9 +1300,10 @@ func TestDomain_RejectInvitation(t *testing.T) {
 		invitationDB.On("FindByToken", ctx, "test-token").Return(invitation, nil)
 		invitationDB.On("UpdateStatus", ctx, invitation.ID, model.InvitationStatusRejected).Return(nil)
 
-		err := domain.RejectInvitation(ctx, "test-token", userEmail)
+		out, err := domain.RejectInvitation(ctx, userEmail, &collabv1.InvitationTokenRequest{Token: "test-token"})
 
 		require.NoError(t, err)
+		assert.NotNil(t, out)
 	})
 
 	t.Run("not_for_you", func(t *testing.T) {
@@ -1157,8 +1318,9 @@ func TestDomain_RejectInvitation(t *testing.T) {
 
 		invitationDB.On("FindByToken", ctx, "test-token").Return(invitation, nil)
 
-		err := domain.RejectInvitation(ctx, "test-token", "user@example.com")
+		out, err := domain.RejectInvitation(ctx, "user@example.com", &collabv1.InvitationTokenRequest{Token: "test-token"})
 
+		assert.Nil(t, out)
 		assert.ErrorIs(t, err, ErrInvitationNotForYou)
 	})
 
@@ -1175,8 +1337,9 @@ func TestDomain_RejectInvitation(t *testing.T) {
 
 		invitationDB.On("FindByToken", ctx, "test-token").Return(invitation, nil)
 
-		err := domain.RejectInvitation(ctx, "test-token", userEmail)
+		out, err := domain.RejectInvitation(ctx, userEmail, &collabv1.InvitationTokenRequest{Token: "test-token"})
 
+		assert.Nil(t, out)
 		assert.ErrorIs(t, err, ErrInvitationAlreadyProcessed)
 	})
 }
@@ -1204,9 +1367,10 @@ func TestDomain_RevokeInvitation(t *testing.T) {
 		memberDB.On("Find", ctx, teamID, requesterID).Return(requester, nil)
 		invitationDB.On("UpdateStatus", ctx, invitationID, model.InvitationStatusRevoked).Return(nil)
 
-		err := domain.RevokeInvitation(ctx, invitationID, requesterID)
+		out, err := domain.RevokeInvitation(ctx, requesterID, &collabv1.GetByIDRequest{Id: invitationID.String()})
 
 		require.NoError(t, err)
+		assert.NotNil(t, out)
 	})
 
 	t.Run("cannot_revoke_processed", func(t *testing.T) {
@@ -1230,8 +1394,9 @@ func TestDomain_RevokeInvitation(t *testing.T) {
 		invitationDB.On("FindByID", ctx, invitationID).Return(invitation, nil)
 		memberDB.On("Find", ctx, teamID, requesterID).Return(requester, nil)
 
-		err := domain.RevokeInvitation(ctx, invitationID, requesterID)
+		out, err := domain.RevokeInvitation(ctx, requesterID, &collabv1.GetByIDRequest{Id: invitationID.String()})
 
+		assert.Nil(t, out)
 		assert.ErrorIs(t, err, ErrCannotRevokeProcessed)
 	})
 }

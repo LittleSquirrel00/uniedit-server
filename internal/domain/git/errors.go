@@ -9,6 +9,7 @@ var (
 	ErrInvalidRepoName      = errors.New("invalid repository name")
 	ErrInvalidRepoType      = errors.New("invalid repository type")
 	ErrStorageQuotaExceeded = errors.New("storage quota exceeded")
+	ErrInvalidRequest       = errors.New("invalid request")
 )
 
 // Access control errors.

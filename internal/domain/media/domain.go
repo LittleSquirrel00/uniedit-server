@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	commonv1 "github.com/uniedit/server/api/pb/common"
+	mediav1 "github.com/uniedit/server/api/pb/media"
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/inbound"
 	"github.com/uniedit/server/internal/port/outbound"
@@ -53,7 +55,8 @@ func NewDomain(
 }
 
 // GenerateImage generates images synchronously.
-func (d *Domain) GenerateImage(ctx context.Context, userID uuid.UUID, input *inbound.MediaImageGenerationInput) (*inbound.MediaImageGenerationOutput, error) {
+func (d *Domain) GenerateImage(ctx context.Context, userID uuid.UUID, in *mediav1.GenerateImageRequest) (*mediav1.GenerateImageResponse, error) {
+	input := toGenerateImageInput(in)
 	if input.Prompt == "" {
 		return nil, ErrInvalidInput
 	}
@@ -94,16 +97,17 @@ func (d *Domain) GenerateImage(ctx context.Context, userID uuid.UUID, input *inb
 		zap.Int("count", len(resp.Images)),
 	)
 
-	return &inbound.MediaImageGenerationOutput{
+	return toGenerateImageResponse(&model.MediaImageGenerationOutput{
 		Images:    resp.Images,
 		Model:     resp.Model,
 		Usage:     resp.Usage,
 		CreatedAt: resp.CreatedAt,
-	}, nil
+	}), nil
 }
 
 // GenerateVideo generates videos asynchronously.
-func (d *Domain) GenerateVideo(ctx context.Context, userID uuid.UUID, input *inbound.MediaVideoGenerationInput) (*inbound.MediaVideoGenerationOutput, error) {
+func (d *Domain) GenerateVideo(ctx context.Context, userID uuid.UUID, in *mediav1.GenerateVideoRequest) (*mediav1.VideoGenerationStatus, error) {
+	input := toGenerateVideoInput(in)
 	// Validate input
 	if input.Prompt == "" && input.InputImage == "" && input.InputVideo == "" {
 		return nil, ErrInvalidInput
@@ -138,19 +142,19 @@ func (d *Domain) GenerateVideo(ctx context.Context, userID uuid.UUID, input *inb
 		zap.String("user_id", userID.String()),
 	)
 
-	return &inbound.MediaVideoGenerationOutput{
+	return toVideoStatus(&model.MediaVideoGenerationOutput{
 		TaskID:    task.ID.String(),
 		Status:    model.VideoStatePending,
 		Progress:  0,
 		CreatedAt: task.CreatedAt.Unix(),
-	}, nil
+	}), nil
 }
 
 // GetVideoStatus returns the status of a video generation task.
-func (d *Domain) GetVideoStatus(ctx context.Context, userID uuid.UUID, taskID string) (*inbound.MediaVideoGenerationOutput, error) {
-	id, err := uuid.Parse(taskID)
+func (d *Domain) GetVideoStatus(ctx context.Context, userID uuid.UUID, in *mediav1.GetByTaskIDRequest) (*mediav1.VideoGenerationStatus, error) {
+	id, err := uuid.Parse(in.GetTaskId())
 	if err != nil {
-		return nil, fmt.Errorf("invalid task id: %w", err)
+		return nil, ErrInvalidInput
 	}
 
 	task, err := d.taskDB.FindByID(ctx, id)
@@ -166,7 +170,7 @@ func (d *Domain) GetVideoStatus(ctx context.Context, userID uuid.UUID, taskID st
 		return nil, ErrTaskNotOwned
 	}
 
-	resp := &inbound.MediaVideoGenerationOutput{
+	resp := &model.MediaVideoGenerationOutput{
 		TaskID:    task.ID.String(),
 		Status:    taskStatusToVideoState(task.Status),
 		Progress:  task.Progress,
@@ -186,11 +190,16 @@ func (d *Domain) GetVideoStatus(ctx context.Context, userID uuid.UUID, taskID st
 		resp.Error = task.Error
 	}
 
-	return resp, nil
+	return toVideoStatus(resp), nil
 }
 
 // GetTask returns a task by ID.
-func (d *Domain) GetTask(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) (*inbound.MediaTaskOutput, error) {
+func (d *Domain) GetTask(ctx context.Context, userID uuid.UUID, in *mediav1.GetByTaskIDRequest) (*mediav1.MediaTask, error) {
+	taskID, err := uuid.Parse(in.GetTaskId())
+	if err != nil {
+		return nil, ErrInvalidInput
+	}
+
 	task, err := d.taskDB.FindByID(ctx, taskID)
 	if err != nil {
 		return nil, err
@@ -204,7 +213,7 @@ func (d *Domain) GetTask(ctx context.Context, userID uuid.UUID, taskID uuid.UUID
 		return nil, ErrTaskNotOwned
 	}
 
-	return &inbound.MediaTaskOutput{
+	return toTask(&model.MediaTaskOutput{
 		ID:        task.ID,
 		OwnerID:   task.OwnerID,
 		Type:      task.Type,
@@ -213,16 +222,21 @@ func (d *Domain) GetTask(ctx context.Context, userID uuid.UUID, taskID uuid.UUID
 		Error:     task.Error,
 		CreatedAt: task.CreatedAt.Unix(),
 		UpdatedAt: task.UpdatedAt.Unix(),
-	}, nil
+	}), nil
 }
 
 // ListTasks lists tasks for a user.
-func (d *Domain) ListTasks(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*inbound.MediaTaskOutput, error) {
+func (d *Domain) ListTasks(ctx context.Context, userID uuid.UUID, in *mediav1.ListTasksRequest) (*mediav1.ListTasksResponse, error) {
+	limit := int(in.GetLimit())
+	offset := int(in.GetOffset())
 	if limit <= 0 {
 		limit = 20
 	}
 	if limit > 100 {
 		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
 	}
 
 	tasks, err := d.taskDB.FindByOwner(ctx, userID, limit, offset)
@@ -230,9 +244,9 @@ func (d *Domain) ListTasks(ctx context.Context, userID uuid.UUID, limit, offset 
 		return nil, err
 	}
 
-	result := make([]*inbound.MediaTaskOutput, len(tasks))
-	for i, task := range tasks {
-		result[i] = &inbound.MediaTaskOutput{
+	out := make([]*mediav1.MediaTask, 0, len(tasks))
+	for _, task := range tasks {
+		out = append(out, toTask(&model.MediaTaskOutput{
 			ID:        task.ID,
 			OwnerID:   task.OwnerID,
 			Type:      task.Type,
@@ -241,40 +255,45 @@ func (d *Domain) ListTasks(ctx context.Context, userID uuid.UUID, limit, offset 
 			Error:     task.Error,
 			CreatedAt: task.CreatedAt.Unix(),
 			UpdatedAt: task.UpdatedAt.Unix(),
-		}
+		}))
 	}
 
-	return result, nil
+	return &mediav1.ListTasksResponse{Tasks: out}, nil
 }
 
 // CancelTask cancels a task.
-func (d *Domain) CancelTask(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) error {
+func (d *Domain) CancelTask(ctx context.Context, userID uuid.UUID, in *mediav1.GetByTaskIDRequest) (*commonv1.Empty, error) {
+	taskID, err := uuid.Parse(in.GetTaskId())
+	if err != nil {
+		return nil, ErrInvalidInput
+	}
+
 	task, err := d.taskDB.FindByID(ctx, taskID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if task == nil {
-		return ErrTaskNotFound
+		return nil, ErrTaskNotFound
 	}
 
 	// Check ownership
 	if task.OwnerID != userID {
-		return ErrTaskNotOwned
+		return nil, ErrTaskNotOwned
 	}
 
 	// Check status
 	switch task.Status {
 	case model.MediaTaskStatusCompleted:
-		return ErrTaskAlreadyCompleted
+		return nil, ErrTaskAlreadyCompleted
 	case model.MediaTaskStatusCancelled:
-		return ErrTaskAlreadyCancelled
+		return nil, ErrTaskAlreadyCancelled
 	case model.MediaTaskStatusFailed:
-		return ErrTaskAlreadyCompleted
+		return nil, ErrTaskAlreadyCompleted
 	}
 
 	// Update status
 	if err := d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusCancelled, task.Progress, "", "cancelled by user"); err != nil {
-		return fmt.Errorf("update task status: %w", err)
+		return nil, fmt.Errorf("update task status: %w", err)
 	}
 
 	d.logger.Info("Task cancelled",
@@ -282,11 +301,16 @@ func (d *Domain) CancelTask(ctx context.Context, userID uuid.UUID, taskID uuid.U
 		zap.String("user_id", userID.String()),
 	)
 
-	return nil
+	return empty(), nil
 }
 
 // GetProvider returns a provider by ID.
-func (d *Domain) GetProvider(ctx context.Context, id uuid.UUID) (*model.MediaProvider, error) {
+func (d *Domain) GetProvider(ctx context.Context, in *mediav1.GetByIDRequest) (*mediav1.MediaProvider, error) {
+	id, err := uuid.Parse(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidInput
+	}
+
 	provider, err := d.providerDB.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -294,29 +318,40 @@ func (d *Domain) GetProvider(ctx context.Context, id uuid.UUID) (*model.MediaPro
 	if provider == nil {
 		return nil, ErrProviderNotFound
 	}
-	return provider, nil
+	return toProvider(provider), nil
 }
 
 // ListProviders lists all providers.
-func (d *Domain) ListProviders(ctx context.Context) ([]*model.MediaProvider, error) {
-	return d.providerDB.FindAll(ctx)
-}
-
-// GetModel returns a model by ID.
-func (d *Domain) GetModel(ctx context.Context, id string) (*model.MediaModel, error) {
-	m, err := d.modelDB.FindByID(ctx, id)
+func (d *Domain) ListProviders(ctx context.Context, _ *commonv1.Empty) (*mediav1.ListProvidersResponse, error) {
+	providers, err := d.providerDB.FindAll(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if m == nil {
-		return nil, ErrModelNotFound
+
+	out := make([]*mediav1.MediaProvider, 0, len(providers))
+	for _, p := range providers {
+		out = append(out, toProvider(p))
 	}
-	return m, nil
+	return &mediav1.ListProvidersResponse{Providers: out}, nil
 }
 
-// ListModelsByCapability lists models with a capability.
-func (d *Domain) ListModelsByCapability(ctx context.Context, cap model.MediaCapability) ([]*model.MediaModel, error) {
-	return d.modelDB.FindByCapability(ctx, cap)
+// ListModels lists models by capability.
+func (d *Domain) ListModels(ctx context.Context, in *mediav1.ListModelsRequest) (*mediav1.ListModelsResponse, error) {
+	capability := in.GetCapability()
+	if capability == "" {
+		return &mediav1.ListModelsResponse{Models: []*mediav1.MediaModel{}}, nil
+	}
+
+	models, err := d.modelDB.FindByCapability(ctx, model.MediaCapability(capability))
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*mediav1.MediaModel, 0, len(models))
+	for _, m := range models {
+		out = append(out, toModel(m))
+	}
+	return &mediav1.ListModelsResponse{Models: out}, nil
 }
 
 // findModelWithCapability finds a model with the given capability.
@@ -421,7 +456,7 @@ func (d *Domain) ExecuteVideoTask(ctx context.Context, taskID uuid.UUID) error {
 	}
 
 	// Parse input
-	var input inbound.MediaVideoGenerationInput
+	var input model.MediaVideoGenerationInput
 	if task.Input == nil {
 		d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusFailed, 0, "", "missing input")
 		return fmt.Errorf("task input is nil")

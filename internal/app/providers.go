@@ -20,19 +20,13 @@ import (
 	"github.com/uniedit/server/internal/domain/user"
 
 	// Inbound adapters
-	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
 	"github.com/uniedit/server/internal/adapter/inbound/http/aiproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/authproto"
-	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
 	"github.com/uniedit/server/internal/adapter/inbound/http/billingproto"
-	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
 	"github.com/uniedit/server/internal/adapter/inbound/http/collaborationproto"
-	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
 	"github.com/uniedit/server/internal/adapter/inbound/http/gitproto"
-	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
 	"github.com/uniedit/server/internal/adapter/inbound/http/mediaproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/orderproto"
-	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
 	"github.com/uniedit/server/internal/adapter/inbound/http/paymentproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/pingproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/userproto"
@@ -267,7 +261,7 @@ func ProvideBillingDomain(
 	usageDB outbound.UsageRecordDatabasePort,
 	quotaCache outbound.QuotaCachePort,
 	zapLog *zap.Logger,
-) billing.BillingDomain {
+) inbound.BillingDomain {
 	return billing.NewBillingDomain(
 		planDB,
 		subscriptionDB,
@@ -322,8 +316,8 @@ func ProvideOrderReaderAdapter(domain order.OrderDomain) outbound.OrderReaderPor
 }
 
 // ProvideBillingReaderAdapter creates the billing reader adapter.
-func ProvideBillingReaderAdapter(domain billing.BillingDomain) outbound.BillingReaderPort {
-	return newBillingReaderAdapter(domain)
+func ProvideBillingReaderAdapter(subscriptionDB outbound.SubscriptionDatabasePort, zapLog *zap.Logger) outbound.BillingReaderPort {
+	return newBillingReaderAdapter(subscriptionDB, zapLog)
 }
 
 // ProvideEventPublisher creates the event publisher.
@@ -462,6 +456,11 @@ func ProvideGitDomain(
 	if cfg.Git.RepoPrefix != "" {
 		gitCfg.RepoPrefix = cfg.Git.RepoPrefix
 	}
+	baseURL := cfg.Server.Address
+	if cfg.Email.BaseURL != "" {
+		baseURL = cfg.Email.BaseURL
+	}
+	gitCfg.BaseURL = baseURL
 	return git.NewDomain(
 		repoDB,
 		collabDB,
@@ -585,138 +584,17 @@ var ProtoHandlerSet = wire.NewSet(
 	userproto.NewHandler,
 	orderproto.NewHandler,
 	billingproto.NewHandler,
-	ProvideAIProtoHandler,
-	ProvideCollaborationProtoHandler,
-	ProvidePaymentProtoHandler,
-	ProvideGitProtoHandler,
-	ProvideMediaProtoHandler,
-)
-
-// BillingHandlerSet provides billing HTTP handlers.
-var BillingHandlerSet = wire.NewSet(
-	billinghttp.NewSubscriptionHandler,
-	billinghttp.NewQuotaHandler,
-	billinghttp.NewCreditsHandler,
-	billinghttp.NewUsageHandler,
-)
-
-// PaymentHandlerSet provides payment HTTP handlers.
-var PaymentHandlerSet = wire.NewSet(
-	paymenthttp.NewPaymentHandler,
-	paymenthttp.NewRefundHandler,
-	paymenthttp.NewWebhookHandler,
-)
-
-// GitHandlerSet provides Git HTTP handlers.
-var GitHandlerSet = wire.NewSet(
-	ProvideGitHandler,
-)
-
-// ProvideGitHandler creates the Git HTTP handler.
-func ProvideGitHandler(domain inbound.GitDomain, cfg *config.Config) *githttp.Handler {
-	baseURL := cfg.Server.Address
-	if cfg.Email.BaseURL != "" {
-		baseURL = cfg.Email.BaseURL
-	}
-	// LFS domains are optional - pass nil for now
-	return githttp.NewHandler(domain, nil, nil, baseURL)
-}
-
-// CollaborationHandlerSet provides collaboration HTTP handlers.
-var CollaborationHandlerSet = wire.NewSet(
-	ProvideCollaborationHandler,
-)
-
-// ProvideCollaborationHandler creates the Collaboration HTTP handler.
-func ProvideCollaborationHandler(domain inbound.CollaborationDomain, cfg *config.Config) *collaborationhttp.Handler {
-	baseURL := cfg.Server.Address
-	if cfg.Email.BaseURL != "" {
-		baseURL = cfg.Email.BaseURL
-	}
-	// Cast interface to concrete type
-	if d, ok := domain.(*collaboration.Domain); ok {
-		return collaborationhttp.NewHandler(d, baseURL)
-	}
-	return nil
-}
-
-// MediaHandlerSet provides media HTTP handlers.
-var MediaHandlerSet = wire.NewSet(
-	ProvideMediaHandler,
-)
-
-// ProvideMediaHandler creates the Media HTTP handler.
-func ProvideMediaHandler(domain inbound.MediaDomain) *mediahttp.Handler {
-	// Cast interface to concrete type
-	if d, ok := domain.(*media.Domain); ok {
-		return mediahttp.NewHandler(d)
-	}
-	return nil
-}
-
-// ProvideAIProviderAdminHandler creates the AI Provider admin HTTP handler.
-func ProvideAIProviderAdminHandler(domain ai.AIDomain) *aihttp.ProviderAdminHandler {
-	return aihttp.NewProviderAdminHandler(domain)
-}
-
-// ProvideAIModelAdminHandler creates the AI Model admin HTTP handler.
-func ProvideAIModelAdminHandler(domain ai.AIDomain) *aihttp.ModelAdminHandler {
-	return aihttp.NewModelAdminHandler(domain)
-}
-
-// ProvideAIPublicHandler creates the AI public HTTP handler.
-func ProvideAIPublicHandler(domain ai.AIDomain) *aihttp.PublicHandler {
-	return aihttp.NewPublicHandler(domain)
-}
-
-// AIHandlerSet provides AI HTTP handlers.
-var AIHandlerSet = wire.NewSet(
-	aihttp.NewChatHandler,
-	ProvideAIProviderAdminHandler,
-	ProvideAIModelAdminHandler,
-	ProvideAIPublicHandler,
+	aiproto.NewHandler,
+	collaborationproto.NewHandler,
+	paymentproto.NewHandler,
+	gitproto.NewHandler,
+	mediaproto.NewHandler,
 )
 
 // HandlerSet provides all HTTP handlers.
 var HandlerSet = wire.NewSet(
-	AIHandlerSet,
 	ProtoHandlerSet,
-	BillingHandlerSet,
-	PaymentHandlerSet,
-	GitHandlerSet,
-	CollaborationHandlerSet,
-	MediaHandlerSet,
 )
-
-// Proto adapters built on existing HTTP handlers.
-func ProvideAIProtoHandler(
-	chat *aihttp.ChatHandler,
-	providerAdmin *aihttp.ProviderAdminHandler,
-	modelAdmin *aihttp.ModelAdminHandler,
-	public *aihttp.PublicHandler,
-) *aiproto.Handler {
-	return aiproto.NewHandler(chat, providerAdmin, modelAdmin, public)
-}
-
-func ProvideCollaborationProtoHandler(handler *collaborationhttp.Handler) *collaborationproto.Handler {
-	return collaborationproto.NewHandler(handler)
-}
-
-func ProvidePaymentProtoHandler(
-	payment *paymenthttp.PaymentHandler,
-	refund *paymenthttp.RefundHandler,
-	webhook *paymenthttp.WebhookHandler,
-) *paymentproto.Handler {
-	return paymentproto.NewHandler(payment, refund, webhook)
-}
-
-func ProvideGitProtoHandler(handler *githttp.Handler) *gitproto.Handler {
-	return gitproto.NewHandler(handler)
-}
-
-func ProvideMediaProtoHandler(handler *mediahttp.Handler) *mediaproto.Handler {
-	return mediaproto.NewHandler(handler)
-}
 
 // ===== Master Set =====
 

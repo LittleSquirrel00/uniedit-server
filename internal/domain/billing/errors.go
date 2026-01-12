@@ -3,6 +3,9 @@ package billing
 import "errors"
 
 var (
+	// Request errors
+	ErrInvalidRequest = errors.New("invalid request")
+
 	// Plan errors
 	ErrPlanNotFound  = errors.New("plan not found")
 	ErrPlanNotActive = errors.New("plan is not active")

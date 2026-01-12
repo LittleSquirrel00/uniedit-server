@@ -3,58 +3,21 @@ package billing
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	billingv1 "github.com/uniedit/server/api/pb/billing"
+	commonv1 "github.com/uniedit/server/api/pb/common"
 	"github.com/uniedit/server/internal/model"
+	"github.com/uniedit/server/internal/port/inbound"
 	"github.com/uniedit/server/internal/port/outbound"
 	"go.uber.org/zap"
 )
 
-// BillingDomain defines billing domain service interface.
-type BillingDomain interface {
-	// Plan operations
-	ListPlans(ctx context.Context) ([]*model.Plan, error)
-	GetPlan(ctx context.Context, planID string) (*model.Plan, error)
-
-	// Subscription operations
-	GetSubscription(ctx context.Context, userID uuid.UUID) (*model.Subscription, error)
-	CreateSubscription(ctx context.Context, userID uuid.UUID, planID string) (*model.Subscription, error)
-	CancelSubscription(ctx context.Context, userID uuid.UUID, immediately bool) (*model.Subscription, error)
-
-	// Quota operations
-	GetQuotaStatus(ctx context.Context, userID uuid.UUID) (*model.QuotaStatus, error)
-	CheckQuota(ctx context.Context, userID uuid.UUID, taskType string) error
-	ConsumeQuota(ctx context.Context, userID uuid.UUID, tokens int) error
-
-	// Usage operations
-	GetUsageStats(ctx context.Context, userID uuid.UUID, period string, start, end *time.Time) (*model.UsageStats, error)
-	RecordUsage(ctx context.Context, userID uuid.UUID, record *RecordUsageInput) error
-
-	// Credits operations
-	GetBalance(ctx context.Context, userID uuid.UUID) (int64, error)
-	AddCredits(ctx context.Context, userID uuid.UUID, amount int64, source string) error
-	DeductCredits(ctx context.Context, userID uuid.UUID, amount int64, reason string) error
-
-	// Stripe sync
-	UpdateSubscriptionFromStripe(ctx context.Context, stripeSubID string, status model.SubscriptionStatus, periodStart, periodEnd time.Time, cancelAtPeriodEnd bool) error
-}
-
-// RecordUsageInput represents input for recording usage.
-type RecordUsageInput struct {
-	RequestID    string
-	TaskType     string
-	ProviderID   uuid.UUID
-	ModelID      string
-	InputTokens  int
-	OutputTokens int
-	CostUSD      float64
-	LatencyMs    int
-	Success      bool
-}
-
-// billingDomain implements BillingDomain.
-type billingDomain struct {
+// Domain implements billing business logic.
+// Inbound request/response uses pb types; DB read/write uses internal/model only at the persistence boundary.
+type Domain struct {
 	planDB         outbound.PlanDatabasePort
 	subscriptionDB outbound.SubscriptionDatabasePort
 	usageDB        outbound.UsageRecordDatabasePort
@@ -69,8 +32,8 @@ func NewBillingDomain(
 	usageDB outbound.UsageRecordDatabasePort,
 	quotaCache outbound.QuotaCachePort,
 	logger *zap.Logger,
-) BillingDomain {
-	return &billingDomain{
+) *Domain {
+	return &Domain{
 		planDB:         planDB,
 		subscriptionDB: subscriptionDB,
 		usageDB:        usageDB,
@@ -79,26 +42,42 @@ func NewBillingDomain(
 	}
 }
 
+// Compile-time interface check
+var _ inbound.BillingDomain = (*Domain)(nil)
+
 // --- Plan Operations ---
 
-func (d *billingDomain) ListPlans(ctx context.Context) ([]*model.Plan, error) {
-	return d.planDB.ListActive(ctx)
+func (d *Domain) ListPlans(ctx context.Context) (*billingv1.ListPlansResponse, error) {
+	plans, err := d.planDB.ListActive(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*billingv1.Plan, 0, len(plans))
+	for _, p := range plans {
+		out = append(out, toPlanPB(p))
+	}
+	return &billingv1.ListPlansResponse{Plans: out}, nil
 }
 
-func (d *billingDomain) GetPlan(ctx context.Context, planID string) (*model.Plan, error) {
-	plan, err := d.planDB.GetByID(ctx, planID)
+func (d *Domain) GetPlan(ctx context.Context, in *billingv1.GetByIDRequest) (*billingv1.Plan, error) {
+	if in == nil || strings.TrimSpace(in.GetId()) == "" {
+		return nil, ErrInvalidRequest
+	}
+
+	plan, err := d.planDB.GetByID(ctx, in.GetId())
 	if err != nil {
 		return nil, err
 	}
 	if plan == nil {
 		return nil, ErrPlanNotFound
 	}
-	return plan, nil
+	return toPlanPB(plan), nil
 }
 
 // --- Subscription Operations ---
 
-func (d *billingDomain) GetSubscription(ctx context.Context, userID uuid.UUID) (*model.Subscription, error) {
+func (d *Domain) GetSubscription(ctx context.Context, userID uuid.UUID) (*billingv1.Subscription, error) {
 	sub, err := d.subscriptionDB.GetByUserIDWithPlan(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -106,10 +85,14 @@ func (d *billingDomain) GetSubscription(ctx context.Context, userID uuid.UUID) (
 	if sub == nil {
 		return nil, ErrSubscriptionNotFound
 	}
-	return sub, nil
+	return toSubscriptionPB(sub), nil
 }
 
-func (d *billingDomain) CreateSubscription(ctx context.Context, userID uuid.UUID, planID string) (*model.Subscription, error) {
+func (d *Domain) CreateSubscription(ctx context.Context, userID uuid.UUID, in *billingv1.CreateSubscriptionRequest) (*billingv1.Subscription, error) {
+	if in == nil || strings.TrimSpace(in.GetPlanId()) == "" {
+		return nil, ErrInvalidRequest
+	}
+
 	// Check if subscription already exists
 	existing, err := d.subscriptionDB.GetByUserID(ctx, userID)
 	if err == nil && existing != nil {
@@ -117,7 +100,7 @@ func (d *billingDomain) CreateSubscription(ctx context.Context, userID uuid.UUID
 	}
 
 	// Get plan to verify it exists and is active
-	plan, err := d.planDB.GetByID(ctx, planID)
+	plan, err := d.planDB.GetByID(ctx, in.GetPlanId())
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +118,7 @@ func (d *billingDomain) CreateSubscription(ctx context.Context, userID uuid.UUID
 	sub := &model.Subscription{
 		ID:                 uuid.New(),
 		UserID:             userID,
-		PlanID:             planID,
+		PlanID:             in.GetPlanId(),
 		Status:             model.SubscriptionStatusActive,
 		CurrentPeriodStart: now,
 		CurrentPeriodEnd:   periodEnd,
@@ -148,10 +131,22 @@ func (d *billingDomain) CreateSubscription(ctx context.Context, userID uuid.UUID
 	}
 
 	// Reload with plan for response
-	return d.subscriptionDB.GetByUserIDWithPlan(ctx, userID)
+	reloaded, err := d.subscriptionDB.GetByUserIDWithPlan(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if reloaded == nil {
+		return nil, ErrSubscriptionNotFound
+	}
+	return toSubscriptionPB(reloaded), nil
 }
 
-func (d *billingDomain) CancelSubscription(ctx context.Context, userID uuid.UUID, immediately bool) (*model.Subscription, error) {
+func (d *Domain) CancelSubscription(ctx context.Context, userID uuid.UUID, in *billingv1.CancelSubscriptionRequest) (*billingv1.Subscription, error) {
+	immediately := false
+	if in != nil {
+		immediately = in.GetImmediately()
+	}
+
 	sub, err := d.subscriptionDB.GetByUserIDWithPlan(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -179,12 +174,12 @@ func (d *billingDomain) CancelSubscription(ctx context.Context, userID uuid.UUID
 		return nil, fmt.Errorf("update subscription: %w", err)
 	}
 
-	return sub, nil
+	return toSubscriptionPB(sub), nil
 }
 
 // --- Quota Operations ---
 
-func (d *billingDomain) GetQuotaStatus(ctx context.Context, userID uuid.UUID) (*model.QuotaStatus, error) {
+func (d *Domain) GetQuotaStatus(ctx context.Context, userID uuid.UUID) (*billingv1.QuotaStatus, error) {
 	sub, err := d.subscriptionDB.GetByUserIDWithPlan(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -219,18 +214,20 @@ func (d *billingDomain) GetQuotaStatus(ctx context.Context, userID uuid.UUID) (*
 		tokensRemaining = 0
 	}
 
-	return &model.QuotaStatus{
+	return &billingv1.QuotaStatus{
 		Plan:            plan.Name,
 		TokensUsed:      tokensUsed,
 		TokensLimit:     tokenLimit,
 		TokensRemaining: tokensRemaining,
-		RequestsToday:   requestsToday,
-		RequestsLimit:   plan.DailyRequests,
-		ResetAt:         sub.CurrentPeriodEnd,
+		RequestsToday:   int32(requestsToday),
+		RequestsLimit:   int32(plan.DailyRequests),
+		ResetAt:         sub.CurrentPeriodEnd.UTC().Format(time.RFC3339Nano),
 	}, nil
 }
 
-func (d *billingDomain) CheckQuota(ctx context.Context, userID uuid.UUID, taskType string) error {
+func (d *Domain) CheckQuota(ctx context.Context, userID uuid.UUID, in *billingv1.CheckQuotaRequest) error {
+	_ = in // task_type currently not used for billing checks
+
 	sub, err := d.subscriptionDB.GetByUserIDWithPlan(ctx, userID)
 	if err != nil {
 		return err
@@ -273,7 +270,7 @@ func (d *billingDomain) CheckQuota(ctx context.Context, userID uuid.UUID, taskTy
 	return nil
 }
 
-func (d *billingDomain) ConsumeQuota(ctx context.Context, userID uuid.UUID, tokens int) error {
+func (d *Domain) ConsumeQuota(ctx context.Context, userID uuid.UUID, tokens int) error {
 	sub, err := d.subscriptionDB.GetByUserID(ctx, userID)
 	if err != nil {
 		return err
@@ -299,13 +296,23 @@ func (d *billingDomain) ConsumeQuota(ctx context.Context, userID uuid.UUID, toke
 
 // --- Usage Operations ---
 
-func (d *billingDomain) GetUsageStats(ctx context.Context, userID uuid.UUID, period string, start, end *time.Time) (*model.UsageStats, error) {
+func (d *Domain) GetUsageStats(ctx context.Context, userID uuid.UUID, in *billingv1.GetUsageStatsRequest) (*billingv1.UsageStats, error) {
+	period := "month"
+	if in != nil && strings.TrimSpace(in.GetPeriod()) != "" {
+		period = in.GetPeriod()
+	}
+
 	now := time.Now().UTC()
 	var startTime, endTime time.Time
 
-	if start != nil && end != nil {
-		startTime = *start
-		endTime = *end
+	var startStr, endStr string
+	if in != nil {
+		startStr, endStr = in.GetStart(), in.GetEnd()
+	}
+	startParsed, endParsed := parseRFC3339OrNil(startStr), parseRFC3339OrNil(endStr)
+	if startParsed != nil && endParsed != nil {
+		startTime = *startParsed
+		endTime = *endParsed
 	} else {
 		switch period {
 		case "day":
@@ -323,53 +330,86 @@ func (d *billingDomain) GetUsageStats(ctx context.Context, userID uuid.UUID, per
 		}
 	}
 
-	return d.usageDB.GetStats(ctx, userID, startTime, endTime)
+	stats, err := d.usageDB.GetStats(ctx, userID, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	return toUsageStatsPB(stats), nil
 }
 
-func (d *billingDomain) RecordUsage(ctx context.Context, userID uuid.UUID, input *RecordUsageInput) error {
+func (d *Domain) RecordUsage(ctx context.Context, userID uuid.UUID, in *billingv1.RecordUsageRequest) (*commonv1.MessageResponse, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	providerID, err := uuid.Parse(in.GetProviderId())
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid provider_id", ErrInvalidRequest)
+	}
+
 	record := &model.UsageRecord{
 		UserID:       userID,
 		Timestamp:    time.Now(),
-		RequestID:    input.RequestID,
-		TaskType:     input.TaskType,
-		ProviderID:   input.ProviderID,
-		ModelID:      input.ModelID,
-		InputTokens:  input.InputTokens,
-		OutputTokens: input.OutputTokens,
-		TotalTokens:  input.InputTokens + input.OutputTokens,
-		CostUSD:      input.CostUSD,
-		LatencyMs:    input.LatencyMs,
-		Success:      input.Success,
+		RequestID:    in.GetRequestId(),
+		TaskType:     in.GetTaskType(),
+		ProviderID:   providerID,
+		ModelID:      in.GetModelId(),
+		InputTokens:  int(in.GetInputTokens()),
+		OutputTokens: int(in.GetOutputTokens()),
+		TotalTokens:  int(in.GetInputTokens()) + int(in.GetOutputTokens()),
+		CostUSD:      in.GetCostUsd(),
+		LatencyMs:    int(in.GetLatencyMs()),
+		Success:      in.GetSuccess(),
 	}
 
 	if err := d.usageDB.Create(ctx, record); err != nil {
-		return fmt.Errorf("create usage record: %w", err)
+		return nil, fmt.Errorf("create usage record: %w", err)
 	}
 
 	// Update quota counters if successful
-	if input.Success {
+	if in.GetSuccess() {
 		if err := d.ConsumeQuota(ctx, userID, record.TotalTokens); err != nil {
 			d.logger.Error("failed to consume quota", zap.Error(err))
 		}
 	}
 
-	return nil
+	return &commonv1.MessageResponse{Message: "recorded"}, nil
 }
 
 // --- Credits Operations ---
 
-func (d *billingDomain) GetBalance(ctx context.Context, userID uuid.UUID) (int64, error) {
+func (d *Domain) GetBalance(ctx context.Context, userID uuid.UUID) (*billingv1.GetBalanceResponse, error) {
 	sub, err := d.subscriptionDB.GetByUserID(ctx, userID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	if sub == nil {
-		return 0, ErrSubscriptionNotFound
+		return nil, ErrSubscriptionNotFound
 	}
-	return sub.CreditsBalance, nil
+	return &billingv1.GetBalanceResponse{Balance: sub.CreditsBalance}, nil
 }
 
-func (d *billingDomain) AddCredits(ctx context.Context, userID uuid.UUID, amount int64, source string) error {
+func (d *Domain) AddCredits(ctx context.Context, in *billingv1.AddCreditsRequest) (*commonv1.MessageResponse, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	targetUserID, err := uuid.Parse(in.GetUserId())
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid user_id", ErrInvalidRequest)
+	}
+	if strings.TrimSpace(in.GetSource()) == "" {
+		return nil, ErrInvalidRequest
+	}
+
+	if err := d.addCredits(ctx, targetUserID, in.GetAmount(), in.GetSource()); err != nil {
+		return nil, err
+	}
+
+	return &commonv1.MessageResponse{Message: "credits added"}, nil
+}
+
+func (d *Domain) addCredits(ctx context.Context, userID uuid.UUID, amount int64, source string) error {
 	if amount <= 0 {
 		return ErrInvalidCreditsAmount
 	}
@@ -398,7 +438,7 @@ func (d *billingDomain) AddCredits(ctx context.Context, userID uuid.UUID, amount
 	return nil
 }
 
-func (d *billingDomain) DeductCredits(ctx context.Context, userID uuid.UUID, amount int64, reason string) error {
+func (d *Domain) DeductCredits(ctx context.Context, userID uuid.UUID, amount int64, reason string) error {
 	if amount <= 0 {
 		return ErrInvalidCreditsAmount
 	}
@@ -433,7 +473,7 @@ func (d *billingDomain) DeductCredits(ctx context.Context, userID uuid.UUID, amo
 
 // --- Stripe Sync ---
 
-func (d *billingDomain) UpdateSubscriptionFromStripe(ctx context.Context, stripeSubID string, status model.SubscriptionStatus, periodStart, periodEnd time.Time, cancelAtPeriodEnd bool) error {
+func (d *Domain) UpdateSubscriptionFromStripe(ctx context.Context, stripeSubID string, status model.SubscriptionStatus, periodStart, periodEnd time.Time, cancelAtPeriodEnd bool) error {
 	sub, err := d.subscriptionDB.GetByStripeID(ctx, stripeSubID)
 	if err != nil {
 		return err
@@ -468,4 +508,16 @@ func (d *billingDomain) UpdateSubscriptionFromStripe(ctx context.Context, stripe
 
 func endOfMonth(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month()+1, 1, 0, 0, 0, 0, time.UTC).Add(-time.Nanosecond)
+}
+
+func parseRFC3339OrNil(s string) *time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return nil
+	}
+	return &t
 }

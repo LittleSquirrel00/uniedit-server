@@ -8,26 +8,19 @@ package app
 
 import (
 	"github.com/redis/go-redis/v9"
-	"github.com/uniedit/server/internal/adapter/inbound/http/ai"
 	"github.com/uniedit/server/internal/adapter/inbound/http/aiproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/authproto"
-	"github.com/uniedit/server/internal/adapter/inbound/http/billing"
 	"github.com/uniedit/server/internal/adapter/inbound/http/billingproto"
-	"github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
 	"github.com/uniedit/server/internal/adapter/inbound/http/collaborationproto"
-	"github.com/uniedit/server/internal/adapter/inbound/http/git"
 	"github.com/uniedit/server/internal/adapter/inbound/http/gitproto"
-	"github.com/uniedit/server/internal/adapter/inbound/http/media"
 	"github.com/uniedit/server/internal/adapter/inbound/http/mediaproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/orderproto"
-	"github.com/uniedit/server/internal/adapter/inbound/http/payment"
 	"github.com/uniedit/server/internal/adapter/inbound/http/paymentproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/pingproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/userproto"
 	"github.com/uniedit/server/internal/adapter/outbound/postgres"
-	ai2 "github.com/uniedit/server/internal/domain/ai"
+	"github.com/uniedit/server/internal/domain/ai"
 	"github.com/uniedit/server/internal/domain/auth"
-	"github.com/uniedit/server/internal/domain/billing"
 	"github.com/uniedit/server/internal/domain/order"
 	"github.com/uniedit/server/internal/domain/payment"
 	"github.com/uniedit/server/internal/domain/user"
@@ -81,7 +74,7 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 	paymentDatabasePort := postgres.NewPaymentAdapter(db)
 	webhookEventDatabasePort := postgres.NewWebhookEventAdapter(db)
 	orderReaderPort := ProvideOrderReaderAdapter(orderDomain)
-	billingReaderPort := ProvideBillingReaderAdapter(billingDomain)
+	billingReaderPort := ProvideBillingReaderAdapter(subscriptionDatabasePort, logger)
 	eventPublisherPort := ProvideEventPublisher()
 	paymentDomain := ProvidePaymentDomain(paymentDatabasePort, webhookEventDatabasePort, orderReaderPort, billingReaderPort, eventPublisherPort, cfg, logger)
 	aiProviderDatabasePort := postgres.NewAIProviderAdapter(db)
@@ -112,30 +105,16 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 	mediaVendorRegistryPort := ProvideMediaVendorRegistry(client)
 	mediaCryptoPort := ProvideMediaCryptoAdapter(cfg)
 	mediaDomain := ProvideMediaDomain(mediaProviderDBAdapter, mediaModelDBAdapter, mediaTaskDBAdapter, mediaProviderHealthCachePort, mediaVendorRegistryPort, mediaCryptoPort, logger)
-	chatHandler := ai.NewChatHandler(aiDomain)
-	providerAdminHandler := ProvideAIProviderAdminHandler(aiDomain)
-	modelAdminHandler := ProvideAIModelAdminHandler(aiDomain)
-	publicHandler := ProvideAIPublicHandler(aiDomain)
 	handler := pingproto.NewHandler()
 	authprotoHandler := authproto.NewHandler(authDomain)
 	userprotoHandler := userproto.NewHandler(userDomain)
 	orderprotoHandler := orderproto.NewHandler(orderDomain)
 	billingprotoHandler := billingproto.NewHandler(billingDomain)
-	aiprotoHandler := ProvideAIProtoHandler(chatHandler, providerAdminHandler, modelAdminHandler, publicHandler)
-	collabhttpHandler := ProvideCollaborationHandler(collaborationDomain, cfg)
-	collaborationprotoHandler := ProvideCollaborationProtoHandler(collabhttpHandler)
-	paymentHandler := paymenthttp.NewPaymentHandler(paymentDomain)
-	refundHandler := paymenthttp.NewRefundHandler(paymentDomain)
-	webhookHandler := paymenthttp.NewWebhookHandler(paymentDomain)
-	paymentprotoHandler := ProvidePaymentProtoHandler(paymentHandler, refundHandler, webhookHandler)
-	githttpHandler := ProvideGitHandler(gitDomain, cfg)
-	gitprotoHandler := ProvideGitProtoHandler(githttpHandler)
-	mediahttpHandler := ProvideMediaHandler(mediaDomain)
-	mediaprotoHandler := ProvideMediaProtoHandler(mediahttpHandler)
-	subscriptionHandler := billinghttp.NewSubscriptionHandler(billingDomain)
-	quotaHandler := billinghttp.NewQuotaHandler(billingDomain)
-	creditsHandler := billinghttp.NewCreditsHandler(billingDomain)
-	usageHandler := billinghttp.NewUsageHandler(billingDomain)
+	aiprotoHandler := aiproto.NewHandler(aiDomain)
+	collaborationprotoHandler := collaborationproto.NewHandler(collaborationDomain)
+	paymentprotoHandler := paymentproto.NewHandler(paymentDomain)
+	gitprotoHandler := gitproto.NewHandler(gitDomain)
+	mediaprotoHandler := mediaproto.NewHandler(mediaDomain)
 	dependencies := &Dependencies{
 		Config:                    cfg,
 		DB:                        db,
@@ -154,10 +133,6 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 		GitDomain:                 gitDomain,
 		CollaborationDomain:       collaborationDomain,
 		MediaDomain:               mediaDomain,
-		AIChatHandler:             chatHandler,
-		AIProviderAdminHandler:    providerAdminHandler,
-		AIModelAdminHandler:       modelAdminHandler,
-		AIPublicHandler:           publicHandler,
 		PingProtoHandler:          handler,
 		AuthProtoHandler:          authprotoHandler,
 		UserProtoHandler:          userprotoHandler,
@@ -168,16 +143,6 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, func(), error) {
 		PaymentProtoHandler:       paymentprotoHandler,
 		GitProtoHandler:           gitprotoHandler,
 		MediaProtoHandler:         mediaprotoHandler,
-		SubscriptionHandler:       subscriptionHandler,
-		QuotaHandler:              quotaHandler,
-		CreditsHandler:            creditsHandler,
-		UsageHandler:              usageHandler,
-		PaymentHandler:            paymentHandler,
-		RefundHandler:             refundHandler,
-		WebhookHandler:            webhookHandler,
-		GitHandler:                githttpHandler,
-		CollaborationHandler:      collabhttpHandler,
-		MediaHandler:              mediahttpHandler,
 	}
 	return dependencies, func() {
 	}, nil
@@ -199,20 +164,15 @@ type Dependencies struct {
 	// Domains
 	UserDomain          user.UserDomain
 	AuthDomain          auth.AuthDomain
-	BillingDomain       billing.BillingDomain
+	BillingDomain       inbound.BillingDomain
 	OrderDomain         order.OrderDomain
 	PaymentDomain       payment.PaymentDomain
-	AIDomain            ai2.AIDomain
+	AIDomain            ai.AIDomain
 	GitDomain           inbound.GitDomain
 	CollaborationDomain inbound.CollaborationDomain
 	MediaDomain         inbound.MediaDomain
 
 	// AI HTTP Handlers
-	AIChatHandler          *ai.ChatHandler
-	AIProviderAdminHandler *ai.ProviderAdminHandler
-	AIModelAdminHandler    *ai.ModelAdminHandler
-	AIPublicHandler        *ai.PublicHandler
-
 	// Proto-defined HTTP Handlers (generated from google.api.http)
 	PingProtoHandler          *pingproto.Handler
 	AuthProtoHandler          *authproto.Handler
@@ -224,24 +184,4 @@ type Dependencies struct {
 	PaymentProtoHandler       *paymentproto.Handler
 	GitProtoHandler           *gitproto.Handler
 	MediaProtoHandler         *mediaproto.Handler
-
-	// Billing HTTP Handlers
-	SubscriptionHandler *billinghttp.SubscriptionHandler
-	QuotaHandler        *billinghttp.QuotaHandler
-	CreditsHandler      *billinghttp.CreditsHandler
-	UsageHandler        *billinghttp.UsageHandler
-
-	// Payment HTTP Handlers
-	PaymentHandler *paymenthttp.PaymentHandler
-	RefundHandler  *paymenthttp.RefundHandler
-	WebhookHandler *paymenthttp.WebhookHandler
-
-	// Git HTTP Handlers
-	GitHandler *githttp.Handler
-
-	// Collaboration HTTP Handlers
-	CollaborationHandler *collabhttp.Handler
-
-	// Media HTTP Handlers
-	MediaHandler *mediahttp.Handler
 }

@@ -8,8 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	commonv1 "github.com/uniedit/server/api/pb/common"
+	mediav1 "github.com/uniedit/server/api/pb/media"
 	"github.com/uniedit/server/internal/model"
-	"github.com/uniedit/server/internal/port/inbound"
 	"github.com/uniedit/server/internal/port/outbound"
 	"github.com/uniedit/server/internal/utils/common"
 	"go.uber.org/zap"
@@ -338,7 +339,7 @@ func TestDomain_GenerateImage(t *testing.T) {
 		mockVendorReg.On("GetForProvider", provider).Return(mockAdapter, nil)
 		mockAdapter.On("GenerateImage", mock.Anything, mock.AnythingOfType("*model.ImageRequest"), mediaModel, provider, "sk-test-key").Return(expectedResp, nil)
 
-		input := &inbound.MediaImageGenerationInput{
+		input := &mediav1.GenerateImageRequest{
 			Prompt: "A beautiful sunset",
 			Model:  "dall-e-3",
 		}
@@ -347,8 +348,8 @@ func TestDomain_GenerateImage(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotNil(t, output)
-		assert.Len(t, output.Images, 1)
-		assert.Equal(t, "dall-e-3", output.Model)
+		assert.Len(t, output.GetImages(), 1)
+		assert.Equal(t, "dall-e-3", output.GetModel())
 		mockModelDB.AssertExpectations(t)
 		mockProviderDB.AssertExpectations(t)
 		mockAdapter.AssertExpectations(t)
@@ -358,9 +359,7 @@ func TestDomain_GenerateImage(t *testing.T) {
 		domain := NewDomain(nil, nil, nil, nil, nil, nil, nil, logger)
 
 		userID := uuid.New()
-		input := &inbound.MediaImageGenerationInput{
-			Prompt: "",
-		}
+		input := &mediav1.GenerateImageRequest{Prompt: ""}
 
 		output, err := domain.GenerateImage(context.Background(), userID, input)
 
@@ -385,10 +384,7 @@ func TestDomain_GenerateImage(t *testing.T) {
 		userID := uuid.New()
 		mockModelDB.On("FindByID", mock.Anything, "unknown-model").Return(nil, nil)
 
-		input := &inbound.MediaImageGenerationInput{
-			Prompt: "Test prompt",
-			Model:  "unknown-model",
-		}
+		input := &mediav1.GenerateImageRequest{Prompt: "Test prompt", Model: "unknown-model"}
 
 		output, err := domain.GenerateImage(context.Background(), userID, input)
 
@@ -430,10 +426,7 @@ func TestDomain_GenerateImage(t *testing.T) {
 		mockProviderDB.On("FindByID", mock.Anything, providerID).Return(provider, nil)
 		mockHealthCache.On("GetHealth", mock.Anything, providerID).Return(false, nil)
 
-		input := &inbound.MediaImageGenerationInput{
-			Prompt: "Test prompt",
-			Model:  "dall-e-3",
-		}
+		input := &mediav1.GenerateImageRequest{Prompt: "Test prompt", Model: "dall-e-3"}
 
 		output, err := domain.GenerateImage(context.Background(), userID, input)
 
@@ -462,7 +455,7 @@ func TestDomain_GenerateVideo(t *testing.T) {
 		userID := uuid.New()
 		mockTaskDB.On("Create", mock.Anything, mock.AnythingOfType("*model.MediaTask")).Return(nil)
 
-		input := &inbound.MediaVideoGenerationInput{
+		input := &mediav1.GenerateVideoRequest{
 			Prompt:   "A beautiful sunset video",
 			Duration: 10,
 		}
@@ -471,8 +464,8 @@ func TestDomain_GenerateVideo(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotNil(t, output)
-		assert.NotEmpty(t, output.TaskID)
-		assert.Equal(t, model.VideoStatePending, output.Status)
+		assert.NotEmpty(t, output.GetTaskId())
+		assert.Equal(t, string(model.VideoStatePending), output.GetStatus())
 		mockTaskDB.AssertExpectations(t)
 	})
 
@@ -480,9 +473,7 @@ func TestDomain_GenerateVideo(t *testing.T) {
 		domain := NewDomain(nil, nil, nil, nil, nil, nil, nil, logger)
 
 		userID := uuid.New()
-		input := &inbound.MediaVideoGenerationInput{
-			// No prompt, input_image, or input_video
-		}
+		input := &mediav1.GenerateVideoRequest{}
 
 		output, err := domain.GenerateVideo(context.Background(), userID, input)
 
@@ -522,12 +513,12 @@ func TestDomain_GetVideoStatus(t *testing.T) {
 
 		mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
 
-		output, err := domain.GetVideoStatus(context.Background(), userID, taskID.String())
+		output, err := domain.GetVideoStatus(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, output)
-		assert.Equal(t, model.VideoStateProcessing, output.Status)
-		assert.Equal(t, 50, output.Progress)
+		assert.Equal(t, string(model.VideoStateProcessing), output.GetStatus())
+		assert.Equal(t, int32(50), output.GetProgress())
 	})
 
 	t.Run("task not found", func(t *testing.T) {
@@ -549,7 +540,7 @@ func TestDomain_GetVideoStatus(t *testing.T) {
 
 		mockTaskDB.On("FindByID", mock.Anything, taskID).Return(nil, nil)
 
-		output, err := domain.GetVideoStatus(context.Background(), userID, taskID.String())
+		output, err := domain.GetVideoStatus(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 		assert.ErrorIs(t, err, ErrTaskNotFound)
 		assert.Nil(t, output)
@@ -580,7 +571,7 @@ func TestDomain_GetVideoStatus(t *testing.T) {
 
 		mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
 
-		output, err := domain.GetVideoStatus(context.Background(), userID, taskID.String())
+		output, err := domain.GetVideoStatus(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 		assert.ErrorIs(t, err, ErrTaskNotOwned)
 		assert.Nil(t, output)
@@ -620,12 +611,12 @@ func TestDomain_GetTask(t *testing.T) {
 
 		mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
 
-		output, err := domain.GetTask(context.Background(), userID, taskID)
+		output, err := domain.GetTask(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, output)
-		assert.Equal(t, taskID, output.ID)
-		assert.Equal(t, model.MediaTaskStatusCompleted, output.Status)
+		assert.Equal(t, taskID.String(), output.GetId())
+		assert.Equal(t, string(model.MediaTaskStatusCompleted), output.GetStatus())
 	})
 }
 
@@ -656,10 +647,10 @@ func TestDomain_ListTasks(t *testing.T) {
 
 		mockTaskDB.On("FindByOwner", mock.Anything, userID, 20, 0).Return(tasks, nil)
 
-		output, err := domain.ListTasks(context.Background(), userID, 20, 0)
+		output, err := domain.ListTasks(context.Background(), userID, &mediav1.ListTasksRequest{Limit: 20, Offset: 0})
 
 		assert.NoError(t, err)
-		assert.Len(t, output, 2)
+		assert.Len(t, output.GetTasks(), 2)
 	})
 
 	t.Run("limit capped at 100", func(t *testing.T) {
@@ -680,7 +671,7 @@ func TestDomain_ListTasks(t *testing.T) {
 
 		mockTaskDB.On("FindByOwner", mock.Anything, userID, 100, 0).Return([]*model.MediaTask{}, nil)
 
-		_, err := domain.ListTasks(context.Background(), userID, 200, 0)
+		_, err := domain.ListTasks(context.Background(), userID, &mediav1.ListTasksRequest{Limit: 200, Offset: 0})
 
 		assert.NoError(t, err)
 		mockTaskDB.AssertCalled(t, "FindByOwner", mock.Anything, userID, 100, 0)
@@ -717,7 +708,7 @@ func TestDomain_CancelTask(t *testing.T) {
 		mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
 		mockTaskDB.On("UpdateStatus", mock.Anything, taskID, model.MediaTaskStatusCancelled, 0, "", "cancelled by user").Return(nil)
 
-		err := domain.CancelTask(context.Background(), userID, taskID)
+		_, err := domain.CancelTask(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 		assert.NoError(t, err)
 		mockTaskDB.AssertExpectations(t)
@@ -748,7 +739,7 @@ func TestDomain_CancelTask(t *testing.T) {
 
 		mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
 
-		err := domain.CancelTask(context.Background(), userID, taskID)
+		_, err := domain.CancelTask(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 		assert.ErrorIs(t, err, ErrTaskAlreadyCompleted)
 	})
@@ -779,7 +770,7 @@ func TestDomain_CancelTask(t *testing.T) {
 
 		mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
 
-		err := domain.CancelTask(context.Background(), userID, taskID)
+		_, err := domain.CancelTask(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 		assert.ErrorIs(t, err, ErrTaskNotOwned)
 	})
@@ -812,11 +803,11 @@ func TestDomain_GetProvider(t *testing.T) {
 
 		mockProviderDB.On("FindByID", mock.Anything, providerID).Return(provider, nil)
 
-		result, err := domain.GetProvider(context.Background(), providerID)
+		result, err := domain.GetProvider(context.Background(), &mediav1.GetByIDRequest{Id: providerID.String()})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, "OpenAI", result.Name)
+		assert.Equal(t, "OpenAI", result.GetName())
 	})
 
 	t.Run("not found", func(t *testing.T) {
@@ -836,7 +827,7 @@ func TestDomain_GetProvider(t *testing.T) {
 		providerID := uuid.New()
 		mockProviderDB.On("FindByID", mock.Anything, providerID).Return(nil, nil)
 
-		result, err := domain.GetProvider(context.Background(), providerID)
+		result, err := domain.GetProvider(context.Background(), &mediav1.GetByIDRequest{Id: providerID.String()})
 
 		assert.ErrorIs(t, err, ErrProviderNotFound)
 		assert.Nil(t, result)
@@ -867,69 +858,14 @@ func TestDomain_ListProviders(t *testing.T) {
 
 		mockProviderDB.On("FindAll", mock.Anything).Return(providers, nil)
 
-		result, err := domain.ListProviders(context.Background())
+		result, err := domain.ListProviders(context.Background(), &commonv1.Empty{})
 
 		assert.NoError(t, err)
-		assert.Len(t, result, 2)
+		assert.Len(t, result.GetProviders(), 2)
 	})
 }
 
-func TestDomain_GetModel(t *testing.T) {
-	logger := zap.NewNop()
-
-	t.Run("success", func(t *testing.T) {
-		mockModelDB := new(MockMediaModelDB)
-
-		domain := NewDomain(
-			nil,
-			mockModelDB,
-			nil,
-			nil,
-			nil,
-			nil,
-			nil,
-			logger,
-		)
-
-		mediaModel := &model.MediaModel{
-			ID:      "dall-e-3",
-			Name:    "DALL-E 3",
-			Enabled: true,
-		}
-
-		mockModelDB.On("FindByID", mock.Anything, "dall-e-3").Return(mediaModel, nil)
-
-		result, err := domain.GetModel(context.Background(), "dall-e-3")
-
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, "DALL-E 3", result.Name)
-	})
-
-	t.Run("not found", func(t *testing.T) {
-		mockModelDB := new(MockMediaModelDB)
-
-		domain := NewDomain(
-			nil,
-			mockModelDB,
-			nil,
-			nil,
-			nil,
-			nil,
-			nil,
-			logger,
-		)
-
-		mockModelDB.On("FindByID", mock.Anything, "unknown").Return(nil, nil)
-
-		result, err := domain.GetModel(context.Background(), "unknown")
-
-		assert.ErrorIs(t, err, ErrModelNotFound)
-		assert.Nil(t, result)
-	})
-}
-
-func TestDomain_ListModelsByCapability(t *testing.T) {
+func TestDomain_ListModels(t *testing.T) {
 	logger := zap.NewNop()
 
 	t.Run("success", func(t *testing.T) {
@@ -953,10 +889,30 @@ func TestDomain_ListModelsByCapability(t *testing.T) {
 
 		mockModelDB.On("FindByCapability", mock.Anything, model.MediaCapabilityImage).Return(models, nil)
 
-		result, err := domain.ListModelsByCapability(context.Background(), model.MediaCapabilityImage)
+		result, err := domain.ListModels(context.Background(), &mediav1.ListModelsRequest{Capability: string(model.MediaCapabilityImage)})
 
 		assert.NoError(t, err)
-		assert.Len(t, result, 2)
+		assert.Len(t, result.GetModels(), 2)
+	})
+
+	t.Run("empty capability returns empty list", func(t *testing.T) {
+		mockModelDB := new(MockMediaModelDB)
+
+		domain := NewDomain(
+			nil,
+			mockModelDB,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			logger,
+		)
+
+		result, err := domain.ListModels(context.Background(), &mediav1.ListModelsRequest{})
+
+		assert.NoError(t, err)
+		assert.Len(t, result.GetModels(), 0)
 	})
 }
 
@@ -1002,13 +958,13 @@ func TestDomain_GetVideoStatus_Completed(t *testing.T) {
 
 	mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
 
-	output, err := domain.GetVideoStatus(context.Background(), userID, taskID.String())
+	output, err := domain.GetVideoStatus(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, output)
-	assert.Equal(t, model.VideoStateCompleted, output.Status)
-	assert.Equal(t, 100, output.Progress)
-	assert.NotNil(t, output.Video)
+	assert.Equal(t, string(model.VideoStateCompleted), output.GetStatus())
+	assert.Equal(t, int32(100), output.GetProgress())
+	assert.NotNil(t, output.GetVideo())
 }
 
 func TestDomain_GetVideoStatus_Failed(t *testing.T) {
@@ -1031,12 +987,12 @@ func TestDomain_GetVideoStatus_Failed(t *testing.T) {
 
 	mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
 
-	output, err := domain.GetVideoStatus(context.Background(), userID, taskID.String())
+	output, err := domain.GetVideoStatus(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, output)
-	assert.Equal(t, model.VideoStateFailed, output.Status)
-	assert.Equal(t, "generation failed", output.Error)
+	assert.Equal(t, string(model.VideoStateFailed), output.GetStatus())
+	assert.Equal(t, "generation failed", output.GetError())
 }
 
 func TestDomain_GetVideoStatus_InvalidTaskID(t *testing.T) {
@@ -1045,9 +1001,9 @@ func TestDomain_GetVideoStatus_InvalidTaskID(t *testing.T) {
 
 	userID := uuid.New()
 
-	output, err := domain.GetVideoStatus(context.Background(), userID, "invalid-uuid")
+	output, err := domain.GetVideoStatus(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: "invalid-uuid"})
 
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidInput)
 	assert.Nil(t, output)
 }
 
@@ -1068,7 +1024,7 @@ func TestDomain_CancelTask_AlreadyCancelled(t *testing.T) {
 
 	mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
 
-	err := domain.CancelTask(context.Background(), userID, taskID)
+	_, err := domain.CancelTask(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 	assert.ErrorIs(t, err, ErrTaskAlreadyCancelled)
 }
@@ -1090,7 +1046,7 @@ func TestDomain_CancelTask_Failed(t *testing.T) {
 
 	mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
 
-	err := domain.CancelTask(context.Background(), userID, taskID)
+	_, err := domain.CancelTask(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 	assert.ErrorIs(t, err, ErrTaskAlreadyCompleted)
 }
@@ -1106,7 +1062,7 @@ func TestDomain_GetTask_NotFound(t *testing.T) {
 
 	mockTaskDB.On("FindByID", mock.Anything, taskID).Return(nil, nil)
 
-	output, err := domain.GetTask(context.Background(), userID, taskID)
+	output, err := domain.GetTask(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 	assert.ErrorIs(t, err, ErrTaskNotFound)
 	assert.Nil(t, output)
@@ -1129,7 +1085,7 @@ func TestDomain_GetTask_NotOwned(t *testing.T) {
 
 	mockTaskDB.On("FindByID", mock.Anything, taskID).Return(task, nil)
 
-	output, err := domain.GetTask(context.Background(), userID, taskID)
+	output, err := domain.GetTask(context.Background(), userID, &mediav1.GetByTaskIDRequest{TaskId: taskID.String()})
 
 	assert.ErrorIs(t, err, ErrTaskNotOwned)
 	assert.Nil(t, output)
@@ -1154,10 +1110,7 @@ func TestDomain_GenerateImage_CapabilityNotSupported(t *testing.T) {
 
 	mockModelDB.On("FindByID", mock.Anything, "video-model").Return(mediaModel, nil)
 
-	input := &inbound.MediaImageGenerationInput{
-		Prompt: "Test prompt",
-		Model:  "video-model",
-	}
+	input := &mediav1.GenerateImageRequest{Prompt: "Test prompt", Model: "video-model"}
 
 	output, err := domain.GenerateImage(context.Background(), userID, input)
 
@@ -1221,7 +1174,7 @@ func TestDomain_GenerateImage_AutoSelectModel(t *testing.T) {
 	mockVendorReg.On("GetForProvider", provider).Return(mockAdapter, nil)
 	mockAdapter.On("GenerateImage", mock.Anything, mock.AnythingOfType("*model.ImageRequest"), mediaModel, provider, "sk-test-key").Return(expectedResp, nil)
 
-	input := &inbound.MediaImageGenerationInput{
+	input := &mediav1.GenerateImageRequest{
 		Prompt: "A beautiful sunset",
 		Model:  "auto", // Auto-select
 	}
@@ -1230,7 +1183,7 @@ func TestDomain_GenerateImage_AutoSelectModel(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, output)
-	assert.Len(t, output.Images, 1)
+	assert.Len(t, output.GetImages(), 1)
 }
 
 func TestDomain_FindModelWithCapability_NoModels(t *testing.T) {
@@ -1242,10 +1195,7 @@ func TestDomain_FindModelWithCapability_NoModels(t *testing.T) {
 	mockModelDB.On("FindByCapability", mock.Anything, model.MediaCapabilityImage).Return([]*model.MediaModel{}, nil)
 
 	userID := uuid.New()
-	input := &inbound.MediaImageGenerationInput{
-		Prompt: "Test prompt",
-		Model:  "auto",
-	}
+	input := &mediav1.GenerateImageRequest{Prompt: "Test prompt", Model: "auto"}
 
 	output, err := domain.GenerateImage(context.Background(), userID, input)
 
@@ -1289,10 +1239,7 @@ func TestDomain_FindModelWithCapability_NoHealthyProvider(t *testing.T) {
 	mockProviderDB.On("FindByID", mock.Anything, providerID).Return(provider, nil)
 	mockHealthCache.On("GetHealth", mock.Anything, providerID).Return(false, nil) // Unhealthy
 
-	input := &inbound.MediaImageGenerationInput{
-		Prompt: "Test prompt",
-		Model:  "auto",
-	}
+	input := &mediav1.GenerateImageRequest{Prompt: "Test prompt", Model: "auto"}
 
 	output, err := domain.GenerateImage(context.Background(), userID, input)
 

@@ -10,6 +10,7 @@ import (
 	"github.com/uniedit/server/internal/domain/order"
 	"github.com/uniedit/server/internal/domain/payment"
 	"github.com/uniedit/server/internal/domain/user"
+	"github.com/uniedit/server/internal/port/inbound"
 	"github.com/uniedit/server/internal/port/outbound"
 	"go.uber.org/zap"
 )
@@ -24,7 +25,7 @@ type Domain struct {
 	Auth auth.AuthDomain
 
 	// Billing handles subscription and quota management.
-	Billing billing.BillingDomain
+	Billing inbound.BillingDomain
 
 	// Order handles order management.
 	Order order.OrderDomain

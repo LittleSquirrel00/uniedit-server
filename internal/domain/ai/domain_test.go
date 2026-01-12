@@ -9,9 +9,12 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	aiv1 "github.com/uniedit/server/api/pb/ai"
+	commonv1 "github.com/uniedit/server/api/pb/common"
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/outbound"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // ===== Mock Implementations =====
@@ -493,8 +496,8 @@ func TestAIDomain_GetProvider(t *testing.T) {
 		result, err := domain.GetProvider(context.Background(), providerID)
 
 		assert.NoError(t, err)
-		assert.Equal(t, expected.ID, result.ID)
-		assert.Equal(t, "openai", result.Name)
+		assert.Equal(t, expected.ID.String(), result.GetId())
+		assert.Equal(t, "openai", result.GetName())
 		mockProviderDB.AssertExpectations(t)
 	})
 
@@ -507,7 +510,7 @@ func TestAIDomain_GetProvider(t *testing.T) {
 
 		result, err := domain.GetProvider(context.Background(), providerID)
 
-		assert.NoError(t, err)
+		assert.ErrorIs(t, err, ErrProviderNotFound)
 		assert.Nil(t, result)
 	})
 }
@@ -527,51 +530,34 @@ func TestAIDomain_ListProviders(t *testing.T) {
 		result, err := domain.ListProviders(context.Background())
 
 		assert.NoError(t, err)
-		assert.Len(t, result, 2)
+		assert.Len(t, result.GetData(), 2)
 		mockProviderDB.AssertExpectations(t)
 	})
 }
 
 func TestAIDomain_CreateProvider(t *testing.T) {
-	t.Run("success with new ID", func(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
 		mockProviderDB := new(MockProviderDB)
 		domain := newTestDomain(mockProviderDB, nil, nil, nil)
 
-		provider := &model.AIProvider{
-			Name:    "new-provider",
-			Type:    model.AIProviderTypeGeneric,
-			BaseURL: "https://api.example.com",
-			Enabled: true,
+		in := &aiv1.CreateProviderRequest{
+			Name:     "new-provider",
+			Type:     string(model.AIProviderTypeGeneric),
+			BaseUrl:   "https://api.example.com",
+			ApiKey:    "sk-test",
+			Enabled:   true,
+			Weight:    1,
+			Priority:  10,
+			RateLimit: &aiv1.RateLimitConfig{Rpm: 60, Tpm: 1000, DailyLimit: 10000},
 		}
 
 		mockProviderDB.On("Create", mock.Anything, mock.AnythingOfType("*model.AIProvider")).Return(nil)
 
-		err := domain.CreateProvider(context.Background(), provider)
+		out, err := domain.CreateProvider(context.Background(), in)
 
 		assert.NoError(t, err)
-		assert.NotEqual(t, uuid.Nil, provider.ID)
-		mockProviderDB.AssertExpectations(t)
-	})
-
-	t.Run("success with existing ID", func(t *testing.T) {
-		mockProviderDB := new(MockProviderDB)
-		domain := newTestDomain(mockProviderDB, nil, nil, nil)
-
-		existingID := uuid.New()
-		provider := &model.AIProvider{
-			ID:      existingID,
-			Name:    "new-provider",
-			Type:    model.AIProviderTypeGeneric,
-			BaseURL: "https://api.example.com",
-			Enabled: true,
-		}
-
-		mockProviderDB.On("Create", mock.Anything, mock.AnythingOfType("*model.AIProvider")).Return(nil)
-
-		err := domain.CreateProvider(context.Background(), provider)
-
-		assert.NoError(t, err)
-		assert.Equal(t, existingID, provider.ID)
+		assert.NotEmpty(t, out.GetId())
+		assert.Equal(t, "new-provider", out.GetName())
 		mockProviderDB.AssertExpectations(t)
 	})
 }
@@ -581,14 +567,23 @@ func TestAIDomain_UpdateProvider(t *testing.T) {
 		mockProviderDB := new(MockProviderDB)
 		domain := newTestDomain(mockProviderDB, nil, nil, nil)
 
-		provider := createTestProvider(uuid.New(), "openai")
-		provider.Enabled = false
+		providerID := uuid.New()
+		provider := createTestProvider(providerID, "openai")
+		provider.Enabled = true
 
+		mockProviderDB.On("FindByID", mock.Anything, providerID).Return(provider, nil)
 		mockProviderDB.On("Update", mock.Anything, provider).Return(nil)
 
-		err := domain.UpdateProvider(context.Background(), provider)
+		out, err := domain.UpdateProvider(context.Background(), providerID, &aiv1.UpdateProviderRequest{
+			Id:      providerID.String(),
+			Name:    &commonv1.StringValue{Value: "openai-new"},
+			Enabled: &commonv1.BoolValue{Value: false},
+		})
 
 		assert.NoError(t, err)
+		assert.Equal(t, providerID.String(), out.GetId())
+		assert.Equal(t, "openai-new", out.GetName())
+		assert.False(t, out.GetEnabled())
 		mockProviderDB.AssertExpectations(t)
 	})
 }
@@ -606,9 +601,10 @@ func TestAIDomain_DeleteProvider(t *testing.T) {
 		mockAccountDB.On("DeleteByProvider", mock.Anything, providerID).Return(nil)
 		mockProviderDB.On("Delete", mock.Anything, providerID).Return(nil)
 
-		err := domain.DeleteProvider(context.Background(), providerID)
+		resp, err := domain.DeleteProvider(context.Background(), providerID)
 
 		assert.NoError(t, err)
+		assert.Equal(t, "provider deleted", resp.GetMessage())
 		mockModelDB.AssertExpectations(t)
 		mockAccountDB.AssertExpectations(t)
 		mockProviderDB.AssertExpectations(t)
@@ -628,7 +624,7 @@ func TestAIDomain_GetModel(t *testing.T) {
 		result, err := domain.GetModel(context.Background(), "gpt-4")
 
 		assert.NoError(t, err)
-		assert.Equal(t, "gpt-4", result.ID)
+		assert.Equal(t, "gpt-4", result.GetId())
 		mockModelDB.AssertExpectations(t)
 	})
 }
@@ -648,7 +644,7 @@ func TestAIDomain_ListModels(t *testing.T) {
 		result, err := domain.ListModels(context.Background())
 
 		assert.NoError(t, err)
-		assert.Len(t, result, 2)
+		assert.Len(t, result.GetData(), 2)
 		mockModelDB.AssertExpectations(t)
 	})
 }
@@ -677,12 +673,23 @@ func TestAIDomain_CreateModel(t *testing.T) {
 		mockModelDB := new(MockModelDB)
 		domain := newTestDomain(nil, mockModelDB, nil, nil)
 
-		m := createTestModel("new-model", uuid.New())
-		mockModelDB.On("Create", mock.Anything, m).Return(nil)
+		providerID := uuid.New()
+		mockModelDB.On("Create", mock.Anything, mock.AnythingOfType("*model.AIModel")).Return(nil)
 
-		err := domain.CreateModel(context.Background(), m)
+		out, err := domain.CreateModel(context.Background(), &aiv1.CreateModelRequest{
+			Id:               "new-model",
+			ProviderId:       providerID.String(),
+			Name:             "new-model",
+			Capabilities:     []string{string(model.AICapabilityChat)},
+			ContextWindow:    128000,
+			MaxOutputTokens:  4096,
+			InputCostPer_1K:  0.01,
+			OutputCostPer_1K: 0.03,
+			Enabled:          true,
+		})
 
 		assert.NoError(t, err)
+		assert.Equal(t, "new-model", out.GetId())
 		mockModelDB.AssertExpectations(t)
 	})
 }
@@ -693,12 +700,17 @@ func TestAIDomain_UpdateModel(t *testing.T) {
 		domain := newTestDomain(nil, mockModelDB, nil, nil)
 
 		m := createTestModel("gpt-4", uuid.New())
-		m.Enabled = false
+		mockModelDB.On("FindByID", mock.Anything, "gpt-4").Return(m, nil)
 		mockModelDB.On("Update", mock.Anything, m).Return(nil)
 
-		err := domain.UpdateModel(context.Background(), m)
+		out, err := domain.UpdateModel(context.Background(), "gpt-4", &aiv1.UpdateModelRequest{
+			Id:      "gpt-4",
+			Enabled: &commonv1.BoolValue{Value: false},
+		})
 
 		assert.NoError(t, err)
+		assert.Equal(t, "gpt-4", out.GetId())
+		assert.False(t, out.GetEnabled())
 		mockModelDB.AssertExpectations(t)
 	})
 }
@@ -710,9 +722,10 @@ func TestAIDomain_DeleteModel(t *testing.T) {
 
 		mockModelDB.On("Delete", mock.Anything, "gpt-4").Return(nil)
 
-		err := domain.DeleteModel(context.Background(), "gpt-4")
+		resp, err := domain.DeleteModel(context.Background(), "gpt-4")
 
 		assert.NoError(t, err)
+		assert.Equal(t, "model deleted", resp.GetMessage())
 		mockModelDB.AssertExpectations(t)
 	})
 }
@@ -960,7 +973,7 @@ func TestAIDomain_ListEnabledModels(t *testing.T) {
 		result, err := domain.ListEnabledModels(context.Background())
 
 		assert.NoError(t, err)
-		assert.Len(t, result, 1)
+		assert.Len(t, result.GetModels(), 1)
 		mockModelDB.AssertExpectations(t)
 	})
 }
@@ -1041,10 +1054,7 @@ func TestAIDomain_Chat(t *testing.T) {
 	t.Run("empty messages error", func(t *testing.T) {
 		domain := newTestDomain(nil, nil, nil, nil)
 
-		req := &model.AIChatRequest{
-			Model:    "gpt-4",
-			Messages: []*model.AIChatMessage{},
-		}
+		req := &aiv1.ChatRequest{Model: "gpt-4"}
 
 		result, err := domain.Chat(context.Background(), uuid.New(), req)
 
@@ -1057,11 +1067,7 @@ func TestAIDomain_ChatStream(t *testing.T) {
 	t.Run("empty messages error", func(t *testing.T) {
 		domain := newTestDomain(nil, nil, nil, nil)
 
-		req := &model.AIChatRequest{
-			Model:    "gpt-4",
-			Messages: []*model.AIChatMessage{},
-			Stream:   true,
-		}
+		req := &aiv1.ChatRequest{Model: "gpt-4", Stream: true}
 
 		chunks, info, err := domain.ChatStream(context.Background(), uuid.New(), req)
 
@@ -1212,9 +1218,10 @@ func TestAIDomain_SyncModels(t *testing.T) {
 	t.Run("returns nil", func(t *testing.T) {
 		domain := newTestDomain(nil, nil, nil, nil)
 
-		err := domain.SyncModels(context.Background(), uuid.New())
+		resp, err := domain.SyncModels(context.Background(), uuid.New())
 
 		assert.NoError(t, err)
+		assert.Equal(t, "synced", resp.GetMessage())
 	})
 }
 
@@ -1423,9 +1430,10 @@ func TestAIDomain_DeleteProvider_NoAccountDB(t *testing.T) {
 	mockModelDB.On("DeleteByProvider", mock.Anything, providerID).Return(nil)
 	mockProviderDB.On("Delete", mock.Anything, providerID).Return(nil)
 
-	err := domain.DeleteProvider(context.Background(), providerID)
+	resp, err := domain.DeleteProvider(context.Background(), providerID)
 
 	assert.NoError(t, err)
+	assert.Equal(t, "provider deleted", resp.GetMessage())
 	mockModelDB.AssertExpectations(t)
 	mockProviderDB.AssertExpectations(t)
 }
@@ -1572,10 +1580,10 @@ func TestAIDomain_ProviderHealthCheck(t *testing.T) {
 		mockRegistry.On("GetForProvider", provider).Return(mockAdapter, nil)
 		mockAdapter.On("HealthCheck", mock.Anything, provider, provider.APIKey).Return(nil)
 
-		healthy, err := domain.ProviderHealthCheck(context.Background(), providerID)
+		resp, err := domain.ProviderHealthCheck(context.Background(), providerID)
 
 		assert.NoError(t, err)
-		assert.True(t, healthy)
+		assert.True(t, resp.GetHealthy())
 	})
 
 	t.Run("unhealthy provider", func(t *testing.T) {
@@ -1597,10 +1605,10 @@ func TestAIDomain_ProviderHealthCheck(t *testing.T) {
 		mockRegistry.On("GetForProvider", provider).Return(mockAdapter, nil)
 		mockAdapter.On("HealthCheck", mock.Anything, provider, provider.APIKey).Return(assert.AnError)
 
-		healthy, err := domain.ProviderHealthCheck(context.Background(), providerID)
+		resp, err := domain.ProviderHealthCheck(context.Background(), providerID)
 
 		assert.NoError(t, err)
-		assert.False(t, healthy)
+		assert.False(t, resp.GetHealthy())
 	})
 
 	t.Run("provider not found", func(t *testing.T) {
@@ -1616,10 +1624,10 @@ func TestAIDomain_ProviderHealthCheck(t *testing.T) {
 		providerID := uuid.New()
 		mockProviderDB.On("FindByID", mock.Anything, providerID).Return(nil, nil)
 
-		healthy, err := domain.ProviderHealthCheck(context.Background(), providerID)
+		resp, err := domain.ProviderHealthCheck(context.Background(), providerID)
 
 		assert.ErrorIs(t, err, ErrProviderNotFound)
-		assert.False(t, healthy)
+		assert.Nil(t, resp)
 	})
 }
 
@@ -1689,10 +1697,10 @@ func TestAIDomain_Chat_Success(t *testing.T) {
 		m := createTestModel("gpt-4", providerID)
 		userID := uuid.New()
 
-		req := &model.AIChatRequest{
+		req := &aiv1.ChatRequest{
 			Model: "gpt-4",
-			Messages: []*model.AIChatMessage{
-				{Role: "user", Content: "Hello"},
+			Messages: []*aiv1.ChatMessage{
+				{Role: "user", Content: structpb.NewStringValue("Hello")},
 			},
 		}
 
@@ -1713,13 +1721,15 @@ func TestAIDomain_Chat_Success(t *testing.T) {
 		mockModelDB.On("FindByCapabilities", mock.Anything, mock.Anything).Return([]*model.AIModel{m}, nil)
 		mockProviderDB.On("FindByID", mock.Anything, providerID).Return(provider, nil)
 		mockRegistry.On("GetForProvider", provider).Return(mockAdapter, nil)
-		mockAdapter.On("Chat", mock.Anything, req, m, provider, provider.APIKey).Return(expectedResp, nil)
+		mockAdapter.On("Chat", mock.Anything, mock.AnythingOfType("*model.AIChatRequest"), m, provider, provider.APIKey).Return(expectedResp, nil)
 
 		resp, err := domain.Chat(context.Background(), userID, req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, resp)
-		assert.Equal(t, "Hi there!", resp.Message.Content)
+		assert.NotNil(t, resp.GetMessage())
+		assert.NotNil(t, resp.GetMessage().GetContent())
+		assert.Equal(t, "Hi there!", resp.GetMessage().GetContent().GetStringValue())
 	})
 }
 
@@ -1744,11 +1754,11 @@ func TestAIDomain_ChatStream_Success(t *testing.T) {
 		m := createTestModel("gpt-4", providerID)
 		userID := uuid.New()
 
-		req := &model.AIChatRequest{
+		req := &aiv1.ChatRequest{
 			Model:  "gpt-4",
 			Stream: true,
-			Messages: []*model.AIChatMessage{
-				{Role: "user", Content: "Hello"},
+			Messages: []*aiv1.ChatMessage{
+				{Role: "user", Content: structpb.NewStringValue("Hello")},
 			},
 		}
 
@@ -1763,7 +1773,7 @@ func TestAIDomain_ChatStream_Success(t *testing.T) {
 		mockModelDB.On("FindByCapabilities", mock.Anything, mock.Anything).Return([]*model.AIModel{m}, nil)
 		mockProviderDB.On("FindByID", mock.Anything, providerID).Return(provider, nil)
 		mockRegistry.On("GetForProvider", provider).Return(mockAdapter, nil)
-		mockAdapter.On("ChatStream", mock.Anything, req, m, provider, provider.APIKey).Return((<-chan *model.AIChatChunk)(chunkChan), nil)
+		mockAdapter.On("ChatStream", mock.Anything, mock.AnythingOfType("*model.AIChatRequest"), m, provider, provider.APIKey).Return((<-chan *model.AIChatChunk)(chunkChan), nil)
 
 		chunks, info, err := domain.ChatStream(context.Background(), userID, req)
 

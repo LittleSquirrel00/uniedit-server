@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	gitv1 "github.com/uniedit/server/api/pb/git"
 	"github.com/uniedit/server/internal/model"
-	"github.com/uniedit/server/internal/port/inbound"
 	"github.com/uniedit/server/internal/port/outbound"
 	"go.uber.org/zap"
 )
@@ -345,18 +345,16 @@ func TestDomain_CreateRepo(t *testing.T) {
 		mockStorage.On("GetFilesystem", mock.Anything, mock.AnythingOfType("string")).Return(fs, nil)
 		mockRepoDB.On("Create", mock.Anything, mock.AnythingOfType("*model.GitRepo")).Return(nil)
 
-		input := &inbound.GitCreateRepoInput{
+		repo, err := domain.CreateRepo(context.Background(), ownerID, &gitv1.CreateRepoRequest{
 			Name:        "My Repo",
 			Description: "Test repository",
-		}
-
-		repo, err := domain.CreateRepo(context.Background(), ownerID, input)
+		})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, repo)
-		assert.Equal(t, "My Repo", repo.Name)
-		assert.Equal(t, "my-repo", repo.Slug)
-		assert.Equal(t, ownerID, repo.OwnerID)
+		assert.Equal(t, "My Repo", repo.GetName())
+		assert.Equal(t, "my-repo", repo.GetSlug())
+		assert.Equal(t, ownerID.String(), repo.GetOwnerId())
 		mockRepoDB.AssertExpectations(t)
 		mockStorage.AssertExpectations(t)
 	})
@@ -387,11 +385,7 @@ func TestDomain_CreateRepo(t *testing.T) {
 
 		mockRepoDB.On("FindByOwnerAndSlug", mock.Anything, ownerID, "my-repo").Return(existingRepo, nil)
 
-		input := &inbound.GitCreateRepoInput{
-			Name: "My Repo",
-		}
-
-		repo, err := domain.CreateRepo(context.Background(), ownerID, input)
+		repo, err := domain.CreateRepo(context.Background(), ownerID, &gitv1.CreateRepoRequest{Name: "My Repo"})
 
 		assert.ErrorIs(t, err, ErrRepoAlreadyExists)
 		assert.Nil(t, repo)
@@ -414,11 +408,7 @@ func TestDomain_CreateRepo(t *testing.T) {
 		)
 
 		ownerID := uuid.New()
-		input := &inbound.GitCreateRepoInput{
-			Name: "@#$%^&*()", // All special characters will result in empty slug
-		}
-
-		repo, err := domain.CreateRepo(context.Background(), ownerID, input)
+		repo, err := domain.CreateRepo(context.Background(), ownerID, &gitv1.CreateRepoRequest{Name: "@#$%^&*()"})
 
 		assert.ErrorIs(t, err, ErrInvalidRepoName)
 		assert.Nil(t, repo)
@@ -445,17 +435,21 @@ func TestDomain_GetRepo(t *testing.T) {
 		)
 
 		repoID := uuid.New()
+		userID := uuid.New()
 		expectedRepo := &model.GitRepo{
-			ID:   repoID,
-			Name: "Test Repo",
+			ID:         repoID,
+			OwnerID:    userID,
+			Name:       "Test Repo",
+			Visibility: model.GitVisibilityPrivate,
 		}
 
 		mockRepoDB.On("FindByID", mock.Anything, repoID).Return(expectedRepo, nil)
 
-		repo, err := domain.GetRepo(context.Background(), repoID)
+		repo, err := domain.GetRepo(context.Background(), userID, &gitv1.GetByIDRequest{Id: repoID.String()})
 
 		assert.NoError(t, err)
-		assert.Equal(t, expectedRepo, repo)
+		assert.Equal(t, repoID.String(), repo.GetId())
+		assert.Equal(t, "Test Repo", repo.GetName())
 	})
 
 	t.Run("not found", func(t *testing.T) {
@@ -475,9 +469,10 @@ func TestDomain_GetRepo(t *testing.T) {
 		)
 
 		repoID := uuid.New()
+		userID := uuid.New()
 		mockRepoDB.On("FindByID", mock.Anything, repoID).Return(nil, nil)
 
-		repo, err := domain.GetRepo(context.Background(), repoID)
+		repo, err := domain.GetRepo(context.Background(), userID, &gitv1.GetByIDRequest{Id: repoID.String()})
 
 		assert.ErrorIs(t, err, ErrRepoNotFound)
 		assert.Nil(t, repo)
@@ -516,9 +511,10 @@ func TestDomain_DeleteRepo(t *testing.T) {
 		mockStorage.On("DeleteRepository", mock.Anything, "repos/test/").Return(nil)
 		mockRepoDB.On("Delete", mock.Anything, repoID).Return(nil)
 
-		err := domain.DeleteRepo(context.Background(), repoID, ownerID)
+		out, err := domain.DeleteRepo(context.Background(), ownerID, &gitv1.GetByIDRequest{Id: repoID.String()})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, out)
 		mockRepoDB.AssertExpectations(t)
 		mockStorage.AssertExpectations(t)
 	})
@@ -549,9 +545,10 @@ func TestDomain_DeleteRepo(t *testing.T) {
 
 		mockRepoDB.On("FindByID", mock.Anything, repoID).Return(repo, nil)
 
-		err := domain.DeleteRepo(context.Background(), repoID, otherUserID)
+		out, err := domain.DeleteRepo(context.Background(), otherUserID, &gitv1.GetByIDRequest{Id: repoID.String()})
 
 		assert.ErrorIs(t, err, ErrNotOwner)
+		assert.Nil(t, out)
 	})
 }
 
@@ -732,9 +729,14 @@ func TestDomain_AddCollaborator(t *testing.T) {
 		mockRepoDB.On("FindByID", mock.Anything, repoID).Return(repo, nil)
 		mockCollabDB.On("Add", mock.Anything, mock.AnythingOfType("*model.GitRepoCollaborator")).Return(nil)
 
-		err := domain.AddCollaborator(context.Background(), repoID, ownerID, targetUserID, model.GitPermissionWrite)
+		out, err := domain.AddCollaborator(context.Background(), ownerID, &gitv1.AddCollaboratorRequest{
+			Id:         repoID.String(),
+			UserId:     targetUserID.String(),
+			Permission: string(model.GitPermissionWrite),
+		})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, out)
 		mockCollabDB.AssertExpectations(t)
 	})
 
@@ -764,9 +766,14 @@ func TestDomain_AddCollaborator(t *testing.T) {
 
 		mockRepoDB.On("FindByID", mock.Anything, repoID).Return(repo, nil)
 
-		err := domain.AddCollaborator(context.Background(), repoID, otherUserID, uuid.New(), model.GitPermissionWrite)
+		out, err := domain.AddCollaborator(context.Background(), otherUserID, &gitv1.AddCollaboratorRequest{
+			Id:         repoID.String(),
+			UserId:     uuid.New().String(),
+			Permission: string(model.GitPermissionWrite),
+		})
 
 		assert.ErrorIs(t, err, ErrNotOwner)
+		assert.Nil(t, out)
 	})
 
 	t.Run("cannot add owner as collaborator", func(t *testing.T) {
@@ -794,9 +801,14 @@ func TestDomain_AddCollaborator(t *testing.T) {
 
 		mockRepoDB.On("FindByID", mock.Anything, repoID).Return(repo, nil)
 
-		err := domain.AddCollaborator(context.Background(), repoID, ownerID, ownerID, model.GitPermissionWrite)
+		out, err := domain.AddCollaborator(context.Background(), ownerID, &gitv1.AddCollaboratorRequest{
+			Id:         repoID.String(),
+			UserId:     ownerID.String(),
+			Permission: string(model.GitPermissionWrite),
+		})
 
 		assert.ErrorIs(t, err, ErrInvalidPermission)
+		assert.Nil(t, out)
 	})
 }
 
@@ -833,20 +845,19 @@ func TestDomain_CreatePR(t *testing.T) {
 		mockPRDB.On("GetNextNumber", mock.Anything, repoID).Return(1, nil)
 		mockPRDB.On("Create", mock.Anything, mock.AnythingOfType("*model.GitPullRequest")).Return(nil)
 
-		input := &inbound.GitCreatePRInput{
+		pr, err := domain.CreatePR(context.Background(), authorID, &gitv1.CreatePRRequest{
+			Id:           repoID.String(),
 			Title:        "Add new feature",
 			Description:  "This PR adds a new feature",
 			SourceBranch: "feature/new",
 			TargetBranch: "main",
-		}
-
-		pr, err := domain.CreatePR(context.Background(), repoID, authorID, input)
+		})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, pr)
-		assert.Equal(t, 1, pr.Number)
-		assert.Equal(t, "Add new feature", pr.Title)
-		assert.Equal(t, model.GitPRStatusOpen, pr.Status)
+		assert.Equal(t, int32(1), pr.GetNumber())
+		assert.Equal(t, "Add new feature", pr.GetTitle())
+		assert.Equal(t, string(model.GitPRStatusOpen), pr.GetStatus())
 	})
 
 	t.Run("same branch error", func(t *testing.T) {
@@ -875,13 +886,12 @@ func TestDomain_CreatePR(t *testing.T) {
 
 		mockRepoDB.On("FindByID", mock.Anything, repoID).Return(repo, nil)
 
-		input := &inbound.GitCreatePRInput{
+		pr, err := domain.CreatePR(context.Background(), authorID, &gitv1.CreatePRRequest{
+			Id:           repoID.String(),
 			Title:        "Test PR",
 			SourceBranch: "main",
 			TargetBranch: "main",
-		}
-
-		pr, err := domain.CreatePR(context.Background(), repoID, authorID, input)
+		})
 
 		assert.ErrorIs(t, err, ErrSameBranch)
 		assert.Nil(t, pr)
@@ -929,12 +939,15 @@ func TestDomain_MergePR(t *testing.T) {
 		mockPRDB.On("FindByNumber", mock.Anything, repoID, 1).Return(pr, nil)
 		mockPRDB.On("Update", mock.Anything, mock.AnythingOfType("*model.GitPullRequest")).Return(nil)
 
-		mergedPR, err := domain.MergePR(context.Background(), repoID, 1, userID)
+		mergedPR, err := domain.MergePR(context.Background(), userID, &gitv1.GetPRRequest{
+			Id:     repoID.String(),
+			Number: 1,
+		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, model.GitPRStatusMerged, mergedPR.Status)
-		assert.NotNil(t, mergedPR.MergedAt)
-		assert.Equal(t, &userID, mergedPR.MergedBy)
+		assert.Equal(t, string(model.GitPRStatusMerged), mergedPR.GetStatus())
+		assert.NotEmpty(t, mergedPR.GetMergedAt())
+		assert.Equal(t, userID.String(), mergedPR.GetMergedBy())
 	})
 
 	t.Run("already merged", func(t *testing.T) {
@@ -971,7 +984,10 @@ func TestDomain_MergePR(t *testing.T) {
 		mockRepoDB.On("FindByID", mock.Anything, repoID).Return(repo, nil)
 		mockPRDB.On("FindByNumber", mock.Anything, repoID, 1).Return(pr, nil)
 
-		mergedPR, err := domain.MergePR(context.Background(), repoID, 1, userID)
+		mergedPR, err := domain.MergePR(context.Background(), userID, &gitv1.GetPRRequest{
+			Id:     repoID.String(),
+			Number: 1,
+		})
 
 		assert.ErrorIs(t, err, ErrPRAlreadyMerged)
 		assert.Nil(t, mergedPR)
@@ -999,8 +1015,11 @@ func TestDomain_GetStorageStats(t *testing.T) {
 		)
 
 		repoID := uuid.New()
+		userID := uuid.New()
 		repo := &model.GitRepo{
 			ID:           repoID,
+			OwnerID:      userID,
+			Visibility:   model.GitVisibilityPrivate,
 			SizeBytes:    1024,
 			LFSSizeBytes: 2048,
 		}
@@ -1012,14 +1031,14 @@ func TestDomain_GetStorageStats(t *testing.T) {
 		mockRepoDB.On("FindByID", mock.Anything, repoID).Return(repo, nil)
 		mockLFSObjDB.On("FindByRepo", mock.Anything, repoID).Return(lfsObjects, nil)
 
-		stats, err := domain.GetStorageStats(context.Background(), repoID)
+		stats, err := domain.GetStorageStats(context.Background(), userID, &gitv1.GetByIDRequest{Id: repoID.String()})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, stats)
-		assert.Equal(t, int64(1024), stats.RepoSizeBytes)
-		assert.Equal(t, int64(2048), stats.LFSSizeBytes)
-		assert.Equal(t, int64(3072), stats.TotalSizeBytes)
-		assert.Equal(t, 2, stats.LFSObjectCount)
+		assert.Equal(t, int64(1024), stats.GetRepoSizeBytes())
+		assert.Equal(t, int64(2048), stats.GetLfsSizeBytes())
+		assert.Equal(t, int64(3072), stats.GetTotalSizeBytes())
+		assert.Equal(t, int32(2), stats.GetLfsObjectCount())
 	})
 }
 
@@ -1071,4 +1090,3 @@ func TestHasPermission(t *testing.T) {
 		})
 	}
 }
-

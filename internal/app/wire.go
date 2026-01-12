@@ -14,25 +14,18 @@ import (
 	// Domains
 	"github.com/uniedit/server/internal/domain/ai"
 	"github.com/uniedit/server/internal/domain/auth"
-	"github.com/uniedit/server/internal/domain/billing"
 	"github.com/uniedit/server/internal/domain/order"
 	"github.com/uniedit/server/internal/domain/payment"
 	"github.com/uniedit/server/internal/domain/user"
 
 	// Inbound adapters
-	aihttp "github.com/uniedit/server/internal/adapter/inbound/http/ai"
 	"github.com/uniedit/server/internal/adapter/inbound/http/aiproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/authproto"
-	billinghttp "github.com/uniedit/server/internal/adapter/inbound/http/billing"
 	"github.com/uniedit/server/internal/adapter/inbound/http/billingproto"
-	collaborationhttp "github.com/uniedit/server/internal/adapter/inbound/http/collaboration"
 	"github.com/uniedit/server/internal/adapter/inbound/http/collaborationproto"
-	githttp "github.com/uniedit/server/internal/adapter/inbound/http/git"
 	"github.com/uniedit/server/internal/adapter/inbound/http/gitproto"
-	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
 	"github.com/uniedit/server/internal/adapter/inbound/http/mediaproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/orderproto"
-	paymenthttp "github.com/uniedit/server/internal/adapter/inbound/http/payment"
 	"github.com/uniedit/server/internal/adapter/inbound/http/paymentproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/pingproto"
 	"github.com/uniedit/server/internal/adapter/inbound/http/userproto"
@@ -63,7 +56,7 @@ type Dependencies struct {
 	// Domains
 	UserDomain          user.UserDomain
 	AuthDomain          auth.AuthDomain
-	BillingDomain       billing.BillingDomain
+	BillingDomain       inbound.BillingDomain
 	OrderDomain         order.OrderDomain
 	PaymentDomain       payment.PaymentDomain
 	AIDomain            ai.AIDomain
@@ -72,11 +65,6 @@ type Dependencies struct {
 	MediaDomain         inbound.MediaDomain
 
 	// AI HTTP Handlers
-	AIChatHandler          *aihttp.ChatHandler
-	AIProviderAdminHandler *aihttp.ProviderAdminHandler
-	AIModelAdminHandler    *aihttp.ModelAdminHandler
-	AIPublicHandler        *aihttp.PublicHandler
-
 	// Proto-defined HTTP Handlers (generated from google.api.http)
 	PingProtoHandler  *pingproto.Handler
 	AuthProtoHandler  *authproto.Handler
@@ -88,26 +76,6 @@ type Dependencies struct {
 	PaymentProtoHandler *paymentproto.Handler
 	GitProtoHandler     *gitproto.Handler
 	MediaProtoHandler   *mediaproto.Handler
-
-	// Billing HTTP Handlers
-	SubscriptionHandler *billinghttp.SubscriptionHandler
-	QuotaHandler        *billinghttp.QuotaHandler
-	CreditsHandler      *billinghttp.CreditsHandler
-	UsageHandler        *billinghttp.UsageHandler
-
-	// Payment HTTP Handlers
-	PaymentHandler *paymenthttp.PaymentHandler
-	RefundHandler  *paymenthttp.RefundHandler
-	WebhookHandler *paymenthttp.WebhookHandler
-
-	// Git HTTP Handlers
-	GitHandler *githttp.Handler
-
-	// Collaboration HTTP Handlers
-	CollaborationHandler *collaborationhttp.Handler
-
-	// Media HTTP Handlers
-	MediaHandler *mediahttp.Handler
 }
 
 // InitializeDependencies creates all dependencies using Wire.

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	aiv1 "github.com/uniedit/server/api/pb/ai"
+	commonv1 "github.com/uniedit/server/api/pb/common"
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/outbound"
 	"go.uber.org/zap"
@@ -15,10 +17,10 @@ import (
 // AIDomain defines the AI domain service interface.
 type AIDomain interface {
 	// Chat sends a non-streaming chat completion request.
-	Chat(ctx context.Context, userID uuid.UUID, req *model.AIChatRequest) (*model.AIChatResponse, error)
+	Chat(ctx context.Context, userID uuid.UUID, req *aiv1.ChatRequest) (*aiv1.ChatResponse, error)
 
 	// ChatStream sends a streaming chat completion request.
-	ChatStream(ctx context.Context, userID uuid.UUID, req *model.AIChatRequest) (<-chan *model.AIChatChunk, *model.AIRoutingInfo, error)
+	ChatStream(ctx context.Context, userID uuid.UUID, req *aiv1.ChatRequest) (<-chan *model.AIChatChunk, *model.AIRoutingInfo, error)
 
 	// Embed generates text embeddings.
 	Embed(ctx context.Context, userID uuid.UUID, req *model.AIEmbedRequest) (*model.AIEmbedResponse, error)
@@ -27,19 +29,20 @@ type AIDomain interface {
 	Route(ctx context.Context, routingCtx *model.AIRoutingContext) (*model.AIRoutingResult, error)
 
 	// Provider management
-	GetProvider(ctx context.Context, id uuid.UUID) (*model.AIProvider, error)
-	ListProviders(ctx context.Context) ([]*model.AIProvider, error)
-	CreateProvider(ctx context.Context, provider *model.AIProvider) error
-	UpdateProvider(ctx context.Context, provider *model.AIProvider) error
-	DeleteProvider(ctx context.Context, id uuid.UUID) error
+	GetProvider(ctx context.Context, id uuid.UUID) (*aiv1.Provider, error)
+	ListProviders(ctx context.Context) (*aiv1.ListProvidersResponse, error)
+	CreateProvider(ctx context.Context, in *aiv1.CreateProviderRequest) (*aiv1.Provider, error)
+	UpdateProvider(ctx context.Context, id uuid.UUID, in *aiv1.UpdateProviderRequest) (*aiv1.Provider, error)
+	DeleteProvider(ctx context.Context, id uuid.UUID) (*commonv1.MessageResponse, error)
 
 	// Model management
-	GetModel(ctx context.Context, id string) (*model.AIModel, error)
-	ListModels(ctx context.Context) ([]*model.AIModel, error)
+	GetModel(ctx context.Context, id string) (*aiv1.Model, error)
+	GetAdminModel(ctx context.Context, id string) (*aiv1.Model, error)
+	ListModels(ctx context.Context) (*aiv1.ListAllModelsResponse, error)
 	ListModelsByCapability(ctx context.Context, cap model.AICapability) ([]*model.AIModel, error)
-	CreateModel(ctx context.Context, m *model.AIModel) error
-	UpdateModel(ctx context.Context, m *model.AIModel) error
-	DeleteModel(ctx context.Context, id string) error
+	CreateModel(ctx context.Context, in *aiv1.CreateModelRequest) (*aiv1.Model, error)
+	UpdateModel(ctx context.Context, id string, in *aiv1.UpdateModelRequest) (*aiv1.Model, error)
+	DeleteModel(ctx context.Context, id string) (*commonv1.MessageResponse, error)
 
 	// Account pool management
 	GetAccount(ctx context.Context, id uuid.UUID) (*model.AIProviderAccount, error)
@@ -59,11 +62,11 @@ type AIDomain interface {
 	DeleteGroup(ctx context.Context, id string) error
 
 	// Public API
-	ListEnabledModels(ctx context.Context) ([]*model.AIModel, error)
+	ListEnabledModels(ctx context.Context) (*aiv1.ListModelsResponse, error)
 
 	// Provider operations
-	SyncModels(ctx context.Context, providerID uuid.UUID) error
-	ProviderHealthCheck(ctx context.Context, providerID uuid.UUID) (bool, error)
+	SyncModels(ctx context.Context, providerID uuid.UUID) (*commonv1.MessageResponse, error)
+	ProviderHealthCheck(ctx context.Context, providerID uuid.UUID) (*aiv1.HealthCheckResponse, error)
 
 	// Health monitoring
 	StartHealthMonitor(ctx context.Context)
@@ -93,17 +96,17 @@ type aiDomain struct {
 	strategyChain *StrategyChain
 
 	// In-memory caches (for fast routing)
-	providerCache   map[uuid.UUID]*model.AIProvider
-	modelCache      map[string]*model.AIModel
-	providerMu      sync.RWMutex
+	providerCache map[uuid.UUID]*model.AIProvider
+	modelCache    map[string]*model.AIModel
+	providerMu    sync.RWMutex
 
 	// Health monitoring
-	healthStatus    map[uuid.UUID]bool
-	accountHealth   map[uuid.UUID]model.AIHealthStatus
-	healthMu        sync.RWMutex
-	healthCtx       context.Context
-	healthCancel    context.CancelFunc
-	healthInterval  time.Duration
+	healthStatus   map[uuid.UUID]bool
+	accountHealth  map[uuid.UUID]model.AIHealthStatus
+	healthMu       sync.RWMutex
+	healthCtx      context.Context
+	healthCancel   context.CancelFunc
+	healthInterval time.Duration
 
 	logger *zap.Logger
 }
@@ -163,15 +166,19 @@ func NewAIDomain(
 // ===== Chat Operations =====
 
 // Chat performs a non-streaming chat completion.
-func (d *aiDomain) Chat(ctx context.Context, userID uuid.UUID, req *model.AIChatRequest) (*model.AIChatResponse, error) {
-	if len(req.Messages) == 0 {
+func (d *aiDomain) Chat(ctx context.Context, userID uuid.UUID, req *aiv1.ChatRequest) (*aiv1.ChatResponse, error) {
+	modelReq, err := chatRequestToModel(req)
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+	if len(modelReq.Messages) == 0 {
 		return nil, ErrEmptyMessages
 	}
 
 	startTime := time.Now()
 
 	// Build routing context
-	routingCtx := d.buildRoutingContext(req)
+	routingCtx := d.buildRoutingContext(modelReq)
 
 	// Route to best model
 	result, err := d.Route(ctx, routingCtx)
@@ -188,15 +195,15 @@ func (d *aiDomain) Chat(ctx context.Context, userID uuid.UUID, req *model.AIChat
 	// Build adapter request
 	adapterReq := &model.AIChatRequest{
 		Model:       result.Model.ID,
-		Messages:    req.Messages,
-		MaxTokens:   req.MaxTokens,
-		Temperature: req.Temperature,
-		TopP:        req.TopP,
-		Stop:        req.Stop,
-		Tools:       req.Tools,
-		ToolChoice:  req.ToolChoice,
+		Messages:    modelReq.Messages,
+		MaxTokens:   modelReq.MaxTokens,
+		Temperature: modelReq.Temperature,
+		TopP:        modelReq.TopP,
+		Stop:        modelReq.Stop,
+		Tools:       modelReq.Tools,
+		ToolChoice:  modelReq.ToolChoice,
 		Stream:      false,
-		Metadata:    req.Metadata,
+		Metadata:    modelReq.Metadata,
 	}
 
 	// Execute request
@@ -227,17 +234,21 @@ func (d *aiDomain) Chat(ctx context.Context, userID uuid.UUID, req *model.AIChat
 		CostUSD:      costUSD,
 	}
 
-	return resp, nil
+	return chatResponseFromModel(resp)
 }
 
 // ChatStream performs a streaming chat completion.
-func (d *aiDomain) ChatStream(ctx context.Context, userID uuid.UUID, req *model.AIChatRequest) (<-chan *model.AIChatChunk, *model.AIRoutingInfo, error) {
-	if len(req.Messages) == 0 {
+func (d *aiDomain) ChatStream(ctx context.Context, userID uuid.UUID, req *aiv1.ChatRequest) (<-chan *model.AIChatChunk, *model.AIRoutingInfo, error) {
+	modelReq, err := chatRequestToModel(req)
+	if err != nil {
+		return nil, nil, ErrInvalidRequest
+	}
+	if len(modelReq.Messages) == 0 {
 		return nil, nil, ErrEmptyMessages
 	}
 
 	// Build routing context
-	routingCtx := d.buildRoutingContext(req)
+	routingCtx := d.buildRoutingContext(modelReq)
 	routingCtx.RequireStream = true
 
 	// Route to best model
@@ -255,15 +266,15 @@ func (d *aiDomain) ChatStream(ctx context.Context, userID uuid.UUID, req *model.
 	// Build adapter request
 	adapterReq := &model.AIChatRequest{
 		Model:       result.Model.ID,
-		Messages:    req.Messages,
-		MaxTokens:   req.MaxTokens,
-		Temperature: req.Temperature,
-		TopP:        req.TopP,
-		Stop:        req.Stop,
-		Tools:       req.Tools,
-		ToolChoice:  req.ToolChoice,
+		Messages:    modelReq.Messages,
+		MaxTokens:   modelReq.MaxTokens,
+		Temperature: modelReq.Temperature,
+		TopP:        modelReq.TopP,
+		Stop:        modelReq.Stop,
+		Tools:       modelReq.Tools,
+		ToolChoice:  modelReq.ToolChoice,
 		Stream:      true,
-		Metadata:    req.Metadata,
+		Metadata:    modelReq.Metadata,
 	}
 
 	// Execute streaming request
@@ -491,63 +502,240 @@ func (d *aiDomain) buildRoutingContext(req *model.AIChatRequest) *model.AIRoutin
 
 // ===== Provider Management =====
 
-func (d *aiDomain) GetProvider(ctx context.Context, id uuid.UUID) (*model.AIProvider, error) {
-	return d.providerDB.FindByID(ctx, id)
-}
-
-func (d *aiDomain) ListProviders(ctx context.Context) ([]*model.AIProvider, error) {
-	return d.providerDB.FindAll(ctx)
-}
-
-func (d *aiDomain) CreateProvider(ctx context.Context, provider *model.AIProvider) error {
-	if provider.ID == uuid.Nil {
-		provider.ID = uuid.New()
+func (d *aiDomain) GetProvider(ctx context.Context, id uuid.UUID) (*aiv1.Provider, error) {
+	p, err := d.providerDB.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
 	}
-	return d.providerDB.Create(ctx, provider)
+	if p == nil {
+		return nil, ErrProviderNotFound
+	}
+	return providerFromModel(p), nil
 }
 
-func (d *aiDomain) UpdateProvider(ctx context.Context, provider *model.AIProvider) error {
-	return d.providerDB.Update(ctx, provider)
+func (d *aiDomain) ListProviders(ctx context.Context) (*aiv1.ListProvidersResponse, error) {
+	providers, err := d.providerDB.FindAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*aiv1.Provider, 0, len(providers))
+	for _, p := range providers {
+		out = append(out, providerFromModel(p))
+	}
+	return &aiv1.ListProvidersResponse{Object: "list", Data: out}, nil
 }
 
-func (d *aiDomain) DeleteProvider(ctx context.Context, id uuid.UUID) error {
+func (d *aiDomain) CreateProvider(ctx context.Context, in *aiv1.CreateProviderRequest) (*aiv1.Provider, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	p := &model.AIProvider{
+		ID:        uuid.New(),
+		Name:      in.GetName(),
+		Type:      model.AIProviderType(in.GetType()),
+		BaseURL:   in.GetBaseUrl(),
+		APIKey:    in.GetApiKey(),
+		Enabled:   in.GetEnabled(),
+		Weight:    int(in.GetWeight()),
+		Priority:  int(in.GetPriority()),
+		RateLimit: rateLimitToModel(in.GetRateLimit()),
+		Options:   nil,
+	}
+
+	if opts := in.GetOptions(); opts != nil {
+		p.Options = opts.AsMap()
+	}
+
+	if err := d.providerDB.Create(ctx, p); err != nil {
+		return nil, err
+	}
+	return providerFromModel(p), nil
+}
+
+func (d *aiDomain) UpdateProvider(ctx context.Context, id uuid.UUID, in *aiv1.UpdateProviderRequest) (*aiv1.Provider, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	p, err := d.providerDB.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if p == nil {
+		return nil, ErrProviderNotFound
+	}
+
+	if v := in.GetName(); v != nil {
+		p.Name = v.GetValue()
+	}
+	if v := in.GetBaseUrl(); v != nil {
+		p.BaseURL = v.GetValue()
+	}
+	if v := in.GetApiKey(); v != nil {
+		p.APIKey = v.GetValue()
+	}
+	if v := in.GetWeight(); v != nil {
+		p.Weight = int(v.GetValue())
+	}
+	if v := in.GetPriority(); v != nil {
+		p.Priority = int(v.GetValue())
+	}
+	if v := in.GetEnabled(); v != nil {
+		p.Enabled = v.GetValue()
+	}
+	if rl := in.GetRateLimit(); rl != nil {
+		p.RateLimit = rateLimitToModel(rl)
+	}
+	if opts := in.GetOptions(); opts != nil {
+		p.Options = opts.AsMap()
+	}
+
+	if err := d.providerDB.Update(ctx, p); err != nil {
+		return nil, err
+	}
+	return providerFromModel(p), nil
+}
+
+func (d *aiDomain) DeleteProvider(ctx context.Context, id uuid.UUID) (*commonv1.MessageResponse, error) {
 	// Delete associated models first
 	if err := d.modelDB.DeleteByProvider(ctx, id); err != nil {
-		return err
+		return nil, err
 	}
 	// Delete associated accounts
 	if d.accountDB != nil {
 		if err := d.accountDB.DeleteByProvider(ctx, id); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return d.providerDB.Delete(ctx, id)
+	if err := d.providerDB.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+	return &commonv1.MessageResponse{Message: "provider deleted"}, nil
 }
 
 // ===== Model Management =====
 
-func (d *aiDomain) GetModel(ctx context.Context, id string) (*model.AIModel, error) {
-	return d.modelDB.FindByID(ctx, id)
+func (d *aiDomain) GetModel(ctx context.Context, id string) (*aiv1.Model, error) {
+	m, err := d.modelDB.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil || !m.Enabled {
+		return nil, ErrModelNotFound
+	}
+	return modelFromModel(m), nil
 }
 
-func (d *aiDomain) ListModels(ctx context.Context) ([]*model.AIModel, error) {
-	return d.modelDB.FindEnabled(ctx)
+func (d *aiDomain) GetAdminModel(ctx context.Context, id string) (*aiv1.Model, error) {
+	m, err := d.modelDB.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, ErrModelNotFound
+	}
+	return modelFromModel(m), nil
+}
+
+func (d *aiDomain) ListModels(ctx context.Context) (*aiv1.ListAllModelsResponse, error) {
+	models, err := d.modelDB.FindEnabled(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*aiv1.Model, 0, len(models))
+	for _, m := range models {
+		out = append(out, modelFromModel(m))
+	}
+	return &aiv1.ListAllModelsResponse{Object: "list", Data: out}, nil
 }
 
 func (d *aiDomain) ListModelsByCapability(ctx context.Context, cap model.AICapability) ([]*model.AIModel, error) {
 	return d.modelDB.FindByCapability(ctx, cap)
 }
 
-func (d *aiDomain) CreateModel(ctx context.Context, m *model.AIModel) error {
-	return d.modelDB.Create(ctx, m)
+func (d *aiDomain) CreateModel(ctx context.Context, in *aiv1.CreateModelRequest) (*aiv1.Model, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+	providerID, err := uuid.Parse(in.GetProviderId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
+	m := &model.AIModel{
+		ID:              in.GetId(),
+		ProviderID:      providerID,
+		Name:            in.GetName(),
+		Capabilities:    append([]string(nil), in.GetCapabilities()...),
+		ContextWindow:   int(in.GetContextWindow()),
+		MaxOutputTokens: int(in.GetMaxOutputTokens()),
+		InputCostPer1K:  in.GetInputCostPer_1K(),
+		OutputCostPer1K: in.GetOutputCostPer_1K(),
+		Enabled:         in.GetEnabled(),
+		Options:         nil,
+	}
+	if opts := in.GetOptions(); opts != nil {
+		m.Options = opts.AsMap()
+	}
+
+	if err := d.modelDB.Create(ctx, m); err != nil {
+		return nil, err
+	}
+	return modelFromModel(m), nil
 }
 
-func (d *aiDomain) UpdateModel(ctx context.Context, m *model.AIModel) error {
-	return d.modelDB.Update(ctx, m)
+func (d *aiDomain) UpdateModel(ctx context.Context, id string, in *aiv1.UpdateModelRequest) (*aiv1.Model, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	m, err := d.modelDB.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, ErrModelNotFound
+	}
+
+	if v := in.GetName(); v != nil {
+		m.Name = v.GetValue()
+	}
+	if v := in.GetCapabilities(); v != nil {
+		m.Capabilities = append([]string(nil), v.GetValues()...)
+	}
+	if v := in.GetContextWindow(); v != nil {
+		m.ContextWindow = int(v.GetValue())
+	}
+	if v := in.GetMaxOutputTokens(); v != nil {
+		m.MaxOutputTokens = int(v.GetValue())
+	}
+	if v := in.GetInputCostPer_1K(); v != nil {
+		m.InputCostPer1K = v.GetValue()
+	}
+	if v := in.GetOutputCostPer_1K(); v != nil {
+		m.OutputCostPer1K = v.GetValue()
+	}
+	if opts := in.GetOptions(); opts != nil {
+		m.Options = opts.AsMap()
+	}
+	if v := in.GetEnabled(); v != nil {
+		m.Enabled = v.GetValue()
+	}
+
+	if err := d.modelDB.Update(ctx, m); err != nil {
+		return nil, err
+	}
+	return modelFromModel(m), nil
 }
 
-func (d *aiDomain) DeleteModel(ctx context.Context, id string) error {
-	return d.modelDB.Delete(ctx, id)
+func (d *aiDomain) DeleteModel(ctx context.Context, id string) (*commonv1.MessageResponse, error) {
+	if err := d.modelDB.Delete(ctx, id); err != nil {
+		return nil, err
+	}
+	return &commonv1.MessageResponse{Message: "model deleted"}, nil
 }
 
 // ===== Account Pool Management =====
@@ -643,30 +831,39 @@ func (d *aiDomain) DeleteGroup(ctx context.Context, id string) error {
 
 // ===== Public API =====
 
-func (d *aiDomain) ListEnabledModels(ctx context.Context) ([]*model.AIModel, error) {
-	return d.modelDB.FindEnabled(ctx)
+func (d *aiDomain) ListEnabledModels(ctx context.Context) (*aiv1.ListModelsResponse, error) {
+	models, err := d.modelDB.FindEnabled(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*aiv1.Model, 0, len(models))
+	for _, m := range models {
+		out = append(out, modelFromModel(m))
+	}
+	return &aiv1.ListModelsResponse{Models: out}, nil
 }
 
 // ===== Provider Operations =====
 
-func (d *aiDomain) SyncModels(ctx context.Context, providerID uuid.UUID) error {
+func (d *aiDomain) SyncModels(ctx context.Context, providerID uuid.UUID) (*commonv1.MessageResponse, error) {
 	// This would sync models from the provider's API
 	// For now, just return nil as models are managed manually
-	return nil
+	return &commonv1.MessageResponse{Message: "synced"}, nil
 }
 
-func (d *aiDomain) ProviderHealthCheck(ctx context.Context, providerID uuid.UUID) (bool, error) {
+func (d *aiDomain) ProviderHealthCheck(ctx context.Context, providerID uuid.UUID) (*aiv1.HealthCheckResponse, error) {
 	provider, err := d.providerDB.FindByID(ctx, providerID)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	if provider == nil {
-		return false, ErrProviderNotFound
+		return nil, ErrProviderNotFound
 	}
 
 	adapter, err := d.vendorRegistry.GetForProvider(provider)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	err = adapter.HealthCheck(ctx, provider, provider.APIKey)
@@ -674,7 +871,7 @@ func (d *aiDomain) ProviderHealthCheck(ctx context.Context, providerID uuid.UUID
 
 	d.updateProviderHealth(providerID, healthy)
 
-	return healthy, nil
+	return &aiv1.HealthCheckResponse{ProviderId: providerID.String(), Healthy: healthy}, nil
 }
 
 // ===== Health Monitoring =====

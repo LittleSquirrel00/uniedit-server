@@ -1,98 +1,166 @@
 package mediaproto
 
 import (
-	"bytes"
-	"io"
+	"errors"
+	"fmt"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
 	commonv1 "github.com/uniedit/server/api/pb/common"
 	mediav1 "github.com/uniedit/server/api/pb/media"
-	mediahttp "github.com/uniedit/server/internal/adapter/inbound/http/media"
+	"github.com/uniedit/server/internal/domain/media"
+	"github.com/uniedit/server/internal/port/inbound"
 	"github.com/uniedit/server/internal/transport/protohttp"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
+	"github.com/uniedit/server/internal/utils/middleware"
 )
 
-// Handler adapts media HTTP handlers to proto-defined interfaces.
 type Handler struct {
-	media *mediahttp.Handler
+	media inbound.MediaDomain
 }
 
-// NewHandler creates a new media proto adapter.
-func NewHandler(media *mediahttp.Handler) *Handler {
+func NewHandler(media inbound.MediaDomain) *Handler {
 	return &Handler{media: media}
 }
 
 // ===== MediaService =====
 
 func (h *Handler) GenerateImage(c *gin.Context, in *mediav1.GenerateImageRequest) (*mediav1.GenerateImageResponse, error) {
-	if err := resetBody(c, in); err != nil {
+	userID, err := requireUserID(c)
+	if err != nil {
 		return nil, err
 	}
-	h.media.GenerateImage(c)
-	return nil, protohttp.ErrHandled
+
+	out, err := h.media.GenerateImage(c.Request.Context(), userID, in)
+	if err != nil {
+		return nil, mapMediaError(err)
+	}
+
+	return out, nil
 }
 
 func (h *Handler) GenerateVideo(c *gin.Context, in *mediav1.GenerateVideoRequest) (*mediav1.VideoGenerationStatus, error) {
-	if err := resetBody(c, in); err != nil {
+	userID, err := requireUserID(c)
+	if err != nil {
 		return nil, err
 	}
-	h.media.GenerateVideo(c)
-	return nil, protohttp.ErrHandled
+
+	out, err := h.media.GenerateVideo(c.Request.Context(), userID, in)
+	if err != nil {
+		return nil, mapMediaError(err)
+	}
+
+	return out, nil
 }
 
 func (h *Handler) GetVideoStatus(c *gin.Context, in *mediav1.GetByTaskIDRequest) (*mediav1.VideoGenerationStatus, error) {
-	h.media.GetVideoStatus(c)
-	return nil, protohttp.ErrHandled
+	userID, err := requireUserID(c)
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := h.media.GetVideoStatus(c.Request.Context(), userID, in)
+	if err != nil {
+		return nil, mapMediaError(err)
+	}
+	return out, nil
 }
 
 func (h *Handler) ListTasks(c *gin.Context, in *mediav1.ListTasksRequest) (*mediav1.ListTasksResponse, error) {
-	h.media.ListTasks(c)
-	return nil, protohttp.ErrHandled
+	userID, err := requireUserID(c)
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := h.media.ListTasks(c.Request.Context(), userID, in)
+	if err != nil {
+		return nil, mapMediaError(err)
+	}
+	return out, nil
 }
 
 func (h *Handler) GetTask(c *gin.Context, in *mediav1.GetByTaskIDRequest) (*mediav1.MediaTask, error) {
-	h.media.GetTask(c)
-	return nil, protohttp.ErrHandled
+	userID, err := requireUserID(c)
+	if err != nil {
+		return nil, err
+	}
+
+	task, err := h.media.GetTask(c.Request.Context(), userID, in)
+	if err != nil {
+		return nil, mapMediaError(err)
+	}
+	return task, nil
 }
 
 func (h *Handler) CancelTask(c *gin.Context, in *mediav1.GetByTaskIDRequest) (*commonv1.Empty, error) {
-	h.media.CancelTask(c)
-	return nil, protohttp.ErrHandled
+	userID, err := requireUserID(c)
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := h.media.CancelTask(c.Request.Context(), userID, in)
+	if err != nil {
+		return nil, mapMediaError(err)
+	}
+
+	c.Status(http.StatusNoContent)
+	return out, nil
 }
 
 // ===== MediaAdminService =====
 
-func (h *Handler) ListProviders(c *gin.Context, in *commonv1.Empty) (*mediav1.ListProvidersResponse, error) {
-	h.media.ListProviders(c)
-	return nil, protohttp.ErrHandled
+func (h *Handler) ListProviders(c *gin.Context, _ *commonv1.Empty) (*mediav1.ListProvidersResponse, error) {
+	out, err := h.media.ListProviders(c.Request.Context(), &commonv1.Empty{})
+	if err != nil {
+		return nil, mapMediaError(err)
+	}
+	return out, nil
 }
 
 func (h *Handler) GetProvider(c *gin.Context, in *mediav1.GetByIDRequest) (*mediav1.MediaProvider, error) {
-	h.media.GetProvider(c)
-	return nil, protohttp.ErrHandled
+	p, err := h.media.GetProvider(c.Request.Context(), in)
+	if err != nil {
+		return nil, mapMediaError(err)
+	}
+	return p, nil
 }
 
 func (h *Handler) ListModels(c *gin.Context, in *mediav1.ListModelsRequest) (*mediav1.ListModelsResponse, error) {
-	h.media.ListModels(c)
-	return nil, protohttp.ErrHandled
-}
-
-func resetBody(c *gin.Context, msg proto.Message) error {
-	if c == nil || c.Request == nil || msg == nil {
-		return nil
-	}
-
-	data, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(msg)
+	out, err := h.media.ListModels(c.Request.Context(), in)
 	if err != nil {
-		return err
+		return nil, mapMediaError(err)
 	}
-
-	c.Request.Body = io.NopCloser(bytes.NewReader(data))
-	c.Request.ContentLength = int64(len(data))
-	if c.Request.Header.Get("Content-Type") == "" {
-		c.Request.Header.Set("Content-Type", "application/json")
-	}
-	return nil
+	return out, nil
 }
 
+func requireUserID(c *gin.Context) (uuid.UUID, error) {
+	userID := middleware.GetUserID(c)
+	if userID == uuid.Nil {
+		return uuid.Nil, &protohttp.HTTPError{Status: http.StatusUnauthorized, Code: "unauthorized", Message: "User not authenticated"}
+	}
+	return userID, nil
+}
+
+func mapMediaError(err error) error {
+	switch {
+	case errors.Is(err, media.ErrProviderNotFound),
+		errors.Is(err, media.ErrModelNotFound),
+		errors.Is(err, media.ErrTaskNotFound):
+		return &protohttp.HTTPError{Status: http.StatusNotFound, Code: "not_found", Message: err.Error(), Err: err}
+	case errors.Is(err, media.ErrTaskNotOwned):
+		return &protohttp.HTTPError{Status: http.StatusForbidden, Code: "forbidden", Message: err.Error(), Err: err}
+	case errors.Is(err, media.ErrInvalidInput),
+		errors.Is(err, media.ErrCapabilityNotSupported):
+		return &protohttp.HTTPError{Status: http.StatusBadRequest, Code: "invalid_request", Message: err.Error(), Err: err}
+	case errors.Is(err, media.ErrNoAdapterFound),
+		errors.Is(err, media.ErrProviderUnhealthy),
+		errors.Is(err, media.ErrNoHealthyProvider):
+		return &protohttp.HTTPError{Status: http.StatusServiceUnavailable, Code: "unavailable", Message: err.Error(), Err: err}
+	case errors.Is(err, media.ErrTaskAlreadyCompleted),
+		errors.Is(err, media.ErrTaskAlreadyCancelled):
+		return &protohttp.HTTPError{Status: http.StatusConflict, Code: "conflict", Message: err.Error(), Err: err}
+	default:
+		return &protohttp.HTTPError{Status: http.StatusInternalServerError, Code: "internal_error", Message: fmt.Sprintf("Internal server error"), Err: err}
+	}
+}

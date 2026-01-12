@@ -1,60 +1,29 @@
 package inbound
 
-import "github.com/gin-gonic/gin"
+import (
+	"context"
 
-// BillingHttpPort defines HTTP handler interface for billing operations.
-type BillingHttpPort interface {
-	// ListPlans handles GET /billing/plans
-	ListPlans(c *gin.Context)
+	"github.com/google/uuid"
+	billingv1 "github.com/uniedit/server/api/pb/billing"
+	commonv1 "github.com/uniedit/server/api/pb/common"
+)
 
-	// GetPlan handles GET /billing/plans/:id
-	GetPlan(c *gin.Context)
+// BillingDomain defines the billing inbound port with pb request/response pass-through.
+type BillingDomain interface {
+	ListPlans(ctx context.Context) (*billingv1.ListPlansResponse, error)
+	GetPlan(ctx context.Context, in *billingv1.GetByIDRequest) (*billingv1.Plan, error)
 
-	// GetSubscription handles GET /billing/subscription
-	GetSubscription(c *gin.Context)
+	GetSubscription(ctx context.Context, userID uuid.UUID) (*billingv1.Subscription, error)
+	CreateSubscription(ctx context.Context, userID uuid.UUID, in *billingv1.CreateSubscriptionRequest) (*billingv1.Subscription, error)
+	CancelSubscription(ctx context.Context, userID uuid.UUID, in *billingv1.CancelSubscriptionRequest) (*billingv1.Subscription, error)
 
-	// CreateSubscription handles POST /billing/subscription
-	CreateSubscription(c *gin.Context)
+	GetQuotaStatus(ctx context.Context, userID uuid.UUID) (*billingv1.QuotaStatus, error)
+	CheckQuota(ctx context.Context, userID uuid.UUID, in *billingv1.CheckQuotaRequest) error
 
-	// CancelSubscription handles POST /billing/subscription/cancel
-	CancelSubscription(c *gin.Context)
+	GetBalance(ctx context.Context, userID uuid.UUID) (*billingv1.GetBalanceResponse, error)
+	GetUsageStats(ctx context.Context, userID uuid.UUID, in *billingv1.GetUsageStatsRequest) (*billingv1.UsageStats, error)
 
-	// CreateCheckoutSession handles POST /billing/checkout
-	CreateCheckoutSession(c *gin.Context)
-
-	// CreatePortalSession handles POST /billing/portal
-	CreatePortalSession(c *gin.Context)
+	RecordUsage(ctx context.Context, userID uuid.UUID, in *billingv1.RecordUsageRequest) (*commonv1.MessageResponse, error)
+	AddCredits(ctx context.Context, in *billingv1.AddCreditsRequest) (*commonv1.MessageResponse, error)
 }
 
-// QuotaHttpPort defines HTTP handler interface for quota operations.
-type QuotaHttpPort interface {
-	// GetQuotaStatus handles GET /billing/quota
-	GetQuotaStatus(c *gin.Context)
-
-	// CheckQuota handles POST /billing/quota/check
-	CheckQuota(c *gin.Context)
-}
-
-// UsageHttpPort defines HTTP handler interface for usage operations.
-type UsageHttpPort interface {
-	// GetUsageStats handles GET /billing/usage
-	GetUsageStats(c *gin.Context)
-
-	// RecordUsage handles POST /billing/usage (internal use)
-	RecordUsage(c *gin.Context)
-}
-
-// CreditsHttpPort defines HTTP handler interface for credits operations.
-type CreditsHttpPort interface {
-	// GetBalance handles GET /billing/credits
-	GetBalance(c *gin.Context)
-
-	// AddCredits handles POST /billing/credits (admin only)
-	AddCredits(c *gin.Context)
-}
-
-// StripeWebhookHttpPort defines HTTP handler interface for Stripe webhooks.
-type StripeWebhookHttpPort interface {
-	// HandleWebhook handles POST /webhooks/stripe
-	HandleWebhook(c *gin.Context)
-}

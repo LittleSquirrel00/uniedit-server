@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	commonv1 "github.com/uniedit/server/api/pb/common"
+	gitv1 "github.com/uniedit/server/api/pb/git"
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/inbound"
 	"github.com/uniedit/server/internal/port/outbound"
@@ -67,9 +69,12 @@ func NewDomain(
 // ===== Repository Operations =====
 
 // CreateRepo creates a new repository.
-func (d *Domain) CreateRepo(ctx context.Context, ownerID uuid.UUID, input *inbound.GitCreateRepoInput) (*model.GitRepo, error) {
+func (d *Domain) CreateRepo(ctx context.Context, ownerID uuid.UUID, in *gitv1.CreateRepoRequest) (*gitv1.Repo, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
 	// Generate slug from name
-	slug := generateSlug(input.Name)
+	slug := generateSlug(in.GetName())
 	if !slugRegex.MatchString(slug) {
 		return nil, ErrInvalidRepoName
 	}
@@ -100,25 +105,25 @@ func (d *Domain) CreateRepo(ctx context.Context, ownerID uuid.UUID, input *inbou
 	storagePath := fmt.Sprintf("%s%s/%s/", d.cfg.RepoPrefix, ownerID.String(), repoID.String())
 
 	repoType := model.GitRepoTypeCode
-	if input.Type != "" {
-		repoType = input.Type
+	if t := in.GetType(); t != "" {
+		repoType = model.GitRepoType(t)
 	}
 
 	visibility := model.GitVisibilityPrivate
-	if input.Visibility != "" {
-		visibility = input.Visibility
+	if v := in.GetVisibility(); v != "" {
+		visibility = model.GitVisibility(v)
 	}
 
 	repo := &model.GitRepo{
 		ID:            repoID,
 		OwnerID:       ownerID,
-		Name:          input.Name,
+		Name:          in.GetName(),
 		Slug:          slug,
 		RepoType:      repoType,
 		Visibility:    visibility,
-		Description:   input.Description,
+		Description:   in.GetDescription(),
 		DefaultBranch: d.cfg.DefaultBranch,
-		LFSEnabled:    input.LFSEnabled,
+		LFSEnabled:    in.GetLfsEnabled(),
 		StoragePath:   storagePath,
 	}
 
@@ -137,10 +142,10 @@ func (d *Domain) CreateRepo(ctx context.Context, ownerID uuid.UUID, input *inbou
 	d.logger.Info("repository created",
 		zap.String("repo_id", repoID.String()),
 		zap.String("owner_id", ownerID.String()),
-		zap.String("name", input.Name),
+		zap.String("name", in.GetName()),
 	)
 
-	return repo, nil
+	return toRepoPB(repo, d.cfg.BaseURL), nil
 }
 
 // initBareRepo initializes a bare Git repository in storage.
@@ -226,19 +231,6 @@ func (d *Domain) initBareRepo(ctx context.Context, repo *model.GitRepo) error {
 	return nil
 }
 
-// GetRepo retrieves a repository by ID.
-func (d *Domain) GetRepo(ctx context.Context, id uuid.UUID) (*model.GitRepo, error) {
-	repo, err := d.repoDB.FindByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if repo == nil {
-		return nil, ErrRepoNotFound
-	}
-	return repo, nil
-}
-
-// GetRepoByOwnerAndSlug retrieves a repository by owner and slug.
 func (d *Domain) GetRepoByOwnerAndSlug(ctx context.Context, ownerID uuid.UUID, slug string) (*model.GitRepo, error) {
 	repo, err := d.repoDB.FindByOwnerAndSlug(ctx, ownerID, slug)
 	if err != nil {
@@ -250,21 +242,92 @@ func (d *Domain) GetRepoByOwnerAndSlug(ctx context.Context, ownerID uuid.UUID, s
 	return repo, nil
 }
 
-// ListRepos lists repositories for a user.
-func (d *Domain) ListRepos(ctx context.Context, ownerID uuid.UUID, filter *inbound.GitRepoFilter) ([]*model.GitRepo, int64, error) {
-	dbFilter := convertFilter(filter)
-	return d.repoDB.FindByOwner(ctx, ownerID, dbFilter)
+// ===== Inbound.GitDomain (pb pass-through) =====
+
+func (d *Domain) ListRepos(ctx context.Context, ownerID uuid.UUID, in *gitv1.ListReposRequest) (*gitv1.ListReposResponse, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	filter, page, pageSize := repoFilterFromPB(in)
+	repos, total, err := d.repoDB.FindByOwner(ctx, ownerID, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*gitv1.Repo, 0, len(repos))
+	for _, r := range repos {
+		out = append(out, toRepoPB(r, d.cfg.BaseURL))
+	}
+
+	return &gitv1.ListReposResponse{
+		Repos:      out,
+		TotalCount: total,
+		Page:       int32(page),
+		PageSize:   int32(pageSize),
+	}, nil
 }
 
-// ListPublicRepos lists public repositories.
-func (d *Domain) ListPublicRepos(ctx context.Context, filter *inbound.GitRepoFilter) ([]*model.GitRepo, int64, error) {
-	dbFilter := convertFilter(filter)
-	return d.repoDB.FindPublic(ctx, dbFilter)
+func (d *Domain) ListPublicRepos(ctx context.Context, in *gitv1.ListReposRequest) (*gitv1.ListReposResponse, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	filter, page, pageSize := repoFilterFromPB(in)
+	repos, total, err := d.repoDB.FindPublic(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*gitv1.Repo, 0, len(repos))
+	for _, r := range repos {
+		out = append(out, toRepoPB(r, d.cfg.BaseURL))
+	}
+
+	return &gitv1.ListReposResponse{
+		Repos:      out,
+		TotalCount: total,
+		Page:       int32(page),
+		PageSize:   int32(pageSize),
+	}, nil
 }
 
-// UpdateRepo updates a repository.
-func (d *Domain) UpdateRepo(ctx context.Context, id uuid.UUID, userID uuid.UUID, input *inbound.GitUpdateRepoInput) (*model.GitRepo, error) {
-	repo, err := d.repoDB.FindByID(ctx, id)
+func (d *Domain) GetRepo(ctx context.Context, userID uuid.UUID, in *gitv1.GetByIDRequest) (*gitv1.Repo, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repo, err := d.repoDB.FindByID(ctx, repoID)
+	if err != nil {
+		return nil, err
+	}
+	if repo == nil {
+		return nil, ErrRepoNotFound
+	}
+
+	if err := d.checkAccessToRepo(ctx, repo, userID, model.GitPermissionRead); err != nil {
+		return nil, err
+	}
+
+	return toRepoPB(repo, d.cfg.BaseURL), nil
+}
+
+func (d *Domain) UpdateRepo(ctx context.Context, userID uuid.UUID, in *gitv1.UpdateRepoRequest) (*gitv1.Repo, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repo, err := d.repoDB.FindByID(ctx, repoID)
 	if err != nil {
 		return nil, err
 	}
@@ -274,14 +337,17 @@ func (d *Domain) UpdateRepo(ctx context.Context, id uuid.UUID, userID uuid.UUID,
 
 	// Check ownership or admin permission
 	if repo.OwnerID != userID {
-		if err := d.CheckAccess(ctx, id, userID, model.GitPermissionAdmin); err != nil {
-			return nil, ErrNotOwner
+		if err := d.checkAccessToRepo(ctx, repo, userID, model.GitPermissionAdmin); err != nil {
+			if err == ErrAccessDenied {
+				return nil, ErrNotOwner
+			}
+			return nil, err
 		}
 	}
 
-	// Update fields
-	if input.Name != "" {
-		newSlug := generateSlug(input.Name)
+	// Update fields (keep behavior compatible with previous handler: empty string means "ignore")
+	if v := in.GetName(); v != nil && v.GetValue() != "" {
+		newSlug := generateSlug(v.GetValue())
 		if !slugRegex.MatchString(newSlug) {
 			return nil, ErrInvalidRepoName
 		}
@@ -291,46 +357,51 @@ func (d *Domain) UpdateRepo(ctx context.Context, id uuid.UUID, userID uuid.UUID,
 				return nil, ErrRepoAlreadyExists
 			}
 		}
-		repo.Name = input.Name
+		repo.Name = v.GetValue()
 		repo.Slug = newSlug
 	}
 
-	if input.Description != "" {
-		repo.Description = input.Description
+	if v := in.GetDescription(); v != nil && v.GetValue() != "" {
+		repo.Description = v.GetValue()
 	}
-
-	if input.Visibility != "" {
-		repo.Visibility = input.Visibility
+	if v := in.GetVisibility(); v != nil && v.GetValue() != "" {
+		repo.Visibility = model.GitVisibility(v.GetValue())
 	}
-
-	if input.DefaultBranch != "" {
-		repo.DefaultBranch = input.DefaultBranch
+	if v := in.GetDefaultBranch(); v != nil && v.GetValue() != "" {
+		repo.DefaultBranch = v.GetValue()
 	}
-
-	if input.LFSEnabled != nil {
-		repo.LFSEnabled = *input.LFSEnabled
+	if v := in.GetLfsEnabled(); v != nil {
+		repo.LFSEnabled = v.GetValue()
 	}
 
 	if err := d.repoDB.Update(ctx, repo); err != nil {
 		return nil, fmt.Errorf("update repo: %w", err)
 	}
 
-	return repo, nil
+	return toRepoPB(repo, d.cfg.BaseURL), nil
 }
 
-// DeleteRepo deletes a repository.
-func (d *Domain) DeleteRepo(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
-	repo, err := d.repoDB.FindByID(ctx, id)
+func (d *Domain) DeleteRepo(ctx context.Context, userID uuid.UUID, in *gitv1.GetByIDRequest) (*commonv1.Empty, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
 	if err != nil {
-		return err
+		return nil, ErrInvalidRequest
+	}
+
+	repo, err := d.repoDB.FindByID(ctx, repoID)
+	if err != nil {
+		return nil, err
 	}
 	if repo == nil {
-		return ErrRepoNotFound
+		return nil, ErrRepoNotFound
 	}
 
 	// Only owner can delete
 	if repo.OwnerID != userID {
-		return ErrNotOwner
+		return nil, ErrNotOwner
 	}
 
 	// Delete from storage
@@ -339,16 +410,16 @@ func (d *Domain) DeleteRepo(ctx context.Context, id uuid.UUID, userID uuid.UUID)
 	}
 
 	// Delete from database
-	if err := d.repoDB.Delete(ctx, id); err != nil {
-		return fmt.Errorf("delete repo: %w", err)
+	if err := d.repoDB.Delete(ctx, repoID); err != nil {
+		return nil, fmt.Errorf("delete repo: %w", err)
 	}
 
 	d.logger.Info("repository deleted",
-		zap.String("repo_id", id.String()),
+		zap.String("repo_id", repoID.String()),
 		zap.String("owner_id", userID.String()),
 	)
 
-	return nil
+	return empty(), nil
 }
 
 // ===== Access Control =====
@@ -402,6 +473,35 @@ func (d *Domain) CanAccess(ctx context.Context, repoID uuid.UUID, userID *uuid.U
 	return hasPermission(collab.Permission, required), nil
 }
 
+func (d *Domain) checkAccessToRepo(ctx context.Context, repo *model.GitRepo, userID uuid.UUID, required model.GitPermission) error {
+	if repo == nil {
+		return ErrRepoNotFound
+	}
+
+	// Public repos allow read access to everyone (protected endpoints still require auth).
+	if repo.IsPublic() && required == model.GitPermissionRead {
+		return nil
+	}
+
+	// Owner has full access.
+	if repo.OwnerID == userID {
+		return nil
+	}
+
+	collab, err := d.collabDB.FindByRepoAndUser(ctx, repo.ID, userID)
+	if err != nil {
+		return err
+	}
+	if collab == nil {
+		return ErrAccessDenied
+	}
+	if !hasPermission(collab.Permission, required) {
+		return ErrAccessDenied
+	}
+
+	return nil
+}
+
 // hasPermission checks if the granted permission level satisfies the required level.
 func hasPermission(granted, required model.GitPermission) bool {
 	levels := map[model.GitPermission]int{
@@ -425,24 +525,41 @@ func hasPermission(granted, required model.GitPermission) bool {
 
 // ===== Collaborator Operations =====
 
-// AddCollaborator adds a collaborator to a repository.
-func (d *Domain) AddCollaborator(ctx context.Context, repoID, ownerID, targetUserID uuid.UUID, permission model.GitPermission) error {
+func (d *Domain) AddCollaborator(ctx context.Context, userID uuid.UUID, in *gitv1.AddCollaboratorRequest) (*commonv1.Empty, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+	targetUserID, err := parseUUID(in.GetUserId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
+	permission := model.GitPermission(in.GetPermission())
+	if !isValidGitPermission(permission) {
+		return nil, ErrInvalidPermission
+	}
+
 	repo, err := d.repoDB.FindByID(ctx, repoID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if repo == nil {
-		return ErrRepoNotFound
+		return nil, ErrRepoNotFound
 	}
 
 	// Only owner can add collaborators
-	if repo.OwnerID != ownerID {
-		return ErrNotOwner
+	if repo.OwnerID != userID {
+		return nil, ErrNotOwner
 	}
 
 	// Can't add owner as collaborator
-	if targetUserID == ownerID {
-		return ErrInvalidPermission
+	if targetUserID == userID {
+		return nil, ErrInvalidPermission
 	}
 
 	collab := &model.GitRepoCollaborator{
@@ -453,30 +570,76 @@ func (d *Domain) AddCollaborator(ctx context.Context, repoID, ownerID, targetUse
 	}
 
 	if err := d.collabDB.Add(ctx, collab); err != nil {
-		return fmt.Errorf("add collaborator: %w", err)
+		return nil, fmt.Errorf("add collaborator: %w", err)
 	}
 
-	return nil
+	return empty(), nil
 }
 
-// ListCollaborators lists collaborators of a repository.
-func (d *Domain) ListCollaborators(ctx context.Context, repoID uuid.UUID) ([]*model.GitRepoCollaborator, error) {
-	return d.collabDB.FindByRepo(ctx, repoID)
-}
+func (d *Domain) ListCollaborators(ctx context.Context, userID uuid.UUID, in *gitv1.GetByIDRequest) (*gitv1.ListCollaboratorsResponse, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
 
-// UpdateCollaborator updates a collaborator's permission.
-func (d *Domain) UpdateCollaborator(ctx context.Context, repoID, ownerID, targetUserID uuid.UUID, permission model.GitPermission) error {
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
 	repo, err := d.repoDB.FindByID(ctx, repoID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if repo == nil {
-		return ErrRepoNotFound
+		return nil, ErrRepoNotFound
+	}
+
+	if err := d.checkAccessToRepo(ctx, repo, userID, model.GitPermissionRead); err != nil {
+		return nil, err
+	}
+
+	items, err := d.collabDB.FindByRepo(ctx, repoID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*gitv1.Collaborator, 0, len(items))
+	for _, it := range items {
+		out = append(out, toCollaboratorPB(it))
+	}
+	return &gitv1.ListCollaboratorsResponse{Collaborators: out}, nil
+}
+
+func (d *Domain) UpdateCollaborator(ctx context.Context, userID uuid.UUID, in *gitv1.UpdateCollaboratorRequest) (*commonv1.Empty, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+	targetUserID, err := parseUUID(in.GetUserId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
+	permission := model.GitPermission(in.GetPermission())
+	if !isValidGitPermission(permission) {
+		return nil, ErrInvalidPermission
+	}
+
+	repo, err := d.repoDB.FindByID(ctx, repoID)
+	if err != nil {
+		return nil, err
+	}
+	if repo == nil {
+		return nil, ErrRepoNotFound
 	}
 
 	// Only owner can update collaborators
-	if repo.OwnerID != ownerID {
-		return ErrNotOwner
+	if repo.OwnerID != userID {
+		return nil, ErrNotOwner
 	}
 
 	collab := &model.GitRepoCollaborator{
@@ -486,45 +649,65 @@ func (d *Domain) UpdateCollaborator(ctx context.Context, repoID, ownerID, target
 	}
 
 	if err := d.collabDB.Update(ctx, collab); err != nil {
-		return fmt.Errorf("update collaborator: %w", err)
+		return nil, fmt.Errorf("update collaborator: %w", err)
 	}
 
-	return nil
+	return empty(), nil
 }
 
-// RemoveCollaborator removes a collaborator from a repository.
-func (d *Domain) RemoveCollaborator(ctx context.Context, repoID, ownerID, targetUserID uuid.UUID) error {
+func (d *Domain) RemoveCollaborator(ctx context.Context, userID uuid.UUID, in *gitv1.RemoveCollaboratorRequest) (*commonv1.Empty, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+	targetUserID, err := parseUUID(in.GetUserId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
 	repo, err := d.repoDB.FindByID(ctx, repoID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if repo == nil {
-		return ErrRepoNotFound
+		return nil, ErrRepoNotFound
 	}
 
 	// Only owner can remove collaborators
-	if repo.OwnerID != ownerID {
-		return ErrNotOwner
+	if repo.OwnerID != userID {
+		return nil, ErrNotOwner
 	}
 
 	if err := d.collabDB.Remove(ctx, repoID, targetUserID); err != nil {
-		return fmt.Errorf("remove collaborator: %w", err)
+		return nil, fmt.Errorf("remove collaborator: %w", err)
 	}
 
-	return nil
+	return empty(), nil
 }
 
 // ===== Pull Request Operations =====
 
-// CreatePR creates a new pull request.
-func (d *Domain) CreatePR(ctx context.Context, repoID, authorID uuid.UUID, input *inbound.GitCreatePRInput) (*model.GitPullRequest, error) {
+func (d *Domain) CreatePR(ctx context.Context, userID uuid.UUID, in *gitv1.CreatePRRequest) (*gitv1.PullRequest, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
 	// Check access
-	if err := d.CheckAccess(ctx, repoID, authorID, model.GitPermissionRead); err != nil {
+	if err := d.CheckAccess(ctx, repoID, userID, model.GitPermissionRead); err != nil {
 		return nil, err
 	}
 
 	// Validate branches
-	if input.SourceBranch == input.TargetBranch {
+	if in.GetSourceBranch() == in.GetTargetBranch() {
 		return nil, ErrSameBranch
 	}
 
@@ -538,23 +721,36 @@ func (d *Domain) CreatePR(ctx context.Context, repoID, authorID uuid.UUID, input
 		ID:           uuid.New(),
 		RepoID:       repoID,
 		Number:       number,
-		Title:        input.Title,
-		Description:  input.Description,
-		SourceBranch: input.SourceBranch,
-		TargetBranch: input.TargetBranch,
+		Title:        in.GetTitle(),
+		Description:  in.GetDescription(),
+		SourceBranch: in.GetSourceBranch(),
+		TargetBranch: in.GetTargetBranch(),
 		Status:       model.GitPRStatusOpen,
-		AuthorID:     authorID,
+		AuthorID:     userID,
 	}
 
 	if err := d.prDB.Create(ctx, pr); err != nil {
 		return nil, fmt.Errorf("create PR: %w", err)
 	}
 
-	return pr, nil
+	return toPullRequestPB(pr), nil
 }
 
-// GetPR retrieves a pull request by number.
-func (d *Domain) GetPR(ctx context.Context, repoID uuid.UUID, number int) (*model.GitPullRequest, error) {
+func (d *Domain) GetPR(ctx context.Context, userID uuid.UUID, in *gitv1.GetPRRequest) (*gitv1.PullRequest, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
+	if err := d.CheckAccess(ctx, repoID, userID, model.GitPermissionRead); err != nil {
+		return nil, err
+	}
+
+	number := int(in.GetNumber())
 	pr, err := d.prDB.FindByNumber(ctx, repoID, number)
 	if err != nil {
 		return nil, err
@@ -562,16 +758,65 @@ func (d *Domain) GetPR(ctx context.Context, repoID uuid.UUID, number int) (*mode
 	if pr == nil {
 		return nil, ErrPRNotFound
 	}
-	return pr, nil
+	return toPullRequestPB(pr), nil
 }
 
-// ListPRs lists pull requests for a repository.
-func (d *Domain) ListPRs(ctx context.Context, repoID uuid.UUID, status *model.GitPRStatus, limit, offset int) ([]*model.GitPullRequest, int64, error) {
-	return d.prDB.FindByRepo(ctx, repoID, status, limit, offset)
+func (d *Domain) ListPRs(ctx context.Context, userID uuid.UUID, in *gitv1.ListPRsRequest) (*gitv1.ListPRsResponse, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
+	if err := d.CheckAccess(ctx, repoID, userID, model.GitPermissionRead); err != nil {
+		return nil, err
+	}
+
+	var status *model.GitPRStatus
+	if s := in.GetStatus(); s != "" {
+		v := model.GitPRStatus(s)
+		status = &v
+	}
+
+	limit := int(in.GetLimit())
+	offset := int(in.GetOffset())
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	prs, total, err := d.prDB.FindByRepo(ctx, repoID, status, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*gitv1.PullRequest, 0, len(prs))
+	for _, pr := range prs {
+		out = append(out, toPullRequestPB(pr))
+	}
+	return &gitv1.ListPRsResponse{PullRequests: out, TotalCount: total}, nil
 }
 
-// UpdatePR updates a pull request.
-func (d *Domain) UpdatePR(ctx context.Context, repoID uuid.UUID, number int, userID uuid.UUID, input *inbound.GitUpdatePRInput) (*model.GitPullRequest, error) {
+func (d *Domain) UpdatePR(ctx context.Context, userID uuid.UUID, in *gitv1.UpdatePRRequest) (*gitv1.PullRequest, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
+	number := int(in.GetNumber())
+
 	pr, err := d.prDB.FindByNumber(ctx, repoID, number)
 	if err != nil {
 		return nil, err
@@ -592,18 +837,18 @@ func (d *Domain) UpdatePR(ctx context.Context, repoID uuid.UUID, number int, use
 		return nil, ErrPRAlreadyMerged
 	}
 
-	if input.Title != "" {
-		pr.Title = input.Title
+	if v := in.GetTitle(); v != nil && v.GetValue() != "" {
+		pr.Title = v.GetValue()
 	}
-	if input.Description != "" {
-		pr.Description = input.Description
+	if v := in.GetDescription(); v != nil && v.GetValue() != "" {
+		pr.Description = v.GetValue()
 	}
-	if input.Status != "" {
-		if input.Status == "closed" && pr.Status.IsOpen() {
+	if v := in.GetStatus(); v != nil && v.GetValue() != "" {
+		if v.GetValue() == "closed" && pr.Status.IsOpen() {
 			now := time.Now()
 			pr.Status = model.GitPRStatusClosed
 			pr.ClosedAt = &now
-		} else if input.Status == "open" && pr.Status == model.GitPRStatusClosed {
+		} else if v.GetValue() == "open" && pr.Status == model.GitPRStatusClosed {
 			pr.Status = model.GitPRStatusOpen
 			pr.ClosedAt = nil
 		}
@@ -613,11 +858,21 @@ func (d *Domain) UpdatePR(ctx context.Context, repoID uuid.UUID, number int, use
 		return nil, fmt.Errorf("update PR: %w", err)
 	}
 
-	return pr, nil
+	return toPullRequestPB(pr), nil
 }
 
-// MergePR merges a pull request.
-func (d *Domain) MergePR(ctx context.Context, repoID uuid.UUID, number int, userID uuid.UUID) (*model.GitPullRequest, error) {
+func (d *Domain) MergePR(ctx context.Context, userID uuid.UUID, in *gitv1.GetPRRequest) (*gitv1.PullRequest, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
+	number := int(in.GetNumber())
+
 	// Check write access
 	if err := d.CheckAccess(ctx, repoID, userID, model.GitPermissionWrite); err != nil {
 		return nil, err
@@ -648,13 +903,21 @@ func (d *Domain) MergePR(ctx context.Context, repoID uuid.UUID, number int, user
 		return nil, fmt.Errorf("update PR: %w", err)
 	}
 
-	return pr, nil
+	return toPullRequestPB(pr), nil
 }
 
 // ===== Storage Operations =====
 
-// GetStorageStats returns storage statistics for a repository.
-func (d *Domain) GetStorageStats(ctx context.Context, repoID uuid.UUID) (*inbound.GitStorageStats, error) {
+func (d *Domain) GetStorageStats(ctx context.Context, userID uuid.UUID, in *gitv1.GetByIDRequest) (*gitv1.StorageStats, error) {
+	if in == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	repoID, err := parseUUID(in.GetId())
+	if err != nil {
+		return nil, ErrInvalidRequest
+	}
+
 	repo, err := d.repoDB.FindByID(ctx, repoID)
 	if err != nil {
 		return nil, err
@@ -663,54 +926,21 @@ func (d *Domain) GetStorageStats(ctx context.Context, repoID uuid.UUID) (*inboun
 		return nil, ErrRepoNotFound
 	}
 
+	if err := d.checkAccessToRepo(ctx, repo, userID, model.GitPermissionRead); err != nil {
+		return nil, err
+	}
+
 	// Get LFS object count
 	lfsObjects, err := d.lfsObjDB.FindByRepo(ctx, repoID)
 	if err != nil {
 		return nil, fmt.Errorf("list LFS objects: %w", err)
 	}
 
-	return &inbound.GitStorageStats{
+	return &gitv1.StorageStats{
 		RepoSizeBytes:  repo.SizeBytes,
-		LFSSizeBytes:   repo.LFSSizeBytes,
+		LfsSizeBytes:   repo.LFSSizeBytes,
 		TotalSizeBytes: repo.TotalSize(),
-		LFSObjectCount: len(lfsObjects),
-	}, nil
-}
-
-// GetUserStorageStats returns storage statistics for a user.
-func (d *Domain) GetUserStorageStats(ctx context.Context, userID uuid.UUID) (*inbound.GitUserStorageStats, error) {
-	totalUsed, err := d.lfsObjDB.GetUserTotalStorage(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get total storage: %w", err)
-	}
-
-	// Get repo count
-	repos, _, err := d.repoDB.FindByOwner(ctx, userID, nil)
-	if err != nil {
-		return nil, fmt.Errorf("list repos: %w", err)
-	}
-
-	var quota int64 = -1
-	if d.quotaChecker != nil {
-		q, err := d.quotaChecker.GetStorageQuota(ctx, userID)
-		if err == nil {
-			quota = q
-		}
-	}
-
-	remaining := int64(-1)
-	if quota > 0 {
-		remaining = quota - totalUsed
-		if remaining < 0 {
-			remaining = 0
-		}
-	}
-
-	return &inbound.GitUserStorageStats{
-		TotalUsedBytes: totalUsed,
-		QuotaBytes:     quota,
-		RemainingBytes: remaining,
-		RepoCount:      len(repos),
+		LfsObjectCount: int32(len(lfsObjects)),
 	}, nil
 }
 
@@ -762,17 +992,51 @@ func generateSlug(name string) string {
 	return slug
 }
 
-func convertFilter(filter *inbound.GitRepoFilter) *outbound.GitRepoFilter {
-	if filter == nil {
-		return nil
+func parseUUID(s string) (uuid.UUID, error) {
+	if s == "" {
+		return uuid.Nil, fmt.Errorf("empty uuid")
 	}
-	return &outbound.GitRepoFilter{
-		Type:       filter.Type,
-		Visibility: filter.Visibility,
-		Search:     filter.Search,
-		Page:       filter.Page,
-		PageSize:   filter.PageSize,
+	return uuid.Parse(s)
+}
+
+func isValidGitPermission(p model.GitPermission) bool {
+	switch p {
+	case model.GitPermissionRead, model.GitPermissionWrite, model.GitPermissionAdmin:
+		return true
+	default:
+		return false
 	}
+}
+
+func repoFilterFromPB(in *gitv1.ListReposRequest) (*outbound.GitRepoFilter, int, int) {
+	page := int(in.GetPage())
+	pageSize := int(in.GetPageSize())
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	filter := &outbound.GitRepoFilter{
+		Search:   in.GetSearch(),
+		Page:     page,
+		PageSize: pageSize,
+	}
+
+	if t := in.GetType(); t != "" {
+		rt := model.GitRepoType(t)
+		filter.Type = &rt
+	}
+	if v := in.GetVisibility(); v != "" {
+		vis := model.GitVisibility(v)
+		filter.Visibility = &vis
+	}
+
+	return filter, page, pageSize
 }
 
 // Compile-time interface check
