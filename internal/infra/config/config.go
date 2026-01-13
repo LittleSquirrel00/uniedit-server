@@ -15,6 +15,7 @@ type Config struct {
 	Redis      RedisConfig      `mapstructure:"redis"`
 	HTTPClient HTTPClientConfig `mapstructure:"http_client"`
 	RateLimit  RateLimitConfig  `mapstructure:"rate_limit"`
+	AccessControl AccessControlConfig `mapstructure:"access_control"`
 	AI         AIConfig         `mapstructure:"ai"`
 	Auth       AuthConfig       `mapstructure:"auth"`
 	Storage    StorageConfig    `mapstructure:"storage"`
@@ -30,6 +31,14 @@ type Config struct {
 // FeaturesConfig holds feature flags for gradual rollout.
 type FeaturesConfig struct {
 	UseNewArchitecture bool `mapstructure:"use_new_architecture"` // Use hexagonal architecture (app_v2)
+}
+
+// AccessControlConfig holds privileged account configuration (admins/SRE).
+type AccessControlConfig struct {
+	AdminEmails  []string `mapstructure:"admin_emails"`
+	SREEmails    []string `mapstructure:"sre_emails"`
+	AdminUserIDs []string `mapstructure:"admin_user_ids"`
+	SREUserIDs   []string `mapstructure:"sre_user_ids"`
 }
 
 // ServerConfig holds HTTP server configuration.
@@ -311,7 +320,66 @@ func Load() (*Config, error) {
 		cfg.Wechat.PrivateKey = privateKey
 	}
 
+	// Access control from environment (comma-separated lists).
+	if s := os.Getenv("UNIEDIT_ADMIN_EMAILS"); s != "" {
+		cfg.AccessControl.AdminEmails = parseCommaSeparatedList(s)
+	}
+	if s := os.Getenv("UNIEDIT_SRE_EMAILS"); s != "" {
+		cfg.AccessControl.SREEmails = parseCommaSeparatedList(s)
+	}
+	if s := os.Getenv("UNIEDIT_ADMIN_USER_IDS"); s != "" {
+		cfg.AccessControl.AdminUserIDs = parseCommaSeparatedList(s)
+	}
+	if s := os.Getenv("UNIEDIT_SRE_USER_IDS"); s != "" {
+		cfg.AccessControl.SREUserIDs = parseCommaSeparatedList(s)
+	}
+
 	return &cfg, nil
+}
+
+func parseCommaSeparatedList(s string) []string {
+	if s == "" {
+		return nil
+	}
+
+	var out []string
+	start := 0
+	for i := 0; i <= len(s); i++ {
+		if i == len(s) || s[i] == ',' {
+			part := s[start:i]
+			start = i + 1
+			part = trimSpace(part)
+			if part != "" {
+				out = append(out, part)
+			}
+		}
+	}
+	return out
+}
+
+func trimSpace(s string) string {
+	// strings.TrimSpace without importing strings in config hot path.
+	start := 0
+	for start < len(s) {
+		switch s[start] {
+		case ' ', '\t', '\n', '\r':
+			start++
+		default:
+			goto leftDone
+		}
+	}
+leftDone:
+	end := len(s)
+	for end > start {
+		switch s[end-1] {
+		case ' ', '\t', '\n', '\r':
+			end--
+		default:
+			goto rightDone
+		}
+	}
+rightDone:
+	return s[start:end]
 }
 
 // setDefaults sets default configuration values.
@@ -354,6 +422,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("rate_limit.api_limit", 60)
 	v.SetDefault("rate_limit.api_window", time.Minute)
 	v.SetDefault("rate_limit.idempotency_ttl", 24*time.Hour)
+
+	// Access control defaults
+	v.SetDefault("access_control.admin_emails", []string{})
+	v.SetDefault("access_control.sre_emails", []string{})
+	v.SetDefault("access_control.admin_user_ids", []string{})
+	v.SetDefault("access_control.sre_user_ids", []string{})
 
 	// AI defaults
 	v.SetDefault("ai.health_check_interval", 30*time.Second)

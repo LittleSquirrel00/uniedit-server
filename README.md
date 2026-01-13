@@ -115,6 +115,7 @@ cd uniedit-server
 # 复制配置文件
 cp configs/config.example.yaml configs/config.yaml
 # 编辑 configs/config.yaml 配置数据库和 Redis
+# 如需调用 /api/v1 下的管理接口（如 /admin/ai/*、/billing/credits、用户管理等），请配置 access_control.admin_emails / access_control.sre_emails
 
 # 方式一：使用 Docker Compose 启动依赖服务
 docker-compose up -d

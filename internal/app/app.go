@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/gin-gonic/gin"
@@ -186,6 +187,27 @@ func (a *App) registerRoutes() {
 	jwtValidator := middleware.NewAuthDomainValidator(a.authDomain.ValidateAccessToken)
 	authMiddleware := middleware.RequireAuth(jwtValidator)
 
+	roleAuthorizer := middleware.NewSystemRoleAuthorizer(
+		a.config.AccessControl.AdminEmails,
+		a.config.AccessControl.SREEmails,
+		a.config.AccessControl.AdminUserIDs,
+		a.config.AccessControl.SREUserIDs,
+		middleware.WithUserAdminChecker(func(ctx context.Context, userID uuid.UUID) (bool, error) {
+			u, err := a.userDomain.GetUser(ctx, userID)
+			if err != nil {
+				// Not found means no privilege; other errors should fail closed.
+				if errors.Is(err, user.ErrUserNotFound) {
+					return false, nil
+				}
+				return false, err
+			}
+			if u == nil {
+				return false, nil
+			}
+			return u.IsAdmin, nil
+		}),
+	)
+
 	// API v1 group
 	v1 := a.router.Group("/api/v1")
 
@@ -211,9 +233,8 @@ func (a *App) registerRoutes() {
 	protectedRouter.Use(authMiddleware)
 
 	// ===== Admin Routes (requires admin auth) =====
-	// TODO: Add admin middleware when available
 	adminRouter := protectedRouter.Group("")
-	// adminRouter.Use(middleware.RequireAdmin())
+	adminRouter.Use(middleware.RequireAdminOrSRE(roleAuthorizer))
 
 	// Proto-defined routes (from ./api/protobuf_spec)
 	a.registerProtoRoutes(v1, protectedRouter, adminRouter)

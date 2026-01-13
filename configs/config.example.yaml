@@ -24,6 +24,18 @@ redis:
   password: ""  # Set via UNIEDIT_REDIS_PASSWORD env var
   db: 0
 
+# 管理/运维账号配置（支持按 Email 或用户 ID 白名单）
+# - 也可用环境变量覆盖（逗号分隔）：
+#   - UNIEDIT_ADMIN_EMAILS="admin@xxx.com,root@xxx.com"
+#   - UNIEDIT_SRE_EMAILS="sre@xxx.com"
+#   - UNIEDIT_ADMIN_USER_IDS="uuid1,uuid2"
+#   - UNIEDIT_SRE_USER_IDS="uuid3"
+access_control:
+  admin_emails: []
+  sre_emails: []
+  admin_user_ids: []
+  sre_user_ids: []
+
 ai:
   health_check_interval: 30s
   failure_threshold: 5

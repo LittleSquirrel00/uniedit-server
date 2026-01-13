@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uniedit/server/internal/utils/logger"
@@ -246,6 +248,97 @@ func TestRecovery(t *testing.T) {
 		})
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func TestRequireAnySystemRole(t *testing.T) {
+	setUser := func(userID uuid.UUID, email string) gin.HandlerFunc {
+		return func(c *gin.Context) {
+			if userID != uuid.Nil {
+				c.Set(UserIDKey, userID)
+			}
+			if email != "" {
+				c.Set(EmailKey, email)
+			}
+			c.Next()
+		}
+	}
+
+	t.Run("returns 401 when unauthenticated", func(t *testing.T) {
+		router := gin.New()
+		authorizer := NewSystemRoleAuthorizer([]string{"admin@example.com"}, nil, nil, nil)
+		router.GET("/admin", RequireAdmin(authorizer), func(c *gin.Context) {
+			c.String(http.StatusOK, "ok")
+		})
+
+		req := httptest.NewRequest("GET", "/admin", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("returns 403 when missing role", func(t *testing.T) {
+		router := gin.New()
+		authorizer := NewSystemRoleAuthorizer([]string{"admin@example.com"}, []string{"sre@example.com"}, nil, nil)
+		router.GET("/admin", setUser(uuid.New(), "user@example.com"), RequireAdmin(authorizer), func(c *gin.Context) {
+			c.String(http.StatusOK, "ok")
+		})
+
+		req := httptest.NewRequest("GET", "/admin", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("allows admin email", func(t *testing.T) {
+		router := gin.New()
+		authorizer := NewSystemRoleAuthorizer([]string{"admin@example.com"}, nil, nil, nil)
+		router.GET("/admin", setUser(uuid.New(), "ADMIN@EXAMPLE.COM"), RequireAdmin(authorizer), func(c *gin.Context) {
+			c.String(http.StatusOK, "ok")
+		})
+
+		req := httptest.NewRequest("GET", "/admin", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("allows SRE email for admin-or-sre", func(t *testing.T) {
+		router := gin.New()
+		authorizer := NewSystemRoleAuthorizer(nil, []string{"sre@example.com"}, nil, nil)
+		router.GET("/ops", setUser(uuid.New(), "sre@example.com"), RequireAdminOrSRE(authorizer), func(c *gin.Context) {
+			c.String(http.StatusOK, "ok")
+		})
+
+		req := httptest.NewRequest("GET", "/ops", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("allows DB admin flag via checker", func(t *testing.T) {
+		router := gin.New()
+		adminID := uuid.New()
+		authorizer := NewSystemRoleAuthorizer(nil, nil, nil, nil,
+			WithUserAdminChecker(func(ctx context.Context, userID uuid.UUID) (bool, error) {
+				require.NotNil(t, ctx)
+				return userID == adminID, nil
+			}),
+		)
+
+		router.GET("/admin", setUser(adminID, "user@example.com"), RequireAdmin(authorizer), func(c *gin.Context) {
+			c.String(http.StatusOK, "ok")
+		})
+
+		req := httptest.NewRequest("GET", "/admin", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }
 
