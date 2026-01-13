@@ -37,78 +37,77 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 | 层级 | 技术 |
 |------|------|
-| 语言 | Go 1.22+ |
+| 语言 | Go 1.23+ |
 | 框架 | Gin (HTTP) + GORM (ORM) |
-| 数据库 | PostgreSQL + TimescaleDB |
-| 缓存 | Redis |
-| 对象存储 | Cloudflare R2 (S3 兼容) |
-| 支付 | Stripe |
+| 数据库 | PostgreSQL 16+ |
+| 缓存 | Redis 7+ |
+| 对象存储 | Cloudflare R2 / MinIO (S3 兼容) |
+| 构建工具 | Mage + Wire |
+| 支付 | Stripe / Alipay / WeChat Pay |
 
 **项目结构**:
 
 ```
 uniedit-server/
 ├── cmd/server/              # 程序入口
+├── api/
+│   ├── protobuf_spec/       # Proto 接口定义
+│   ├── pb/                  # 生成的 Go 代码 (*_pb.go, *_gin.pb.go)
+│   └── openapi_spec/        # 生成的 OpenAPI v2 文档
 ├── internal/
-│   ├── app/                 # 应用组装、路由
-│   ├── module/              # 业务模块
-│   │   ├── auth/            # 认证模块
-│   │   ├── provider/        # AI 提供商管理
-│   │   ├── routing/         # AI 路由模块
-│   │   ├── billing/         # 计费模块
-│   │   ├── workflow/        # 工作流模块
-│   │   ├── registry/        # 模型仓库模块
-│   │   ├── git/             # Git 托管模块
-│   │   ├── community/       # 社区模块 (P2)
-│   │   ├── render/          # 渲染模块 (P2)
-│   │   └── publish/         # 发布模块 (P2)
-│   ├── infra/               # 基础设施层（外部依赖）
-│   │   ├── config/          # 配置管理
-│   │   ├── database/        # 数据库连接
-│   │   ├── cache/           # Redis 缓存
-│   │   ├── events/          # 领域事件总线
-│   │   └── task/            # 任务队列
-│   └── utils/               # 工具层（纯函数/无状态）
-│       ├── errors/          # 错误处理
-│       ├── logger/          # 日志工具
-│       ├── metrics/         # 指标采集
-│       ├── middleware/      # HTTP 中间件
-│       ├── pagination/      # 分页工具
-│       ├── random/          # 随机数生成
-│       └── response/        # 响应格式化
+│   ├── app/                 # Wire 依赖注入、应用组装、路由注册
+│   ├── adapter/             # 适配层
+│   │   ├── inbound/http/    # HTTP Handler (xxxproto/ 使用 Proto 消息)
+│   │   └── outbound/        # Postgres/Redis/OAuth/第三方 Provider 适配器
+│   ├── domain/              # 领域层 (ai/auth/billing/order/payment/git/collaboration/media/user)
+│   ├── infra/               # 基础设施封装 (config/database/cache/httpclient)
+│   ├── port/                # 端口定义 (inbound/outbound 接口)
+│   ├── model/               # 数据库模型 (GORM)
+│   ├── transport/           # 传输层工具 (protohttp 绑定)
+│   └── utils/               # 通用工具 (logger/metrics/middleware 等)
+├── configs/                 # 配置文件模板
 ├── migrations/              # 数据库迁移
-├── api/                     # OpenAPI 定义
-├── docker/                  # Docker 配置
-└── docs/                    # 设计文档
+├── docs/                    # 设计文档
+└── openspec/                # OpenSpec 规范
 ```
 
 **模块依赖关系**:
 
 ```
-                         ┌──────────┐
-                         │   Auth   │
-                         └────┬─────┘
-          ┌──────────────────┼──────────────────┐
-          ▼                  ▼                  ▼
-     ┌────────┐        ┌──────────┐       ┌──────────┐
-     │Provider│───────▶│ Routing  │──────▶│ Billing  │
-     └────────┘        └──────────┘       └──────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      API 层 (Proto-first)                    │
+│  api/protobuf_spec/ → api/pb/ → Handler → Domain → Model    │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│                         Domain 层                            │
+│  ┌─────┐ ┌──────┐ ┌─────────┐ ┌───────┐ ┌─────────────┐     │
+│  │ AI  │ │ Auth │ │ Billing │ │ Order │ │ Collaboration│    │
+│  └──┬──┘ └──┬───┘ └────┬────┘ └───┬───┘ └──────┬──────┘     │
+│     │       │          │          │            │             │
+│  ┌──┴──┐ ┌──┴──┐ ┌────┴────┐ ┌───┴───┐ ┌──────┴──────┐     │
+│  │Media│ │User │ │ Payment │ │  Git  │ │    ...      │     │
+│  └─────┘ └─────┘ └─────────┘ └───────┘ └─────────────┘     │
+└─────────────────────────────────────────────────────────────┘
 
 规则：
-• 所有模块依赖 Auth 进行鉴权
-• Routing 依赖 Provider 获取提供商信息
-• Routing 调用 Billing 记录用量
+• Handler 层使用 Proto 消息 (api/pb/)
+• Domain 层使用 Proto 消息输入输出
+• Model 层仅在数据库边界使用
 • 同层模块不互相依赖
 ```
 
 **构建命令**:
 
 ```bash
-go build -o bin/server ./cmd/server    # 编译
-go run ./cmd/server                     # 运行
-go test ./...                           # 测试
-go test -cover ./...                    # 覆盖率
-golangci-lint run                       # 代码检查
+mage build              # 编译
+mage dev                # 构建并运行
+mage test               # 测试
+mage testCover          # 覆盖率
+mage lint               # 代码检查
+mage proto              # 生成 Proto 代码
+mage wire               # 生成 Wire 依赖注入代码
+go build -o bin/server ./cmd/server    # 直接编译
 ```
 
 ### ⚠️ Go 开发规范
@@ -397,86 +396,104 @@ func NewServer(opts ...ServerOption) *Server {
 
 ## 3️⃣ 开发规范
 
+### API 架构 (Proto-first)
+
+项目采用 Proto-first 的接口定义方式：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  api/protobuf_spec/         定义接口、请求/响应消息          │
+│         ↓                                                    │
+│  api/pb/                    生成 Go 类型 + Gin Handler 绑定  │
+│         ↓                                                    │
+│  internal/adapter/inbound/http/xxxproto/   Handler 实现      │
+│         ↓                                                    │
+│  internal/domain/           业务逻辑 (使用 pb 消息)          │
+│         ↓                                                    │
+│  internal/model/            数据库模型 (GORM)                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| 层级 | 文件位置 | 职责 |
+|------|----------|------|
+| **接口定义** | `api/protobuf_spec/` | Proto 定义请求/响应消息、Service RPC |
+| **生成代码** | `api/pb/` | `*_pb.go` (消息类型) + `*_gin.pb.go` (路由绑定) |
+| **Handler** | `internal/adapter/inbound/http/xxxproto/` | 使用 Proto 消息，调用 Domain |
+| **Domain** | `internal/domain/` | 业务逻辑，输入输出使用 Proto 消息 |
+| **Model** | `internal/model/` | 数据库模型，仅在持久化边界使用 |
+
 ### 模块结构（标准布局）
 
 ```
-internal/module/routing/
-├── handler.go          # HTTP Handler (Gin)
-├── service.go          # 业务逻辑
-├── router.go           # 路由策略
-├── strategy/           # 策略实现
-├── model.go            # 数据模型
-├── dto.go              # 请求/响应 DTO
+internal/domain/auth/
+├── domain.go           # 领域服务实现
+├── domain_test.go      # 单元测试
 ├── errors.go           # 模块错误定义
-└── service_test.go     # 单元测试
+└── mapper.go           # Model <-> Proto 映射
+
+internal/adapter/inbound/http/authproto/
+├── handler.go          # HTTP Handler (使用 Proto 消息)
+└── handler_test.go     # Handler 测试
 ```
 
 ### Handler 层规范
 
 ```go
-// handler.go
+// handler.go - 使用 Proto 消息
 type Handler struct {
-    service *Service
+    domain *Domain
 }
 
-func NewHandler(service *Service) *Handler {
-    return &Handler{service: service}
+func NewHandler(domain *Domain) *Handler {
+    return &Handler{domain: domain}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-    r.POST("/chat", h.Chat)
-    r.POST("/chat/stream", h.ChatStream)
+// 实现生成的 Gin Server 接口
+func (h *Handler) GetMe(c *gin.Context, req *authv1.GetMeRequest) (*authv1.GetMeResponse, error) {
+    userID := middleware.GetUserID(c)
+    return h.domain.GetMe(c.Request.Context(), userID)
 }
 
-func (h *Handler) Chat(c *gin.Context) {
-    var req ChatRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(400, gin.H{"error": err.Error()})
-        return
-    }
-
-    user := c.MustGet("user").(*User)
-    resp, err := h.service.Chat(c.Request.Context(), user.ID, &req)
-    if err != nil {
-        handleError(c, err)
-        return
-    }
-
-    c.JSON(200, resp)
+func (h *Handler) Login(c *gin.Context, req *authv1.LoginRequest) (*authv1.LoginResponse, error) {
+    return h.domain.Login(c.Request.Context(), req)
 }
 ```
 
-### Service 层规范
+### Domain 层规范
 
 ```go
-// service.go
-type Service struct {
-    repo     Repository
-    provider ProviderRegistry
-    billing  BillingRecorder
+// domain.go - 使用 Proto 消息作为输入输出
+type Domain struct {
+    userDB   UserDBPort
+    tokenDB  TokenDBPort
+    jwt      JWTPort
     logger   *zap.Logger
 }
 
-func NewService(
-    repo Repository,
-    provider ProviderRegistry,
-    billing BillingRecorder,
+func NewDomain(
+    userDB UserDBPort,
+    tokenDB TokenDBPort,
+    jwt JWTPort,
     logger *zap.Logger,
-) *Service {
-    return &Service{
-        repo:     repo,
-        provider: provider,
-        billing:  billing,
-        logger:   logger,
+) *Domain {
+    return &Domain{
+        userDB:  userDB,
+        tokenDB: tokenDB,
+        jwt:     jwt,
+        logger:  logger,
     }
 }
 
-func (s *Service) Chat(ctx context.Context, userID uuid.UUID, req *ChatRequest) (*ChatResponse, error) {
-    // 1. Validate
-    // 2. Route to provider
-    // 3. Execute request
-    // 4. Record usage
-    // 5. Return response
+// 方法使用 Proto 消息
+func (d *Domain) GetMe(ctx context.Context, userID uuid.UUID) (*authv1.GetMeResponse, error) {
+    user, err := d.userDB.FindByID(ctx, userID)
+    if err != nil {
+        return nil, err
+    }
+    return &authv1.GetMeResponse{
+        UserId: user.ID.String(),
+        Email:  user.Email,
+    }, nil
 }
 ```
 
@@ -556,40 +573,49 @@ func handleError(c *gin.Context, err error) {
 ### 测试流程
 
 ```bash
-go test ./...                    # 全部测试
-go test ./internal/module/auth   # 模块测试
+mage test                        # 全部测试
+mage testCover                   # 带覆盖率
+go test ./internal/domain/auth   # 模块测试
 go test -v -run TestChat ./...   # 指定测试
-go test -cover ./...             # 覆盖率
 go test -race ./...              # 竞态检测
 ```
 
 ### 测试结构
 
 ```go
-// service_test.go
-func TestService_Chat(t *testing.T) {
+// domain_test.go - Mock 基于接口
+type MockUserDB struct {
+    mock.Mock
+}
+
+func (m *MockUserDB) FindByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
+    args := m.Called(ctx, id)
+    if args.Get(0) == nil {
+        return nil, args.Error(1)
+    }
+    return args.Get(0).(*model.User), args.Error(1)
+}
+
+func TestDomain_GetMe(t *testing.T) {
     t.Run("success", func(t *testing.T) {
         // Arrange
-        mockRepo := NewMockRepository(t)
-        mockProvider := NewMockProviderRegistry(t)
-        svc := NewService(mockRepo, mockProvider, nil)
+        mockUserDB := new(MockUserDB)
+        domain := NewDomain(mockUserDB, nil, nil, zap.NewNop())
 
-        mockProvider.EXPECT().
-            Get("openai").
-            Return(openaiProvider, true)
+        userID := uuid.New()
+        mockUserDB.On("FindByID", mock.Anything, userID).Return(&model.User{
+            ID:    userID,
+            Email: "test@example.com",
+        }, nil)
 
         // Act
-        resp, err := svc.Chat(context.Background(), userID, &ChatRequest{
-            Model: "gpt-4o",
-        })
+        resp, err := domain.GetMe(context.Background(), userID)
 
         // Assert
         require.NoError(t, err)
-        assert.NotNil(t, resp)
-    })
-
-    t.Run("provider not found", func(t *testing.T) {
-        // ...
+        assert.Equal(t, userID.String(), resp.GetUserId())
+        assert.Equal(t, "test@example.com", resp.GetEmail())
+        mockUserDB.AssertExpectations(t)
     })
 }
 ```
@@ -647,17 +673,18 @@ mockery --name=Repository --dir=./internal/module/auth --output=./internal/modul
 ```
 uniedit-server/
 ├── CLAUDE.md                    # L0: 项目级（本文件）
+├── README.md                    # 项目介绍、快速开始
 ├── docs/
 │   ├── backend-service-design.md  # 架构设计文档
-│   └── p0-implementation-tasks.md # P0 任务清单
+│   └── design-ai-module.md       # AI 模块设计
+├── api/
+│   ├── protobuf_spec/           # Proto 接口定义
+│   └── openapi_spec/            # OpenAPI 文档
 ├── internal/
-│   └── module/
-│       ├── auth/
-│       │   └── README.md        # L1: 模块级
-│       └── routing/
-│           └── README.md        # L1: 模块级
-└── api/
-    └── openapi.yaml             # API 文档
+│   └── domain/
+│       ├── auth/README.md       # L1: 模块级
+│       └── ai/README.md
+└── openspec/                    # OpenSpec 规范
 ```
 
 ### 模块 README 模板

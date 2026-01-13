@@ -116,11 +116,15 @@ cd uniedit-server
 cp configs/config.example.yaml configs/config.yaml
 # 编辑 configs/config.yaml 配置数据库和 Redis
 
-# 使用 Docker Compose 启动依赖服务（PostgreSQL, Redis, MinIO）
+# 方式一：使用 Docker Compose 启动依赖服务
 docker-compose up -d
 
-# 运行数据库迁移
-go run ./cmd/migrate up
+# 方式二：使用本地已安装的服务
+# 确保 PostgreSQL 和 Redis 已运行，更新 config.yaml 中的端口配置
+
+# 运行数据库迁移（手动执行 SQL）
+psql -h localhost -U postgres -d uniedit -f migrations/000001_create_ai_providers.up.sql
+# ... 依次执行所有迁移文件
 
 # 生成 Wire 代码
 mage wire
@@ -128,7 +132,7 @@ mage wire
 # 构建并运行
 mage dev
 # 或直接运行
-go build -o server ./cmd/server && ./server
+go build -o bin/server ./cmd/server && ./bin/server
 ```
 
 ### Docker Compose 服务
@@ -343,6 +347,51 @@ go test -v ./internal/domain/ai/...
 go test -v ./internal/domain/auth/...
 go test -v ./internal/domain/billing/...
 ```
+
+### API 接口测试
+
+启动服务后，可以测试以下接口：
+
+```bash
+# 健康检查
+curl http://localhost:8080/health
+# {"status":"ok","version":"v2"}
+
+# Ping
+curl http://localhost:8080/api/v1/ping
+# {"message":"pong"}
+
+# 获取套餐列表（公开接口）
+curl http://localhost:8080/api/v1/billing/plans
+
+# 获取公开仓库列表
+curl http://localhost:8080/api/v1/repos/public
+
+# 需要认证的接口（需要 Bearer Token）
+curl -H "Authorization: Bearer <token>" http://localhost:8080/api/v1/users/me
+curl -H "Authorization: Bearer <token>" http://localhost:8080/api/v1/ai/models
+curl -H "Authorization: Bearer <token>" http://localhost:8080/api/v1/teams
+```
+
+### API 测试结果
+
+| 模块 | 接口 | 状态 |
+|------|------|------|
+| Health | `GET /health` | ✅ |
+| Ping | `GET /api/v1/ping` | ✅ |
+| Auth | `GET /api/v1/auth/me` | ✅ |
+| Auth | `POST /api/v1/auth/register` | ✅ |
+| User | `GET /api/v1/users/me` | ✅ |
+| AI | `GET /api/v1/ai/models` | ✅ |
+| Billing | `GET /api/v1/billing/plans` | ✅ |
+| Billing | `GET /api/v1/billing/subscription` | ✅ |
+| Collaboration | `GET /api/v1/teams` | ✅ |
+| Git | `GET /api/v1/repos` | ✅ |
+| Order | `GET /api/v1/orders` | ✅ |
+| Payment | `GET /api/v1/payments/methods` | ✅ |
+| Media | `GET /api/v1/media/tasks` | ✅ |
+| API Keys | `POST /api/v1/api-keys` | ✅ |
+| System API Keys | `POST /api/v1/system-api-keys` | ✅ |
 
 ## 文档
 
