@@ -2,6 +2,8 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -11,6 +13,7 @@ import (
 	commonv1 "github.com/uniedit/server/api/pb/common"
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/outbound"
+	"github.com/uniedit/server/internal/utils/billingflow"
 	"github.com/uniedit/server/internal/utils/requestctx"
 	"go.uber.org/zap"
 )
@@ -92,6 +95,7 @@ type aiDomain struct {
 	vendorRegistry outbound.AIVendorRegistryPort
 	crypto         outbound.AICryptoPort
 	usageDB        outbound.UsageRecordDatabasePort
+	usageBiller    billingflow.UsageBiller
 
 	// Routing
 	strategyChain *StrategyChain
@@ -164,6 +168,10 @@ func NewAIDomain(
 	return d
 }
 
+func (d *aiDomain) SetUsageBiller(biller billingflow.UsageBiller) {
+	d.usageBiller = biller
+}
+
 // ===== Chat Operations =====
 
 // Chat performs a non-streaming chat completion.
@@ -185,6 +193,17 @@ func (d *aiDomain) Chat(ctx context.Context, userID uuid.UUID, req *aiv1.ChatReq
 	result, err := d.Route(ctx, routingCtx)
 	if err != nil {
 		return nil, fmt.Errorf("routing failed: %w", err)
+	}
+
+	// Billing pre-check (hybrid: monthly quota then credits)
+	if d.usageBiller != nil {
+		estPromptTokens := estimateChatPromptTokens(modelReq.Messages)
+		estCompletionTokens := estimateChatCompletionTokens(modelReq.MaxTokens, result.Model)
+		estTotalTokens := int64(estPromptTokens + estCompletionTokens)
+		estCostUSD := (float64(estPromptTokens)/1000)*result.Model.InputCostPer1K + (float64(estCompletionTokens)/1000)*result.Model.OutputCostPer1K
+		if err := d.usageBiller.CheckUsage(ctx, userID, string(model.AITaskTypeChat), estTotalTokens, estCostUSD); err != nil {
+			return nil, mapBillingFlowError(err)
+		}
 	}
 
 	// Get adapter
@@ -218,19 +237,32 @@ func (d *aiDomain) Chat(ctx context.Context, userID uuid.UUID, req *aiv1.ChatReq
 
 	// Calculate latency and cost
 	latencyMs := time.Since(startTime).Milliseconds()
-	costUSD := d.calculateCost(result.Model, resp.Usage)
+	totalCostUSD := d.calculateCost(result.Model, resp.Usage)
+
+	chargedCostUSD := totalCostUSD
+	if d.usageBiller != nil {
+		units := int64(0)
+		if resp.Usage != nil {
+			units = int64(resp.Usage.TotalTokens)
+		}
+		cost, err := d.usageBiller.CommitUsage(ctx, userID, string(model.AITaskTypeChat), units, totalCostUSD)
+		if err != nil {
+			return nil, mapBillingFlowError(err)
+		}
+		chargedCostUSD = cost
+	}
 
 	// Mark success
-	d.markRequestSuccess(ctx, result, resp.Usage, costUSD)
+	d.markRequestSuccess(ctx, result, resp.Usage, totalCostUSD)
 
-	d.recordChatUsage(ctx, userID, startTime, latencyMs, true, result, resp.Usage, costUSD)
+	d.recordChatUsage(ctx, userID, startTime, latencyMs, true, result, resp.Usage, chargedCostUSD)
 
 	// Add routing info
 	resp.Routing = &model.AIRoutingInfo{
 		ProviderUsed: result.Provider.Name,
 		ModelUsed:    result.Model.ID,
 		LatencyMs:    latencyMs,
-		CostUSD:      costUSD,
+		CostUSD:      chargedCostUSD,
 	}
 
 	return chatResponseFromModel(resp)
@@ -246,6 +278,8 @@ func (d *aiDomain) ChatStream(ctx context.Context, userID uuid.UUID, req *aiv1.C
 		return nil, nil, ErrEmptyMessages
 	}
 
+	startTime := time.Now()
+
 	// Build routing context
 	routingCtx := d.buildRoutingContext(modelReq)
 	routingCtx.RequireStream = true
@@ -254,6 +288,16 @@ func (d *aiDomain) ChatStream(ctx context.Context, userID uuid.UUID, req *aiv1.C
 	result, err := d.Route(ctx, routingCtx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("routing failed: %w", err)
+	}
+
+	if d.usageBiller != nil {
+		estPromptTokens := estimateChatPromptTokens(modelReq.Messages)
+		estCompletionTokens := estimateChatCompletionTokens(modelReq.MaxTokens, result.Model)
+		estTotalTokens := int64(estPromptTokens + estCompletionTokens)
+		estCostUSD := (float64(estPromptTokens)/1000)*result.Model.InputCostPer1K + (float64(estCompletionTokens)/1000)*result.Model.OutputCostPer1K
+		if err := d.usageBiller.CheckUsage(ctx, userID, string(model.AITaskTypeChat), estTotalTokens, estCostUSD); err != nil {
+			return nil, nil, mapBillingFlowError(err)
+		}
 	}
 
 	// Get adapter
@@ -288,7 +332,56 @@ func (d *aiDomain) ChatStream(ctx context.Context, userID uuid.UUID, req *aiv1.C
 		ModelUsed:    result.Model.ID,
 	}
 
-	return chunks, routingInfo, nil
+	out := make(chan *model.AIChatChunk, 100)
+	go func() {
+		defer close(out)
+
+		var finalUsage *model.AIUsage
+		for chunk := range chunks {
+			if chunk != nil && chunk.Usage != nil {
+				finalUsage = chunk.Usage
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case out <- chunk:
+			}
+		}
+
+		latencyMs := time.Since(startTime).Milliseconds()
+		success := ctx.Err() == nil
+
+		units := int64(0)
+		var totalCostUSD float64
+		if finalUsage != nil {
+			units = int64(finalUsage.TotalTokens)
+			totalCostUSD = d.calculateCost(result.Model, finalUsage)
+		}
+
+		chargedCostUSD := totalCostUSD
+		if success && d.usageBiller != nil {
+			if finalUsage == nil {
+				// Best-effort fallback for providers that don't return streaming usage.
+				estPromptTokens := estimateChatPromptTokens(modelReq.Messages)
+				estCompletionTokens := estimateChatCompletionTokens(modelReq.MaxTokens, result.Model)
+				units = int64(estPromptTokens + estCompletionTokens)
+				totalCostUSD = (float64(estPromptTokens)/1000)*result.Model.InputCostPer1K + (float64(estCompletionTokens)/1000)*result.Model.OutputCostPer1K
+			}
+			cost, err := d.usageBiller.CommitUsage(ctx, userID, string(model.AITaskTypeChat), units, totalCostUSD)
+			if err == nil {
+				chargedCostUSD = cost
+			} else {
+				d.logger.Warn("failed to commit usage for stream", zap.Error(mapBillingFlowError(err)))
+			}
+		}
+
+		if success && finalUsage != nil {
+			d.markRequestSuccess(ctx, result, finalUsage, totalCostUSD)
+		}
+		d.recordChatUsage(ctx, userID, startTime, latencyMs, success, result, finalUsage, chargedCostUSD)
+	}()
+
+	return out, routingInfo, nil
 }
 
 // Embed generates text embeddings.
@@ -296,6 +389,8 @@ func (d *aiDomain) Embed(ctx context.Context, userID uuid.UUID, req *model.AIEmb
 	if len(req.Input) == 0 {
 		return nil, ErrEmptyInput
 	}
+
+	startTime := time.Now()
 
 	// Build routing context for embedding
 	routingCtx := model.NewAIRoutingContext()
@@ -322,6 +417,7 @@ func (d *aiDomain) Embed(ctx context.Context, userID uuid.UUID, req *model.AIEmb
 	resp, err := adapter.Embed(ctx, req, result.Model, result.Provider, result.APIKey)
 	if err != nil {
 		d.markRequestFailure(ctx, result, err)
+		d.recordEmbedUsage(ctx, userID, startTime, time.Since(startTime).Milliseconds(), false, result, nil, 0)
 		return nil, fmt.Errorf("embed failed: %w", err)
 	}
 
@@ -329,6 +425,9 @@ func (d *aiDomain) Embed(ctx context.Context, userID uuid.UUID, req *model.AIEmb
 	if resp.Usage != nil {
 		costUSD := d.calculateCost(result.Model, resp.Usage)
 		d.markRequestSuccess(ctx, result, resp.Usage, costUSD)
+		d.recordEmbedUsage(ctx, userID, startTime, time.Since(startTime).Milliseconds(), true, result, resp.Usage, costUSD)
+	} else {
+		d.recordEmbedUsage(ctx, userID, startTime, time.Since(startTime).Milliseconds(), true, result, nil, 0)
 	}
 
 	return resp, nil
@@ -516,6 +615,114 @@ func (d *aiDomain) recordChatUsage(
 	}
 
 	_ = d.usageDB.Create(ctx, record)
+}
+
+func (d *aiDomain) recordEmbedUsage(
+	ctx context.Context,
+	userID uuid.UUID,
+	startTime time.Time,
+	latencyMs int64,
+	success bool,
+	result *model.AIRoutingResult,
+	usage *model.AIUsage,
+	costUSD float64,
+) {
+	if d.usageDB == nil || result == nil || result.Provider == nil || result.Model == nil {
+		return
+	}
+
+	requestID := requestctx.RequestID(ctx)
+	if requestID == "" {
+		requestID = uuid.New().String()
+	}
+
+	record := &model.UsageRecord{
+		UserID:         userID,
+		Timestamp:      startTime.UTC(),
+		RequestID:      requestID,
+		TaskType:       string(model.AITaskTypeEmbedding),
+		ProviderID:     result.Provider.ID,
+		ModelID:        result.Model.ID,
+		LatencyMs:      int(latencyMs),
+		Success:        success,
+		CostUSD:        costUSD,
+		CostMultiplier: 1,
+	}
+
+	if prefix := keyPrefix(result.APIKey, 10); prefix != "" {
+		record.APIKeyPrefix = &prefix
+	}
+
+	if result.AccountID != nil {
+		if accountUUID, err := uuid.Parse(*result.AccountID); err == nil {
+			record.ProviderAccountID = &accountUUID
+		}
+	}
+	if result.AccountName != nil {
+		record.ProviderAccountName = result.AccountName
+	}
+	if result.AccountKeyPrefix != nil {
+		record.ProviderAccountKeyPrefix = result.AccountKeyPrefix
+	}
+
+	if usage != nil {
+		record.InputTokens = usage.PromptTokens
+		record.OutputTokens = usage.CompletionTokens
+		record.TotalTokens = usage.TotalTokens
+
+		record.CacheCreationInputTokens = usage.CacheCreationInputTokens
+		record.CacheReadInputTokens = usage.CacheReadInputTokens
+		record.CachedTokens = usage.CacheReadInputTokens
+		record.CacheHit = usage.CacheReadInputTokens > 0
+	}
+
+	_ = d.usageDB.Create(ctx, record)
+}
+
+func estimateChatPromptTokens(messages []*model.AIChatMessage) int {
+	if len(messages) == 0 {
+		return 0
+	}
+	totalBytes := 0
+	for _, msg := range messages {
+		if msg == nil {
+			continue
+		}
+		b, err := json.Marshal(msg.Content)
+		if err == nil {
+			totalBytes += len(b)
+		} else if s, ok := msg.Content.(string); ok {
+			totalBytes += len(s)
+		}
+		totalBytes += len(msg.Role) + len(msg.Name)
+	}
+	// Conservative heuristic: ~3 bytes per token.
+	return (totalBytes + 2) / 3
+}
+
+func estimateChatCompletionTokens(maxTokens int, m *model.AIModel) int {
+	if maxTokens > 0 {
+		return maxTokens
+	}
+	if m != nil && m.MaxOutputTokens > 0 {
+		return m.MaxOutputTokens
+	}
+	return 4096
+}
+
+func mapBillingFlowError(err error) error {
+	switch {
+	case errors.Is(err, billingflow.ErrRateLimitExceeded):
+		return ErrRateLimitExceeded
+	case errors.Is(err, billingflow.ErrInsufficientCredits):
+		return ErrInsufficientCredits
+	case errors.Is(err, billingflow.ErrQuotaExceeded):
+		return ErrQuotaExceeded
+	case errors.Is(err, billingflow.ErrInvalidRequest):
+		return ErrInvalidRequest
+	default:
+		return err
+	}
 }
 
 func keyPrefix(key string, length int) string {

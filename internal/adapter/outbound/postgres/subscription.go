@@ -74,5 +74,19 @@ func (a *subscriptionAdapter) UpdateCredits(ctx context.Context, userID uuid.UUI
 		Error
 }
 
+func (a *subscriptionAdapter) TryDeductCredits(ctx context.Context, userID uuid.UUID, amount int64) (bool, error) {
+	if amount <= 0 {
+		return true, nil
+	}
+	res := a.db.WithContext(ctx).
+		Model(&model.Subscription{}).
+		Where("user_id = ? AND credits_balance >= ?", userID, amount).
+		UpdateColumn("credits_balance", gorm.Expr("credits_balance - ?", amount))
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
 // Compile-time check
 var _ outbound.SubscriptionDatabasePort = (*subscriptionAdapter)(nil)

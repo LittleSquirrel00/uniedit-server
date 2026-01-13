@@ -35,4 +35,13 @@ var (
 
 	// ErrTaskAlreadyCancelled is returned when trying to cancel a cancelled task.
 	ErrTaskAlreadyCancelled = errors.New("task already cancelled")
+
+	// ErrQuotaExceeded is returned when the user quota is exceeded (no active subscription or plan disabled).
+	ErrQuotaExceeded = errors.New("quota exceeded")
+
+	// ErrRateLimitExceeded is returned when the user hits request rate limits.
+	ErrRateLimitExceeded = errors.New("rate limit exceeded")
+
+	// ErrInsufficientCredits is returned when pay-as-you-go balance is insufficient.
+	ErrInsufficientCredits = errors.New("insufficient credits")
 )

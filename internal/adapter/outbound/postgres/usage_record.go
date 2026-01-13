@@ -35,7 +35,7 @@ func (a *usageRecordAdapter) GetStats(ctx context.Context, userID uuid.UUID, sta
 	err := a.db.WithContext(ctx).
 		Model(&model.UsageRecord{}).
 		Select("COALESCE(SUM(total_tokens), 0) as total_tokens, COUNT(*) as total_requests, COALESCE(SUM(cost_usd), 0) as total_cost_usd").
-		Where("user_id = ? AND timestamp >= ? AND timestamp < ?", userID, start, end).
+		Where("user_id = ? AND success = true AND timestamp >= ? AND timestamp < ?", userID, start, end).
 		Scan(&totalStats).Error
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (a *usageRecordAdapter) GetStats(ctx context.Context, userID uuid.UUID, sta
 	err = a.db.WithContext(ctx).
 		Model(&model.UsageRecord{}).
 		Select("model_id, COALESCE(SUM(total_tokens), 0) as total_tokens, COUNT(*) as total_requests, COALESCE(SUM(cost_usd), 0) as total_cost_usd").
-		Where("user_id = ? AND timestamp >= ? AND timestamp < ?", userID, start, end).
+		Where("user_id = ? AND success = true AND timestamp >= ? AND timestamp < ?", userID, start, end).
 		Group("model_id").
 		Scan(&modelStats).Error
 	if err != nil {
@@ -78,7 +78,7 @@ func (a *usageRecordAdapter) GetStats(ctx context.Context, userID uuid.UUID, sta
 	err = a.db.WithContext(ctx).
 		Model(&model.UsageRecord{}).
 		Select("DATE(timestamp) as date, COALESCE(SUM(total_tokens), 0) as total_tokens, COUNT(*) as total_requests, COALESCE(SUM(cost_usd), 0) as total_cost_usd").
-		Where("user_id = ? AND timestamp >= ? AND timestamp < ?", userID, start, end).
+		Where("user_id = ? AND success = true AND timestamp >= ? AND timestamp < ?", userID, start, end).
 		Group("DATE(timestamp)").
 		Order("date ASC").
 		Scan(&dailyStats).Error
@@ -110,7 +110,17 @@ func (a *usageRecordAdapter) GetMonthlyTokens(ctx context.Context, userID uuid.U
 	err := a.db.WithContext(ctx).
 		Model(&model.UsageRecord{}).
 		Select("COALESCE(SUM(total_tokens), 0)").
-		Where("user_id = ? AND timestamp >= ?", userID, start).
+		Where("user_id = ? AND success = true AND timestamp >= ?", userID, start).
+		Scan(&total).Error
+	return total, err
+}
+
+func (a *usageRecordAdapter) GetMonthlyTokensByTaskType(ctx context.Context, userID uuid.UUID, start time.Time, taskType string) (int64, error) {
+	var total int64
+	err := a.db.WithContext(ctx).
+		Model(&model.UsageRecord{}).
+		Select("COALESCE(SUM(total_tokens), 0)").
+		Where("user_id = ? AND success = true AND task_type = ? AND timestamp >= ?", userID, taskType, start).
 		Scan(&total).Error
 	return total, err
 }
@@ -122,9 +132,19 @@ func (a *usageRecordAdapter) GetDailyRequests(ctx context.Context, userID uuid.U
 	var count int64
 	err := a.db.WithContext(ctx).
 		Model(&model.UsageRecord{}).
-		Where("user_id = ? AND timestamp >= ? AND timestamp < ?", userID, startOfDay, endOfDay).
+		Where("user_id = ? AND success = true AND timestamp >= ? AND timestamp < ?", userID, startOfDay, endOfDay).
 		Count(&count).Error
 	return int(count), err
+}
+
+func (a *usageRecordAdapter) GetMonthlyUnitsByTaskType(ctx context.Context, userID uuid.UUID, start time.Time, taskType string) (int64, error) {
+	var total int64
+	err := a.db.WithContext(ctx).
+		Model(&model.UsageRecord{}).
+		Select("COALESCE(SUM(input_tokens), 0)").
+		Where("user_id = ? AND success = true AND task_type = ? AND timestamp >= ?", userID, taskType, start).
+		Scan(&total).Error
+	return total, err
 }
 
 // Compile-time check

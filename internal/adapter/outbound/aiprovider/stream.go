@@ -121,6 +121,7 @@ func ParseOpenAIChunk(data string) (*model.AIChatChunk, error) {
 		return &model.AIChatChunk{
 			ID:    chunk.ID,
 			Model: chunk.Model,
+			Usage: chunk.Usage,
 		}, nil
 	}
 
@@ -134,6 +135,7 @@ func ParseOpenAIChunk(data string) (*model.AIChatChunk, error) {
 			ToolCalls: choice.Delta.ToolCalls,
 		},
 		FinishReason: choice.FinishReason,
+		Usage:        chunk.Usage,
 	}, nil
 }
 
@@ -168,12 +170,14 @@ func ParseAnthropicEvent(eventType, data string) (*model.AIChatChunk, error) {
 			Delta: &model.AIDelta{
 				Content: delta.Text,
 			},
+			Usage: event.Usage,
 		}, nil
 
 	case "message_delta":
 		// Message completed
 		return &model.AIChatChunk{
 			FinishReason: "stop",
+			Usage:        event.Usage,
 		}, nil
 
 	case "message_stop":

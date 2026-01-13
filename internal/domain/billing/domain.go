@@ -2,6 +2,7 @@ package billing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -193,20 +194,24 @@ func (d *Domain) GetQuotaStatus(ctx context.Context, userID uuid.UUID) (*billing
 		return nil, fmt.Errorf("subscription has no plan loaded")
 	}
 
-	// Get current usage from cache
+	// Get current chat token usage from cache
 	tokensUsed, err := d.quotaCache.GetTokensUsed(ctx, userID, sub.CurrentPeriodStart)
 	if err != nil {
-		d.logger.Warn("failed to get tokens from cache, using DB", zap.Error(err))
-		tokensUsed, _ = d.usageDB.GetMonthlyTokens(ctx, userID, sub.CurrentPeriodStart)
+		if !errors.Is(err, outbound.ErrCacheMiss) {
+			d.logger.Warn("failed to get tokens from cache, using DB", zap.Error(err))
+		}
+		tokensUsed, _ = d.usageDB.GetMonthlyTokensByTaskType(ctx, userID, sub.CurrentPeriodStart, string(model.AITaskTypeChat))
 	}
 
 	requestsToday, err := d.quotaCache.GetRequestsToday(ctx, userID)
 	if err != nil {
-		d.logger.Warn("failed to get requests from cache, using DB", zap.Error(err))
+		if !errors.Is(err, outbound.ErrCacheMiss) {
+			d.logger.Warn("failed to get requests from cache, using DB", zap.Error(err))
+		}
 		requestsToday, _ = d.usageDB.GetDailyRequests(ctx, userID, time.Now().UTC())
 	}
 
-	tokenLimit := plan.MonthlyTokens
+	tokenLimit := plan.GetEffectiveChatTokenLimit()
 	tokensRemaining := tokenLimit - tokensUsed
 	if tokenLimit == -1 {
 		tokensRemaining = -1
@@ -226,7 +231,10 @@ func (d *Domain) GetQuotaStatus(ctx context.Context, userID uuid.UUID) (*billing
 }
 
 func (d *Domain) CheckQuota(ctx context.Context, userID uuid.UUID, in *billingv1.CheckQuotaRequest) error {
-	_ = in // task_type currently not used for billing checks
+	taskType := strings.TrimSpace(in.GetTaskType())
+	if taskType == "" {
+		taskType = string(model.AITaskTypeChat)
+	}
 
 	sub, err := d.subscriptionDB.GetByUserIDWithPlan(ctx, userID)
 	if err != nil {
@@ -245,21 +253,13 @@ func (d *Domain) CheckQuota(ctx context.Context, userID uuid.UUID, in *billingv1
 		return fmt.Errorf("subscription has no plan loaded")
 	}
 
-	// Check token limit
-	if !plan.IsUnlimitedTokens() {
-		tokensUsed, err := d.quotaCache.GetTokensUsed(ctx, userID, sub.CurrentPeriodStart)
-		if err != nil {
-			tokensUsed, _ = d.usageDB.GetMonthlyTokens(ctx, userID, sub.CurrentPeriodStart)
-		}
-		if tokensUsed >= plan.MonthlyTokens {
-			return ErrTokenLimitReached
-		}
-	}
-
 	// Check request limit
 	if !plan.IsUnlimitedRequests() {
 		requestsToday, err := d.quotaCache.GetRequestsToday(ctx, userID)
 		if err != nil {
+			if !errors.Is(err, outbound.ErrCacheMiss) {
+				d.logger.Warn("failed to get requests from cache, using DB", zap.Error(err))
+			}
 			requestsToday, _ = d.usageDB.GetDailyRequests(ctx, userID, time.Now().UTC())
 		}
 		if requestsToday >= plan.DailyRequests {
@@ -267,7 +267,41 @@ func (d *Domain) CheckQuota(ctx context.Context, userID uuid.UUID, in *billingv1
 		}
 	}
 
-	return nil
+	limit, err := usageLimitForTask(plan, taskType)
+	if err != nil {
+		return ErrInvalidRequest
+	}
+	if limit == -1 {
+		return nil
+	}
+
+	var used int64
+	switch {
+	case isTokenTask(taskType):
+		used, err = d.quotaCache.GetTokensUsed(ctx, userID, sub.CurrentPeriodStart)
+		if err != nil {
+			if !errors.Is(err, outbound.ErrCacheMiss) {
+				d.logger.Warn("failed to get tokens from cache, using DB", zap.Error(err))
+			}
+			used, _ = d.usageDB.GetMonthlyTokensByTaskType(ctx, userID, sub.CurrentPeriodStart, taskType)
+		}
+	default:
+		used, err = d.quotaCache.GetMediaUnitsUsed(ctx, userID, sub.CurrentPeriodStart, taskType)
+		if err != nil {
+			if !errors.Is(err, outbound.ErrCacheMiss) {
+				d.logger.Warn("failed to get media units from cache, using DB", zap.Error(err))
+			}
+			used, _ = d.usageDB.GetMonthlyUnitsByTaskType(ctx, userID, sub.CurrentPeriodStart, taskType)
+		}
+	}
+
+	if used < limit {
+		return nil
+	}
+	if sub.CreditsBalance > 0 {
+		return nil
+	}
+	return ErrInsufficientCredits
 }
 
 func (d *Domain) ConsumeQuota(ctx context.Context, userID uuid.UUID, tokens int) error {

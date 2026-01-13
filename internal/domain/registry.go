@@ -1,6 +1,11 @@
 package domain
 
 import (
+	"context"
+	"errors"
+
+	"github.com/google/uuid"
+	billingv1 "github.com/uniedit/server/api/pb/billing"
 	"github.com/uniedit/server/internal/domain/ai"
 	"github.com/uniedit/server/internal/domain/auth"
 	"github.com/uniedit/server/internal/domain/billing"
@@ -14,6 +19,39 @@ import (
 	"github.com/uniedit/server/internal/port/outbound"
 	"go.uber.org/zap"
 )
+
+type billingQuotaCheckerAdapter struct {
+	billing inbound.BillingDomain
+}
+
+func (a *billingQuotaCheckerAdapter) CheckQuota(ctx context.Context, userID uuid.UUID, taskType string) error {
+	err := a.billing.CheckQuota(ctx, userID, &billingv1.CheckQuotaRequest{TaskType: taskType})
+	if err == nil {
+		return nil
+	}
+
+	switch {
+	case errors.Is(err, billing.ErrRequestLimitReached):
+		return ai.ErrRateLimitExceeded
+	case errors.Is(err, billing.ErrTokenLimitReached),
+		errors.Is(err, billing.ErrQuotaExceeded):
+		return ai.ErrQuotaExceeded
+	case errors.Is(err, billing.ErrInsufficientCredits):
+		return ai.ErrInsufficientCredits
+	default:
+		return err
+	}
+}
+
+func (a *billingQuotaCheckerAdapter) ConsumeQuota(ctx context.Context, userID uuid.UUID, tokens int) error {
+	type quotaConsumer interface {
+		ConsumeQuota(ctx context.Context, userID uuid.UUID, tokens int) error
+	}
+	if c, ok := a.billing.(quotaConsumer); ok {
+		return c.ConsumeQuota(ctx, userID, tokens)
+	}
+	return nil
+}
 
 // Domain holds all domain services.
 // This is the central registry for all business logic.
@@ -219,6 +257,31 @@ func NewDomain(ports *OutboundPorts, authConfig *AuthConfig, paymentConfig *Paym
 		logger.Named("user"),
 	)
 
+	billingDomain := billing.NewBillingDomain(
+		ports.PlanDB,
+		ports.SubscriptionDB,
+		ports.UsageDB,
+		ports.QuotaCache,
+		logger.Named("billing"),
+	)
+
+	aiDomain := ai.NewAIDomain(
+		ports.AIProviderDB,
+		ports.AIModelDB,
+		ports.AIAccountDB,
+		ports.AIGroupDB,
+		ports.AIHealthCache,
+		ports.AIEmbeddingCache,
+		ports.AIVendorRegistry,
+		ports.AICrypto,
+		ports.UsageDB,
+		aiConfig,
+		logger.Named("ai"),
+	)
+	if setter, ok := aiDomain.(interface{ SetQuotaChecker(ai.QuotaChecker) }); ok {
+		setter.SetQuotaChecker(&billingQuotaCheckerAdapter{billing: billingDomain})
+	}
+
 	return &Domain{
 		User: userDomain,
 		Auth: auth.NewAuthDomain(
@@ -233,13 +296,7 @@ func NewDomain(ports *OutboundPorts, authConfig *AuthConfig, paymentConfig *Paym
 			&auth.Config{MaxAPIKeysPerUser: authConfig.MaxAPIKeysPerUser},
 			logger.Named("auth"),
 		),
-		Billing: billing.NewBillingDomain(
-			ports.PlanDB,
-			ports.SubscriptionDB,
-			ports.UsageDB,
-			ports.QuotaCache,
-			logger.Named("billing"),
-		),
+		Billing: billingDomain,
 		Order: order.NewOrderDomain(
 			ports.OrderDB,
 			ports.ItemDB,
@@ -257,19 +314,7 @@ func NewDomain(ports *OutboundPorts, authConfig *AuthConfig, paymentConfig *Paym
 			paymentConfig.NotifyBaseURL,
 			logger.Named("payment"),
 		),
-		AI: ai.NewAIDomain(
-			ports.AIProviderDB,
-			ports.AIModelDB,
-			ports.AIAccountDB,
-			ports.AIGroupDB,
-			ports.AIHealthCache,
-			ports.AIEmbeddingCache,
-			ports.AIVendorRegistry,
-			ports.AICrypto,
-			ports.UsageDB,
-			aiConfig,
-			logger.Named("ai"),
-		),
+		AI: aiDomain,
 		Git: git.NewDomain(
 			ports.GitRepoDB,
 			ports.GitCollabDB,

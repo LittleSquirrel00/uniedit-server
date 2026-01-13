@@ -88,6 +88,11 @@ func (m *MockSubscriptionDB) UpdateCredits(ctx context.Context, userID uuid.UUID
 	return args.Error(0)
 }
 
+func (m *MockSubscriptionDB) TryDeductCredits(ctx context.Context, userID uuid.UUID, amount int64) (bool, error) {
+	args := m.Called(ctx, userID, amount)
+	return args.Bool(0), args.Error(1)
+}
+
 type MockUsageDB struct {
 	mock.Mock
 }
@@ -110,9 +115,19 @@ func (m *MockUsageDB) GetMonthlyTokens(ctx context.Context, userID uuid.UUID, st
 	return args.Get(0).(int64), args.Error(1)
 }
 
+func (m *MockUsageDB) GetMonthlyTokensByTaskType(ctx context.Context, userID uuid.UUID, start time.Time, taskType string) (int64, error) {
+	args := m.Called(ctx, userID, start, taskType)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 func (m *MockUsageDB) GetDailyRequests(ctx context.Context, userID uuid.UUID, date time.Time) (int, error) {
 	args := m.Called(ctx, userID, date)
 	return args.Get(0).(int), args.Error(1)
+}
+
+func (m *MockUsageDB) GetMonthlyUnitsByTaskType(ctx context.Context, userID uuid.UUID, start time.Time, taskType string) (int64, error) {
+	args := m.Called(ctx, userID, start, taskType)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 type MockQuotaCache struct {
@@ -141,6 +156,21 @@ func (m *MockQuotaCache) IncrementRequests(ctx context.Context, userID uuid.UUID
 
 func (m *MockQuotaCache) ResetTokens(ctx context.Context, userID uuid.UUID, periodStart time.Time) error {
 	args := m.Called(ctx, userID, periodStart)
+	return args.Error(0)
+}
+
+func (m *MockQuotaCache) GetMediaUnitsUsed(ctx context.Context, userID uuid.UUID, periodStart time.Time, taskType string) (int64, error) {
+	args := m.Called(ctx, userID, periodStart, taskType)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockQuotaCache) IncrementMediaUnits(ctx context.Context, userID uuid.UUID, periodStart, periodEnd time.Time, taskType string, units int64) (int64, error) {
+	args := m.Called(ctx, userID, periodStart, periodEnd, taskType, units)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockQuotaCache) ResetMediaUnits(ctx context.Context, userID uuid.UUID, periodStart time.Time, taskType string) error {
+	args := m.Called(ctx, userID, periodStart, taskType)
 	return args.Error(0)
 }
 
@@ -424,10 +454,13 @@ func TestBillingDomain_CheckQuota(t *testing.T) {
 
 		mockSubDB.On("GetByUserIDWithPlan", mock.Anything, userID).Return(sub, nil)
 		mockQuotaCache.On("GetTokensUsed", mock.Anything, userID, mock.AnythingOfType("time.Time")).Return(int64(100000), nil)
+		mockQuotaCache.On("GetRequestsToday", mock.Anything, userID).Return(0, nil)
 
 		err := domain.CheckQuota(context.Background(), userID, &billingv1.CheckQuotaRequest{TaskType: "chat"})
 
-		assert.ErrorIs(t, err, ErrTokenLimitReached)
+		assert.ErrorIs(t, err, ErrInsufficientCredits)
+		mockSubDB.AssertExpectations(t)
+		mockQuotaCache.AssertExpectations(t)
 	})
 
 	t.Run("request limit reached", func(t *testing.T) {

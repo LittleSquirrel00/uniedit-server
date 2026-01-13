@@ -160,6 +160,12 @@ func mapMediaError(err error) error {
 	case errors.Is(err, media.ErrTaskAlreadyCompleted),
 		errors.Is(err, media.ErrTaskAlreadyCancelled):
 		return &protohttp.HTTPError{Status: http.StatusConflict, Code: "conflict", Message: err.Error(), Err: err}
+	case errors.Is(err, media.ErrRateLimitExceeded):
+		return &protohttp.HTTPError{Status: http.StatusTooManyRequests, Code: "rate_limited", Message: err.Error(), Err: err}
+	case errors.Is(err, media.ErrQuotaExceeded):
+		return &protohttp.HTTPError{Status: http.StatusForbidden, Code: "quota_exceeded", Message: err.Error(), Err: err}
+	case errors.Is(err, media.ErrInsufficientCredits):
+		return &protohttp.HTTPError{Status: http.StatusPaymentRequired, Code: "insufficient_credits", Message: err.Error(), Err: err}
 	default:
 		return &protohttp.HTTPError{Status: http.StatusInternalServerError, Code: "internal_error", Message: fmt.Sprintf("Internal server error"), Err: err}
 	}

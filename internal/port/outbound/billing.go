@@ -2,11 +2,14 @@ package outbound
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/uniedit/server/internal/model"
 )
+
+var ErrCacheMiss = errors.New("cache miss")
 
 // PlanDatabasePort defines plan persistence operations.
 type PlanDatabasePort interface {
@@ -42,6 +45,10 @@ type SubscriptionDatabasePort interface {
 
 	// UpdateCredits updates the credits balance.
 	UpdateCredits(ctx context.Context, userID uuid.UUID, amount int64) error
+
+	// TryDeductCredits deducts credits if balance is sufficient (atomic).
+	// Returns (true, nil) if deducted successfully, (false, nil) if insufficient.
+	TryDeductCredits(ctx context.Context, userID uuid.UUID, amount int64) (bool, error)
 }
 
 // UsageRecordDatabasePort defines usage record persistence operations.
@@ -55,8 +62,15 @@ type UsageRecordDatabasePort interface {
 	// GetMonthlyTokens gets total tokens used in a period.
 	GetMonthlyTokens(ctx context.Context, userID uuid.UUID, start time.Time) (int64, error)
 
+	// GetMonthlyTokensByTaskType gets total tokens used for a task type in a period.
+	GetMonthlyTokensByTaskType(ctx context.Context, userID uuid.UUID, start time.Time, taskType string) (int64, error)
+
 	// GetDailyRequests gets request count for a day.
 	GetDailyRequests(ctx context.Context, userID uuid.UUID, date time.Time) (int, error)
+
+	// GetMonthlyUnitsByTaskType gets task-specific units used in a period.
+	// For non-token tasks (e.g., image/video), units are stored in UsageRecord.InputTokens.
+	GetMonthlyUnitsByTaskType(ctx context.Context, userID uuid.UUID, start time.Time, taskType string) (int64, error)
 }
 
 // QuotaCachePort defines quota caching operations (Redis).
@@ -75,6 +89,15 @@ type QuotaCachePort interface {
 
 	// ResetTokens resets token counter for a period.
 	ResetTokens(ctx context.Context, userID uuid.UUID, periodStart time.Time) error
+
+	// GetMediaUnitsUsed gets monthly units used for a media task type (e.g. image/video).
+	GetMediaUnitsUsed(ctx context.Context, userID uuid.UUID, periodStart time.Time, taskType string) (int64, error)
+
+	// IncrementMediaUnits increments monthly units for a media task type.
+	IncrementMediaUnits(ctx context.Context, userID uuid.UUID, periodStart, periodEnd time.Time, taskType string, units int64) (int64, error)
+
+	// ResetMediaUnits resets monthly units for a media task type.
+	ResetMediaUnits(ctx context.Context, userID uuid.UUID, periodStart time.Time, taskType string) error
 }
 
 // StripePort defines Stripe payment operations.
@@ -100,10 +123,10 @@ type StripePort interface {
 
 // StripeSubscriptionInfo represents Stripe subscription information.
 type StripeSubscriptionInfo struct {
-	ID                string
-	Status            string
-	CustomerID        string
-	PriceID           string
+	ID                 string
+	Status             string
+	CustomerID         string
+	PriceID            string
 	CurrentPeriodStart time.Time
 	CurrentPeriodEnd   time.Time
 	CancelAtPeriodEnd  bool

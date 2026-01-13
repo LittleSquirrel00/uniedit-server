@@ -411,6 +411,7 @@ type AIChatChunk struct {
 	Model        string   `json:"model"`
 	Delta        *AIDelta `json:"delta"`
 	FinishReason string   `json:"finish_reason,omitempty"`
+	Usage        *AIUsage `json:"usage,omitempty"`
 }
 
 // AIDelta represents incremental content.

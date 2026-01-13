@@ -3,7 +3,9 @@ package media
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +16,7 @@ import (
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/inbound"
 	"github.com/uniedit/server/internal/port/outbound"
+	"github.com/uniedit/server/internal/utils/billingflow"
 	"github.com/uniedit/server/internal/utils/requestctx"
 )
 
@@ -26,6 +29,7 @@ type Domain struct {
 	healthCache    outbound.MediaProviderHealthCachePort
 	vendorRegistry outbound.MediaVendorRegistryPort
 	crypto         outbound.MediaCryptoPort
+	usageBiller    billingflow.UsageBiller
 	config         *Config
 	logger         *zap.Logger
 }
@@ -53,9 +57,22 @@ func NewDomain(
 		healthCache:    healthCache,
 		vendorRegistry: vendorRegistry,
 		crypto:         crypto,
+		usageBiller:    nil,
 		config:         config,
 		logger:         logger,
 	}
+}
+
+func (d *Domain) SetUsageBiller(biller billingflow.UsageBiller) {
+	d.usageBiller = biller
+}
+
+func (d *Domain) SetPricing(imageUSDPerCredit, videoUSDPerMinute float64) {
+	if d.config == nil {
+		d.config = DefaultConfig()
+	}
+	d.config.ImageUSDPerCredit = imageUSDPerCredit
+	d.config.VideoUSDPerMinute = videoUSDPerMinute
 }
 
 // GenerateImage generates images synchronously.
@@ -65,6 +82,17 @@ func (d *Domain) GenerateImage(ctx context.Context, userID uuid.UUID, in *mediav
 	}
 
 	startTime := time.Now()
+
+	units := int64(in.GetN())
+	if units <= 0 {
+		units = 1
+	}
+	totalCostUSD := float64(units) * d.config.ImageUSDPerCredit
+	if d.usageBiller != nil {
+		if err := d.usageBiller.CheckUsage(ctx, userID, string(model.AITaskTypeImage), units, totalCostUSD); err != nil {
+			return nil, mapBillingFlowError(err)
+		}
+	}
 
 	// Find model with image capability
 	mediaModel, provider, apiKey, err := d.findModelWithCapability(ctx, in.GetModel(), model.MediaCapabilityImage)
@@ -93,16 +121,33 @@ func (d *Domain) GenerateImage(ctx context.Context, userID uuid.UUID, in *mediav
 	// Execute
 	resp, err := adapter.GenerateImage(ctx, req, mediaModel, provider, apiKey)
 	if err != nil {
-		d.recordMediaUsage(ctx, userID, "", startTime, time.Since(startTime).Milliseconds(), false, string(model.AITaskTypeImage), provider.ID, mediaModel.ID, apiKey, 0)
+		d.recordMediaUsage(ctx, userID, "", startTime, time.Since(startTime).Milliseconds(), false, string(model.AITaskTypeImage), provider.ID, mediaModel.ID, apiKey, 0, 0)
 		return nil, fmt.Errorf("generate image: %w", err)
 	}
 
 	latencyMs := time.Since(startTime).Milliseconds()
-	costUSD := float64(0)
-	if resp != nil && resp.Usage != nil {
-		costUSD = resp.Usage.CostUSD
+	actualUnits := units
+	if resp != nil && resp.Usage != nil && resp.Usage.TotalImages > 0 {
+		actualUnits = int64(resp.Usage.TotalImages)
 	}
-	d.recordMediaUsage(ctx, userID, "", startTime, latencyMs, true, string(model.AITaskTypeImage), provider.ID, mediaModel.ID, apiKey, costUSD)
+	totalCostUSD = float64(actualUnits) * d.config.ImageUSDPerCredit
+
+	chargedCostUSD := totalCostUSD
+	if d.usageBiller != nil {
+		cost, err := d.usageBiller.CommitUsage(ctx, userID, string(model.AITaskTypeImage), actualUnits, totalCostUSD)
+		if err != nil {
+			return nil, mapBillingFlowError(err)
+		}
+		chargedCostUSD = cost
+	}
+
+	if resp.Usage == nil {
+		resp.Usage = &model.ImageUsage{}
+	}
+	resp.Usage.TotalImages = int(actualUnits)
+	resp.Usage.CostUSD = chargedCostUSD
+
+	d.recordMediaUsage(ctx, userID, "", startTime, latencyMs, true, string(model.AITaskTypeImage), provider.ID, mediaModel.ID, apiKey, actualUnits, chargedCostUSD)
 
 	d.logger.Info("Image generated",
 		zap.String("user_id", userID.String()),
@@ -130,6 +175,14 @@ func (d *Domain) GenerateVideo(ctx context.Context, userID uuid.UUID, in *mediav
 		Resolution:  in.GetResolution(),
 		FPS:         int(in.GetFps()),
 		Model:       in.GetModel(),
+	}
+
+	units := videoMinutesFromSeconds(int(in.GetDuration()))
+	totalCostUSD := float64(units) * d.config.VideoUSDPerMinute
+	if d.usageBiller != nil {
+		if err := d.usageBiller.CheckUsage(ctx, userID, string(model.AITaskTypeVideo), int64(units), totalCostUSD); err != nil {
+			return nil, mapBillingFlowError(err)
+		}
 	}
 
 	inputBytes, err := json.Marshal(inputData)
@@ -457,6 +510,16 @@ func (d *Domain) ExecuteVideoTask(ctx context.Context, taskID uuid.UUID) error {
 		return err
 	}
 
+	units := videoMinutesFromSeconds(input.Duration)
+	totalCostUSD := float64(units) * d.config.VideoUSDPerMinute
+	if d.usageBiller != nil {
+		if err := d.usageBiller.CheckUsage(ctx, task.OwnerID, string(model.AITaskTypeVideo), int64(units), totalCostUSD); err != nil {
+			billErr := mapBillingFlowError(err)
+			d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusFailed, 0, "", billErr.Error())
+			return billErr
+		}
+	}
+
 	d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusRunning, 20, "", "")
 
 	// Get adapter
@@ -481,7 +544,7 @@ func (d *Domain) ExecuteVideoTask(ctx context.Context, taskID uuid.UUID) error {
 	// Submit to provider
 	resp, err := adapter.GenerateVideo(ctx, req, mediaModel, provider, apiKey)
 	if err != nil {
-		d.recordMediaUsage(ctx, task.OwnerID, task.ID.String(), task.CreatedAt, time.Since(task.CreatedAt).Milliseconds(), false, string(model.AITaskTypeVideo), provider.ID, mediaModel.ID, apiKey, 0)
+		d.recordMediaUsage(ctx, task.OwnerID, task.ID.String(), task.CreatedAt, time.Since(task.CreatedAt).Milliseconds(), false, string(model.AITaskTypeVideo), provider.ID, mediaModel.ID, apiKey, 0, 0)
 		d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusFailed, 0, "", err.Error())
 		return fmt.Errorf("generate video: %w", err)
 	}
@@ -512,15 +575,26 @@ func (d *Domain) ExecuteVideoTask(ctx context.Context, taskID uuid.UUID) error {
 
 		switch status.Status {
 		case model.VideoStateCompleted:
+			chargedCostUSD := totalCostUSD
+			if d.usageBiller != nil {
+				cost, err := d.usageBiller.CommitUsage(ctx, task.OwnerID, string(model.AITaskTypeVideo), int64(units), totalCostUSD)
+				if err != nil {
+					billErr := mapBillingFlowError(err)
+					d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusFailed, 0, "", billErr.Error())
+					return billErr
+				}
+				chargedCostUSD = cost
+			}
+
 			outputBytes, _ := json.Marshal(status.Video)
 			d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusCompleted, 100, string(outputBytes), "")
-			d.recordMediaUsage(ctx, task.OwnerID, task.ID.String(), task.CreatedAt, time.Since(task.CreatedAt).Milliseconds(), true, string(model.AITaskTypeVideo), provider.ID, mediaModel.ID, apiKey, 0)
+			d.recordMediaUsage(ctx, task.OwnerID, task.ID.String(), task.CreatedAt, time.Since(task.CreatedAt).Milliseconds(), true, string(model.AITaskTypeVideo), provider.ID, mediaModel.ID, apiKey, int64(units), chargedCostUSD)
 			d.logger.Info("Video generation completed",
 				zap.String("task_id", taskID.String()),
 			)
 			return nil
 		case model.VideoStateFailed:
-			d.recordMediaUsage(ctx, task.OwnerID, task.ID.String(), task.CreatedAt, time.Since(task.CreatedAt).Milliseconds(), false, string(model.AITaskTypeVideo), provider.ID, mediaModel.ID, apiKey, 0)
+			d.recordMediaUsage(ctx, task.OwnerID, task.ID.String(), task.CreatedAt, time.Since(task.CreatedAt).Milliseconds(), false, string(model.AITaskTypeVideo), provider.ID, mediaModel.ID, apiKey, 0, 0)
 			d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusFailed, 0, "", status.Error)
 			return fmt.Errorf("video generation failed: %s", status.Error)
 		}
@@ -541,6 +615,7 @@ func (d *Domain) recordMediaUsage(
 	providerID uuid.UUID,
 	modelID string,
 	apiKey string,
+	units int64,
 	costUSD float64,
 ) {
 	if d.usageDB == nil {
@@ -561,6 +636,7 @@ func (d *Domain) recordMediaUsage(
 		TaskType:       taskType,
 		ProviderID:     providerID,
 		ModelID:        modelID,
+		InputTokens:    int(units),
 		LatencyMs:      int(latencyMs),
 		Success:        success,
 		CostUSD:        costUSD,
@@ -572,6 +648,28 @@ func (d *Domain) recordMediaUsage(
 	}
 
 	_ = d.usageDB.Create(ctx, record)
+}
+
+func videoMinutesFromSeconds(durationSeconds int) int {
+	if durationSeconds <= 0 {
+		return 1
+	}
+	return int(math.Ceil(float64(durationSeconds) / 60))
+}
+
+func mapBillingFlowError(err error) error {
+	switch {
+	case errors.Is(err, billingflow.ErrRateLimitExceeded):
+		return ErrRateLimitExceeded
+	case errors.Is(err, billingflow.ErrInsufficientCredits):
+		return ErrInsufficientCredits
+	case errors.Is(err, billingflow.ErrQuotaExceeded):
+		return ErrQuotaExceeded
+	case errors.Is(err, billingflow.ErrInvalidRequest):
+		return ErrInvalidInput
+	default:
+		return err
+	}
 }
 
 func keyPrefix(key string, length int) string {

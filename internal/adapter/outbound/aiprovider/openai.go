@@ -127,6 +127,9 @@ func (a *OpenAIAdapter) ChatStream(ctx context.Context, req *model.AIChatRequest
 	// Build request body with streaming enabled
 	body := a.buildChatRequest(req, m)
 	body["stream"] = true
+	body["stream_options"] = map[string]any{
+		"include_usage": true,
+	}
 
 	// Make API request
 	respBody, err := a.doRequest(ctx, p, apiKey, "/chat/completions", body)

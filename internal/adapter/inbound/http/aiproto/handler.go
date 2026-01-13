@@ -279,6 +279,8 @@ func mapAIError(err error) error {
 		return &protohttp.HTTPError{Status: http.StatusTooManyRequests, Code: "rate_limited", Message: err.Error(), Err: err}
 	case errors.Is(err, ai.ErrQuotaExceeded):
 		return &protohttp.HTTPError{Status: http.StatusForbidden, Code: "quota_exceeded", Message: err.Error(), Err: err}
+	case errors.Is(err, ai.ErrInsufficientCredits):
+		return &protohttp.HTTPError{Status: http.StatusPaymentRequired, Code: "insufficient_credits", Message: err.Error(), Err: err}
 	case errors.Is(err, ai.ErrNoAvailableModels),
 		errors.Is(err, ai.ErrNoAvailableAccount),
 		errors.Is(err, ai.ErrAdapterNotFound),

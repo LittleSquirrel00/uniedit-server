@@ -61,6 +61,11 @@ auth:
       client_secret: ""  # Set via UNIEDIT_GOOGLE_CLIENT_SECRET env var
       redirect_url: "http://localhost:8080/api/v1/auth/callback"
 
+media:
+  # Media pay-as-you-go pricing (USD).
+  image_usd_per_credit: 0.04   # 1 credit = 1 generated image
+  video_usd_per_minute: 0.20   # billed per minute (ceil)
+
 storage:
   endpoint: ""
   region: auto

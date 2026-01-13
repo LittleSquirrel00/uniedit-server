@@ -18,6 +18,7 @@ type Config struct {
 	AccessControl AccessControlConfig `mapstructure:"access_control"`
 	AI         AIConfig         `mapstructure:"ai"`
 	Auth       AuthConfig       `mapstructure:"auth"`
+	Media      MediaConfig      `mapstructure:"media"`
 	Storage    StorageConfig    `mapstructure:"storage"`
 	Git        GitConfig        `mapstructure:"git"`
 	Log        LogConfig        `mapstructure:"log"`
@@ -139,6 +140,14 @@ type AuthConfig struct {
 	RefreshTokenExpiry time.Duration `mapstructure:"refresh_token_expiry"`
 	MasterKey          string        `mapstructure:"master_key"` // For API key encryption
 	OAuth              OAuthConfig   `mapstructure:"oauth"`
+}
+
+// MediaConfig holds media pricing configuration.
+type MediaConfig struct {
+	// ImageUSDPerCredit is the pay-as-you-go price per image credit (1 credit = 1 generated image).
+	ImageUSDPerCredit float64 `mapstructure:"image_usd_per_credit"`
+	// VideoUSDPerMinute is the pay-as-you-go price per video minute.
+	VideoUSDPerMinute float64 `mapstructure:"video_usd_per_minute"`
 }
 
 // OAuthConfig holds OAuth provider configurations.
@@ -444,6 +453,10 @@ func setDefaults(v *viper.Viper) {
 	// Auth defaults
 	v.SetDefault("auth.access_token_expiry", 15*time.Minute)
 	v.SetDefault("auth.refresh_token_expiry", 7*24*time.Hour)
+
+	// Media defaults (pricing)
+	v.SetDefault("media.image_usd_per_credit", 0.04)
+	v.SetDefault("media.video_usd_per_minute", 0.20)
 
 	// Log defaults
 	v.SetDefault("log.level", "info")

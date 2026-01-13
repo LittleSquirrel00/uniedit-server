@@ -40,6 +40,7 @@ import (
 	"github.com/uniedit/server/internal/infra/database"
 
 	// Utils
+	"github.com/uniedit/server/internal/utils/billingflow"
 	"github.com/uniedit/server/internal/utils/logger"
 	"github.com/uniedit/server/internal/utils/metrics"
 	"github.com/uniedit/server/internal/utils/middleware"
@@ -125,6 +126,18 @@ func New(cfg *config.Config) (*App, error) {
 		gitProtoHandler:        deps.GitProtoHandler,
 		mediaProtoHandler:      deps.MediaProtoHandler,
 		cleanupFuncs:           []func(){cleanup},
+	}
+
+	if biller, ok := deps.BillingDomain.(billingflow.UsageBiller); ok {
+		if setter, ok := deps.AIDomain.(interface{ SetUsageBiller(billingflow.UsageBiller) }); ok {
+			setter.SetUsageBiller(biller)
+		}
+		if setter, ok := deps.MediaDomain.(interface{ SetUsageBiller(billingflow.UsageBiller) }); ok {
+			setter.SetUsageBiller(biller)
+		}
+	}
+	if setter, ok := deps.MediaDomain.(interface{ SetPricing(imageUSDPerCredit, videoUSDPerMinute float64) }); ok {
+		setter.SetPricing(deps.Config.Media.ImageUSDPerCredit, deps.Config.Media.VideoUSDPerMinute)
 	}
 
 	// Initialize router
