@@ -102,14 +102,14 @@ type OutboundPorts struct {
 	AIUsageRecorder  outbound.AIUsageRecorderPort
 
 	// Git ports
-	GitRepoDB       outbound.GitRepoDatabasePort
-	GitCollabDB     outbound.GitCollaboratorDatabasePort
-	GitPRDB         outbound.GitPullRequestDatabasePort
-	GitLFSObjDB     outbound.GitLFSObjectDatabasePort
-	GitLFSLockDB    outbound.GitLFSLockDatabasePort
-	GitStorage      outbound.GitStoragePort
-	GitLFSStorage   outbound.GitLFSStoragePort
-	GitAccessCtrl   outbound.GitAccessControlPort
+	GitRepoDB     outbound.GitRepoDatabasePort
+	GitCollabDB   outbound.GitCollaboratorDatabasePort
+	GitPRDB       outbound.GitPullRequestDatabasePort
+	GitLFSObjDB   outbound.GitLFSObjectDatabasePort
+	GitLFSLockDB  outbound.GitLFSLockDatabasePort
+	GitStorage    outbound.GitStoragePort
+	GitLFSStorage outbound.GitLFSStoragePort
+	GitAccessCtrl outbound.GitAccessControlPort
 
 	// Media ports
 	MediaProviderDB  outbound.MediaProviderDatabasePort
@@ -266,7 +266,7 @@ func NewDomain(ports *OutboundPorts, authConfig *AuthConfig, paymentConfig *Paym
 			ports.AIEmbeddingCache,
 			ports.AIVendorRegistry,
 			ports.AICrypto,
-			ports.AIUsageRecorder,
+			ports.UsageDB,
 			aiConfig,
 			logger.Named("ai"),
 		),
@@ -300,6 +300,7 @@ func NewDomain(ports *OutboundPorts, authConfig *AuthConfig, paymentConfig *Paym
 			ports.MediaProviderDB,
 			ports.MediaModelDB,
 			ports.MediaTaskDB,
+			ports.UsageDB,
 			ports.MediaHealthCache,
 			ports.MediaVendorReg,
 			ports.MediaCrypto,

@@ -261,6 +261,7 @@ type UsageRecord struct {
 	ID           int64      `json:"id" gorm:"primaryKey;autoIncrement"`
 	UserID       uuid.UUID  `json:"user_id" gorm:"type:uuid;not null;index"`
 	APIKeyID     *uuid.UUID `json:"api_key_id,omitempty" gorm:"type:uuid"`
+	APIKeyPrefix *string    `json:"api_key_prefix,omitempty" gorm:"type:varchar(32)"`
 	Timestamp    time.Time  `json:"timestamp" gorm:"not null;index"`
 	RequestID    string     `json:"request_id" gorm:"not null"`
 	TaskType     string     `json:"task_type" gorm:"not null"`
@@ -273,6 +274,15 @@ type UsageRecord struct {
 	LatencyMs    int        `json:"latency_ms" gorm:"not null"`
 	Success      bool       `json:"success" gorm:"not null"`
 	CacheHit     bool       `json:"cache_hit" gorm:"not null;default:false"`
+
+	// AI audit extensions
+	ProviderAccountID        *uuid.UUID `json:"provider_account_id,omitempty" gorm:"type:uuid"`
+	ProviderAccountName      *string    `json:"provider_account_name,omitempty" gorm:"type:varchar(255)"`
+	ProviderAccountKeyPrefix *string    `json:"provider_account_key_prefix,omitempty" gorm:"type:varchar(32)"`
+	CachedTokens             int        `json:"cached_tokens" gorm:"default:0"`
+	CacheCreationInputTokens int        `json:"cache_creation_input_tokens" gorm:"not null;default:0"`
+	CacheReadInputTokens     int        `json:"cache_read_input_tokens" gorm:"not null;default:0"`
+	CostMultiplier           float64    `json:"cost_multiplier" gorm:"type:decimal(10,4);not null;default:1"`
 }
 
 // TableName returns the database table name.

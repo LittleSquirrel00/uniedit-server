@@ -297,17 +297,17 @@ func (g *AIModelGroup) HasModel(modelID string) bool {
 
 // AIChatRequest represents a chat completion request.
 type AIChatRequest struct {
-	Model       string            `json:"model"`
-	Messages    []*AIChatMessage  `json:"messages"`
-	MaxTokens   int               `json:"max_tokens,omitempty"`
-	Temperature *float64          `json:"temperature,omitempty"`
-	TopP        *float64          `json:"top_p,omitempty"`
-	Stop        []string          `json:"stop,omitempty"`
-	Tools       []*AITool         `json:"tools,omitempty"`
-	ToolChoice  any               `json:"tool_choice,omitempty"`
-	Stream      bool              `json:"stream,omitempty"`
-	Metadata    map[string]any    `json:"metadata,omitempty"`
-	UserID      uuid.UUID         `json:"-"` // Set by service layer
+	Model       string           `json:"model"`
+	Messages    []*AIChatMessage `json:"messages"`
+	MaxTokens   int              `json:"max_tokens,omitempty"`
+	Temperature *float64         `json:"temperature,omitempty"`
+	TopP        *float64         `json:"top_p,omitempty"`
+	Stop        []string         `json:"stop,omitempty"`
+	Tools       []*AITool        `json:"tools,omitempty"`
+	ToolChoice  any              `json:"tool_choice,omitempty"`
+	Stream      bool             `json:"stream,omitempty"`
+	Metadata    map[string]any   `json:"metadata,omitempty"`
+	UserID      uuid.UUID        `json:"-"` // Set by service layer
 }
 
 // AIChatMessage represents a chat message.
@@ -397,12 +397,12 @@ type AIFunctionCall struct {
 
 // AIChatResponse represents a chat completion response.
 type AIChatResponse struct {
-	ID           string          `json:"id"`
-	Model        string          `json:"model"`
-	Message      *AIChatMessage  `json:"message"`
-	FinishReason string          `json:"finish_reason"`
-	Usage        *AIUsage        `json:"usage"`
-	Routing      *AIRoutingInfo  `json:"_routing,omitempty"`
+	ID           string         `json:"id"`
+	Model        string         `json:"model"`
+	Message      *AIChatMessage `json:"message"`
+	FinishReason string         `json:"finish_reason"`
+	Usage        *AIUsage       `json:"usage"`
+	Routing      *AIRoutingInfo `json:"_routing,omitempty"`
 }
 
 // AIChatChunk represents a streaming chat chunk.
@@ -425,6 +425,10 @@ type AIUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+
+	// Prompt caching (vendor dependent). For OpenAI, CacheReadInputTokens is mapped from prompt_tokens_details.cached_tokens.
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
 }
 
 // AIRoutingInfo contains routing metadata.
@@ -557,8 +561,10 @@ type AIRoutingResult struct {
 	Reason   string      `json:"reason"`
 
 	// Account pool integration
-	AccountID *string `json:"account_id,omitempty"` // Provider account ID if using pool
-	APIKey    string  `json:"-"`                    // Decrypted API key (from pool or provider)
+	AccountID        *string `json:"account_id,omitempty"`         // Provider account ID if using pool
+	AccountName      *string `json:"account_name,omitempty"`       // Provider account name if using pool
+	AccountKeyPrefix *string `json:"account_key_prefix,omitempty"` // Provider account key prefix if using pool
+	APIKey           string  `json:"-"`                            // Decrypted API key (from pool or provider)
 }
 
 // RequiresCapability checks if the request requires a specific capability.

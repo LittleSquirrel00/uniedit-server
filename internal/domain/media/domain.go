@@ -14,6 +14,7 @@ import (
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/inbound"
 	"github.com/uniedit/server/internal/port/outbound"
+	"github.com/uniedit/server/internal/utils/requestctx"
 )
 
 // Domain implements the media domain logic.
@@ -21,6 +22,7 @@ type Domain struct {
 	providerDB     outbound.MediaProviderDatabasePort
 	modelDB        outbound.MediaModelDatabasePort
 	taskDB         outbound.MediaTaskDatabasePort
+	usageDB        outbound.UsageRecordDatabasePort
 	healthCache    outbound.MediaProviderHealthCachePort
 	vendorRegistry outbound.MediaVendorRegistryPort
 	crypto         outbound.MediaCryptoPort
@@ -33,6 +35,7 @@ func NewDomain(
 	providerDB outbound.MediaProviderDatabasePort,
 	modelDB outbound.MediaModelDatabasePort,
 	taskDB outbound.MediaTaskDatabasePort,
+	usageDB outbound.UsageRecordDatabasePort,
 	healthCache outbound.MediaProviderHealthCachePort,
 	vendorRegistry outbound.MediaVendorRegistryPort,
 	crypto outbound.MediaCryptoPort,
@@ -46,6 +49,7 @@ func NewDomain(
 		providerDB:     providerDB,
 		modelDB:        modelDB,
 		taskDB:         taskDB,
+		usageDB:        usageDB,
 		healthCache:    healthCache,
 		vendorRegistry: vendorRegistry,
 		crypto:         crypto,
@@ -59,6 +63,8 @@ func (d *Domain) GenerateImage(ctx context.Context, userID uuid.UUID, in *mediav
 	if in.GetPrompt() == "" {
 		return nil, ErrInvalidInput
 	}
+
+	startTime := time.Now()
 
 	// Find model with image capability
 	mediaModel, provider, apiKey, err := d.findModelWithCapability(ctx, in.GetModel(), model.MediaCapabilityImage)
@@ -87,8 +93,16 @@ func (d *Domain) GenerateImage(ctx context.Context, userID uuid.UUID, in *mediav
 	// Execute
 	resp, err := adapter.GenerateImage(ctx, req, mediaModel, provider, apiKey)
 	if err != nil {
+		d.recordMediaUsage(ctx, userID, "", startTime, time.Since(startTime).Milliseconds(), false, string(model.AITaskTypeImage), provider.ID, mediaModel.ID, apiKey, 0)
 		return nil, fmt.Errorf("generate image: %w", err)
 	}
+
+	latencyMs := time.Since(startTime).Milliseconds()
+	costUSD := float64(0)
+	if resp != nil && resp.Usage != nil {
+		costUSD = resp.Usage.CostUSD
+	}
+	d.recordMediaUsage(ctx, userID, "", startTime, latencyMs, true, string(model.AITaskTypeImage), provider.ID, mediaModel.ID, apiKey, costUSD)
 
 	d.logger.Info("Image generated",
 		zap.String("user_id", userID.String()),
@@ -467,6 +481,7 @@ func (d *Domain) ExecuteVideoTask(ctx context.Context, taskID uuid.UUID) error {
 	// Submit to provider
 	resp, err := adapter.GenerateVideo(ctx, req, mediaModel, provider, apiKey)
 	if err != nil {
+		d.recordMediaUsage(ctx, task.OwnerID, task.ID.String(), task.CreatedAt, time.Since(task.CreatedAt).Milliseconds(), false, string(model.AITaskTypeVideo), provider.ID, mediaModel.ID, apiKey, 0)
 		d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusFailed, 0, "", err.Error())
 		return fmt.Errorf("generate video: %w", err)
 	}
@@ -499,11 +514,13 @@ func (d *Domain) ExecuteVideoTask(ctx context.Context, taskID uuid.UUID) error {
 		case model.VideoStateCompleted:
 			outputBytes, _ := json.Marshal(status.Video)
 			d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusCompleted, 100, string(outputBytes), "")
+			d.recordMediaUsage(ctx, task.OwnerID, task.ID.String(), task.CreatedAt, time.Since(task.CreatedAt).Milliseconds(), true, string(model.AITaskTypeVideo), provider.ID, mediaModel.ID, apiKey, 0)
 			d.logger.Info("Video generation completed",
 				zap.String("task_id", taskID.String()),
 			)
 			return nil
 		case model.VideoStateFailed:
+			d.recordMediaUsage(ctx, task.OwnerID, task.ID.String(), task.CreatedAt, time.Since(task.CreatedAt).Milliseconds(), false, string(model.AITaskTypeVideo), provider.ID, mediaModel.ID, apiKey, 0)
 			d.taskDB.UpdateStatus(ctx, taskID, model.MediaTaskStatusFailed, 0, "", status.Error)
 			return fmt.Errorf("video generation failed: %s", status.Error)
 		}
@@ -511,6 +528,60 @@ func (d *Domain) ExecuteVideoTask(ctx context.Context, taskID uuid.UUID) error {
 		// Wait before polling again
 		time.Sleep(d.config.VideoPollInterval)
 	}
+}
+
+func (d *Domain) recordMediaUsage(
+	ctx context.Context,
+	userID uuid.UUID,
+	requestID string,
+	startTime time.Time,
+	latencyMs int64,
+	success bool,
+	taskType string,
+	providerID uuid.UUID,
+	modelID string,
+	apiKey string,
+	costUSD float64,
+) {
+	if d.usageDB == nil {
+		return
+	}
+
+	if requestID == "" {
+		requestID = requestctx.RequestID(ctx)
+	}
+	if requestID == "" {
+		requestID = uuid.New().String()
+	}
+
+	record := &model.UsageRecord{
+		UserID:         userID,
+		Timestamp:      startTime.UTC(),
+		RequestID:      requestID,
+		TaskType:       taskType,
+		ProviderID:     providerID,
+		ModelID:        modelID,
+		LatencyMs:      int(latencyMs),
+		Success:        success,
+		CostUSD:        costUSD,
+		CostMultiplier: 1,
+	}
+
+	if prefix := keyPrefix(apiKey, 10); prefix != "" {
+		record.APIKeyPrefix = &prefix
+	}
+
+	_ = d.usageDB.Create(ctx, record)
+}
+
+func keyPrefix(key string, length int) string {
+	if key == "" {
+		return ""
+	}
+	if len(key) <= length {
+		return key
+	}
+	return key[:length]
 }
 
 // taskStatusToVideoState converts task status to video state.

@@ -297,6 +297,7 @@ func TestDomain_GenerateImage(t *testing.T) {
 			mockProviderDB,
 			mockModelDB,
 			mockTaskDB,
+			nil,
 			mockHealthCache,
 			mockVendorReg,
 			mockCrypto,
@@ -356,7 +357,7 @@ func TestDomain_GenerateImage(t *testing.T) {
 	})
 
 	t.Run("empty prompt", func(t *testing.T) {
-		domain := NewDomain(nil, nil, nil, nil, nil, nil, nil, logger)
+		domain := NewDomain(nil, nil, nil, nil, nil, nil, nil, nil, logger)
 
 		userID := uuid.New()
 		input := &mediav1.GenerateImageRequest{Prompt: ""}
@@ -373,6 +374,7 @@ func TestDomain_GenerateImage(t *testing.T) {
 		domain := NewDomain(
 			nil,
 			mockModelDB,
+			nil,
 			nil,
 			nil,
 			nil,
@@ -400,6 +402,7 @@ func TestDomain_GenerateImage(t *testing.T) {
 		domain := NewDomain(
 			mockProviderDB,
 			mockModelDB,
+			nil,
 			nil,
 			mockHealthCache,
 			nil,
@@ -449,6 +452,7 @@ func TestDomain_GenerateVideo(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 			logger,
 		)
 
@@ -470,7 +474,7 @@ func TestDomain_GenerateVideo(t *testing.T) {
 	})
 
 	t.Run("invalid input", func(t *testing.T) {
-		domain := NewDomain(nil, nil, nil, nil, nil, nil, nil, logger)
+		domain := NewDomain(nil, nil, nil, nil, nil, nil, nil, nil, logger)
 
 		userID := uuid.New()
 		input := &mediav1.GenerateVideoRequest{}
@@ -492,6 +496,7 @@ func TestDomain_GetVideoStatus(t *testing.T) {
 			nil,
 			nil,
 			mockTaskDB,
+			nil,
 			nil,
 			nil,
 			nil,
@@ -532,6 +537,7 @@ func TestDomain_GetVideoStatus(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 			logger,
 		)
 
@@ -553,6 +559,7 @@ func TestDomain_GetVideoStatus(t *testing.T) {
 			nil,
 			nil,
 			mockTaskDB,
+			nil,
 			nil,
 			nil,
 			nil,
@@ -588,6 +595,7 @@ func TestDomain_GetTask(t *testing.T) {
 			nil,
 			nil,
 			mockTaskDB,
+			nil,
 			nil,
 			nil,
 			nil,
@@ -634,6 +642,7 @@ func TestDomain_ListTasks(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 			logger,
 		)
 
@@ -664,6 +673,7 @@ func TestDomain_ListTasks(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 			logger,
 		)
 
@@ -688,6 +698,7 @@ func TestDomain_CancelTask(t *testing.T) {
 			nil,
 			nil,
 			mockTaskDB,
+			nil,
 			nil,
 			nil,
 			nil,
@@ -725,6 +736,7 @@ func TestDomain_CancelTask(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 			logger,
 		)
 
@@ -751,6 +763,7 @@ func TestDomain_CancelTask(t *testing.T) {
 			nil,
 			nil,
 			mockTaskDB,
+			nil,
 			nil,
 			nil,
 			nil,
@@ -790,6 +803,7 @@ func TestDomain_GetProvider(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 			logger,
 		)
 
@@ -821,6 +835,7 @@ func TestDomain_GetProvider(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 			logger,
 		)
 
@@ -842,6 +857,7 @@ func TestDomain_ListProviders(t *testing.T) {
 
 		domain := NewDomain(
 			mockProviderDB,
+			nil,
 			nil,
 			nil,
 			nil,
@@ -879,6 +895,7 @@ func TestDomain_ListModels(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 			logger,
 		)
 
@@ -901,6 +918,7 @@ func TestDomain_ListModels(t *testing.T) {
 		domain := NewDomain(
 			nil,
 			mockModelDB,
+			nil,
 			nil,
 			nil,
 			nil,
@@ -941,7 +959,7 @@ func TestDomain_GetVideoStatus_Completed(t *testing.T) {
 	logger := zap.NewNop()
 	mockTaskDB := new(MockMediaTaskDB)
 
-	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, logger)
+	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, nil, logger)
 
 	userID := uuid.New()
 	taskID := uuid.New()
@@ -971,7 +989,7 @@ func TestDomain_GetVideoStatus_Failed(t *testing.T) {
 	logger := zap.NewNop()
 	mockTaskDB := new(MockMediaTaskDB)
 
-	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, logger)
+	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, nil, logger)
 
 	userID := uuid.New()
 	taskID := uuid.New()
@@ -997,7 +1015,7 @@ func TestDomain_GetVideoStatus_Failed(t *testing.T) {
 
 func TestDomain_GetVideoStatus_InvalidTaskID(t *testing.T) {
 	logger := zap.NewNop()
-	domain := NewDomain(nil, nil, nil, nil, nil, nil, nil, logger)
+	domain := NewDomain(nil, nil, nil, nil, nil, nil, nil, nil, logger)
 
 	userID := uuid.New()
 
@@ -1011,7 +1029,7 @@ func TestDomain_CancelTask_AlreadyCancelled(t *testing.T) {
 	logger := zap.NewNop()
 	mockTaskDB := new(MockMediaTaskDB)
 
-	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, logger)
+	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, nil, logger)
 
 	userID := uuid.New()
 	taskID := uuid.New()
@@ -1033,7 +1051,7 @@ func TestDomain_CancelTask_Failed(t *testing.T) {
 	logger := zap.NewNop()
 	mockTaskDB := new(MockMediaTaskDB)
 
-	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, logger)
+	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, nil, logger)
 
 	userID := uuid.New()
 	taskID := uuid.New()
@@ -1055,7 +1073,7 @@ func TestDomain_GetTask_NotFound(t *testing.T) {
 	logger := zap.NewNop()
 	mockTaskDB := new(MockMediaTaskDB)
 
-	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, logger)
+	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, nil, logger)
 
 	userID := uuid.New()
 	taskID := uuid.New()
@@ -1072,7 +1090,7 @@ func TestDomain_GetTask_NotOwned(t *testing.T) {
 	logger := zap.NewNop()
 	mockTaskDB := new(MockMediaTaskDB)
 
-	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, logger)
+	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, nil, logger)
 
 	userID := uuid.New()
 	otherUserID := uuid.New()
@@ -1095,7 +1113,7 @@ func TestDomain_GenerateImage_CapabilityNotSupported(t *testing.T) {
 	logger := zap.NewNop()
 	mockModelDB := new(MockMediaModelDB)
 
-	domain := NewDomain(nil, mockModelDB, nil, nil, nil, nil, nil, logger)
+	domain := NewDomain(nil, mockModelDB, nil, nil, nil, nil, nil, nil, logger)
 
 	userID := uuid.New()
 	providerID := uuid.New()
@@ -1130,6 +1148,7 @@ func TestDomain_GenerateImage_AutoSelectModel(t *testing.T) {
 	domain := NewDomain(
 		mockProviderDB,
 		mockModelDB,
+		nil,
 		nil,
 		mockHealthCache,
 		mockVendorReg,
@@ -1190,7 +1209,7 @@ func TestDomain_FindModelWithCapability_NoModels(t *testing.T) {
 	logger := zap.NewNop()
 	mockModelDB := new(MockMediaModelDB)
 
-	domain := NewDomain(nil, mockModelDB, nil, nil, nil, nil, nil, logger)
+	domain := NewDomain(nil, mockModelDB, nil, nil, nil, nil, nil, nil, logger)
 
 	mockModelDB.On("FindByCapability", mock.Anything, model.MediaCapabilityImage).Return([]*model.MediaModel{}, nil)
 
@@ -1212,6 +1231,7 @@ func TestDomain_FindModelWithCapability_NoHealthyProvider(t *testing.T) {
 	domain := NewDomain(
 		mockProviderDB,
 		mockModelDB,
+		nil,
 		nil,
 		mockHealthCache,
 		nil,
@@ -1264,6 +1284,7 @@ func TestDomain_ExecuteVideoTask_Success(t *testing.T) {
 		mockProviderDB,
 		mockModelDB,
 		mockTaskDB,
+		nil,
 		mockHealthCache,
 		mockVendorReg,
 		mockCrypto,
@@ -1327,7 +1348,7 @@ func TestDomain_ExecuteVideoTask_NotFound(t *testing.T) {
 	logger := zap.NewNop()
 	mockTaskDB := new(MockMediaTaskDB)
 
-	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, logger)
+	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, nil, logger)
 
 	taskID := uuid.New()
 	mockTaskDB.On("FindByID", mock.Anything, taskID).Return(nil, nil)
@@ -1341,7 +1362,7 @@ func TestDomain_ExecuteVideoTask_InvalidInput(t *testing.T) {
 	logger := zap.NewNop()
 	mockTaskDB := new(MockMediaTaskDB)
 
-	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, logger)
+	domain := NewDomain(nil, nil, mockTaskDB, nil, nil, nil, nil, nil, logger)
 
 	taskID := uuid.New()
 	task := &model.MediaTask{

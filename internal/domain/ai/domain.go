@@ -11,6 +11,7 @@ import (
 	commonv1 "github.com/uniedit/server/api/pb/common"
 	"github.com/uniedit/server/internal/model"
 	"github.com/uniedit/server/internal/port/outbound"
+	"github.com/uniedit/server/internal/utils/requestctx"
 	"go.uber.org/zap"
 )
 
@@ -90,7 +91,7 @@ type aiDomain struct {
 	// Adapter ports
 	vendorRegistry outbound.AIVendorRegistryPort
 	crypto         outbound.AICryptoPort
-	usageRecorder  outbound.AIUsageRecorderPort
+	usageDB        outbound.UsageRecordDatabasePort
 
 	// Routing
 	strategyChain *StrategyChain
@@ -133,7 +134,7 @@ func NewAIDomain(
 	embeddingCache outbound.AIEmbeddingCachePort,
 	vendorRegistry outbound.AIVendorRegistryPort,
 	crypto outbound.AICryptoPort,
-	usageRecorder outbound.AIUsageRecorderPort,
+	usageDB outbound.UsageRecordDatabasePort,
 	config *Config,
 	logger *zap.Logger,
 ) AIDomain {
@@ -150,7 +151,7 @@ func NewAIDomain(
 		embeddingCache: embeddingCache,
 		vendorRegistry: vendorRegistry,
 		crypto:         crypto,
-		usageRecorder:  usageRecorder,
+		usageDB:        usageDB,
 		strategyChain:  DefaultStrategyChain(),
 		providerCache:  make(map[uuid.UUID]*model.AIProvider),
 		modelCache:     make(map[string]*model.AIModel),
@@ -211,6 +212,7 @@ func (d *aiDomain) Chat(ctx context.Context, userID uuid.UUID, req *aiv1.ChatReq
 	if err != nil {
 		// Mark failure for health tracking
 		d.markRequestFailure(ctx, result, err)
+		d.recordChatUsage(ctx, userID, startTime, time.Since(startTime).Milliseconds(), false, result, nil, 0)
 		return nil, fmt.Errorf("chat failed: %w", err)
 	}
 
@@ -221,10 +223,7 @@ func (d *aiDomain) Chat(ctx context.Context, userID uuid.UUID, req *aiv1.ChatReq
 	// Mark success
 	d.markRequestSuccess(ctx, result, resp.Usage, costUSD)
 
-	// Record usage for billing
-	if d.usageRecorder != nil && resp.Usage != nil {
-		_ = d.usageRecorder.RecordUsage(ctx, userID, result.Model.ID, resp.Usage.PromptTokens, resp.Usage.CompletionTokens, costUSD)
-	}
+	d.recordChatUsage(ctx, userID, startTime, latencyMs, true, result, resp.Usage, costUSD)
 
 	// Add routing info
 	resp.Routing = &model.AIRoutingInfo{
@@ -330,10 +329,6 @@ func (d *aiDomain) Embed(ctx context.Context, userID uuid.UUID, req *model.AIEmb
 	if resp.Usage != nil {
 		costUSD := d.calculateCost(result.Model, resp.Usage)
 		d.markRequestSuccess(ctx, result, resp.Usage, costUSD)
-
-		if d.usageRecorder != nil {
-			_ = d.usageRecorder.RecordUsage(ctx, userID, result.Model.ID, resp.Usage.PromptTokens, 0, costUSD)
-		}
 	}
 
 	return resp, nil
@@ -443,7 +438,11 @@ func (d *aiDomain) resolveAPIKey(ctx context.Context, result *model.AIRoutingRes
 							zap.Error(err))
 					} else {
 						accountID := account.ID.String()
+						accountName := account.Name
+						accountKeyPrefix := account.KeyPrefix
 						result.AccountID = &accountID
+						result.AccountName = &accountName
+						result.AccountKeyPrefix = &accountKeyPrefix
 						result.APIKey = decrypted
 						return nil
 					}
@@ -455,6 +454,78 @@ func (d *aiDomain) resolveAPIKey(ctx context.Context, result *model.AIRoutingRes
 	// Fall back to provider's API key
 	result.APIKey = result.Provider.APIKey
 	return nil
+}
+
+func (d *aiDomain) recordChatUsage(
+	ctx context.Context,
+	userID uuid.UUID,
+	startTime time.Time,
+	latencyMs int64,
+	success bool,
+	result *model.AIRoutingResult,
+	usage *model.AIUsage,
+	costUSD float64,
+) {
+	if d.usageDB == nil || result == nil || result.Provider == nil || result.Model == nil {
+		return
+	}
+
+	requestID := requestctx.RequestID(ctx)
+	if requestID == "" {
+		requestID = uuid.New().String()
+	}
+
+	record := &model.UsageRecord{
+		UserID:         userID,
+		Timestamp:      startTime.UTC(),
+		RequestID:      requestID,
+		TaskType:       string(model.AITaskTypeChat),
+		ProviderID:     result.Provider.ID,
+		ModelID:        result.Model.ID,
+		LatencyMs:      int(latencyMs),
+		Success:        success,
+		CostUSD:        costUSD,
+		CostMultiplier: 1,
+	}
+
+	if prefix := keyPrefix(result.APIKey, 10); prefix != "" {
+		record.APIKeyPrefix = &prefix
+	}
+
+	if result.AccountID != nil {
+		if accountUUID, err := uuid.Parse(*result.AccountID); err == nil {
+			record.ProviderAccountID = &accountUUID
+		}
+	}
+	if result.AccountName != nil {
+		record.ProviderAccountName = result.AccountName
+	}
+	if result.AccountKeyPrefix != nil {
+		record.ProviderAccountKeyPrefix = result.AccountKeyPrefix
+	}
+
+	if usage != nil {
+		record.InputTokens = usage.PromptTokens
+		record.OutputTokens = usage.CompletionTokens
+		record.TotalTokens = usage.TotalTokens
+
+		record.CacheCreationInputTokens = usage.CacheCreationInputTokens
+		record.CacheReadInputTokens = usage.CacheReadInputTokens
+		record.CachedTokens = usage.CacheReadInputTokens
+		record.CacheHit = usage.CacheReadInputTokens > 0
+	}
+
+	_ = d.usageDB.Create(ctx, record)
+}
+
+func keyPrefix(key string, length int) string {
+	if key == "" {
+		return ""
+	}
+	if len(key) <= length {
+		return key
+	}
+	return key[:length]
 }
 
 // selectAccount selects the best account from available accounts.

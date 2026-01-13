@@ -408,6 +408,7 @@ func ProvideAIDomain(
 	embeddingCache outbound.AIEmbeddingCachePort,
 	vendorRegistry outbound.AIVendorRegistryPort,
 	crypto outbound.AICryptoPort,
+	usageDB outbound.UsageRecordDatabasePort,
 	zapLog *zap.Logger,
 ) ai.AIDomain {
 	return ai.NewAIDomain(
@@ -419,7 +420,7 @@ func ProvideAIDomain(
 		embeddingCache,
 		vendorRegistry,
 		crypto,
-		nil, // usageRecorder
+		usageDB,
 		nil, // config
 		zapLog,
 	)
@@ -558,6 +559,7 @@ func ProvideMediaDomain(
 	providerDB outbound.MediaProviderDatabasePort,
 	modelDB outbound.MediaModelDatabasePort,
 	taskDB outbound.MediaTaskDatabasePort,
+	usageDB outbound.UsageRecordDatabasePort,
 	healthCache outbound.MediaProviderHealthCachePort,
 	vendorRegistry outbound.MediaVendorRegistryPort,
 	crypto outbound.MediaCryptoPort,
@@ -567,6 +569,7 @@ func ProvideMediaDomain(
 		providerDB,
 		modelDB,
 		taskDB,
+		usageDB,
 		healthCache,
 		vendorRegistry,
 		crypto,

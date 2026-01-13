@@ -74,15 +74,23 @@ func (a *OpenAIAdapter) Chat(ctx context.Context, req *model.AIChatRequest, m *m
 	defer respBody.Close()
 
 	// Parse response
+	type openaiUsage struct {
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		TotalTokens         int `json:"total_tokens"`
+		PromptTokensDetails *struct {
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details,omitempty"`
+	}
 	var openaiResp struct {
 		ID      string `json:"id"`
 		Model   string `json:"model"`
 		Choices []struct {
-			Index        int                 `json:"index"`
+			Index        int                  `json:"index"`
 			Message      *model.AIChatMessage `json:"message"`
-			FinishReason string              `json:"finish_reason"`
+			FinishReason string               `json:"finish_reason"`
 		} `json:"choices"`
-		Usage *model.AIUsage `json:"usage"`
+		Usage *openaiUsage `json:"usage"`
 	}
 
 	if err := json.NewDecoder(respBody).Decode(&openaiResp); err != nil {
@@ -93,12 +101,24 @@ func (a *OpenAIAdapter) Chat(ctx context.Context, req *model.AIChatRequest, m *m
 		return nil, fmt.Errorf("no choices in response")
 	}
 
+	var usage *model.AIUsage
+	if openaiResp.Usage != nil {
+		usage = &model.AIUsage{
+			PromptTokens:     openaiResp.Usage.PromptTokens,
+			CompletionTokens: openaiResp.Usage.CompletionTokens,
+			TotalTokens:      openaiResp.Usage.TotalTokens,
+		}
+		if openaiResp.Usage.PromptTokensDetails != nil {
+			usage.CacheReadInputTokens = openaiResp.Usage.PromptTokensDetails.CachedTokens
+		}
+	}
+
 	return &model.AIChatResponse{
 		ID:           openaiResp.ID,
 		Model:        openaiResp.Model,
 		Message:      openaiResp.Choices[0].Message,
 		FinishReason: openaiResp.Choices[0].FinishReason,
-		Usage:        openaiResp.Usage,
+		Usage:        usage,
 	}, nil
 }
 
@@ -165,13 +185,21 @@ func (a *OpenAIAdapter) Embed(ctx context.Context, req *model.AIEmbedRequest, m 
 	}
 	defer respBody.Close()
 
+	type openaiUsage struct {
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		TotalTokens         int `json:"total_tokens"`
+		PromptTokensDetails *struct {
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details,omitempty"`
+	}
 	var openaiResp struct {
 		Model string `json:"model"`
 		Data  []struct {
 			Embedding []float64 `json:"embedding"`
 			Index     int       `json:"index"`
 		} `json:"data"`
-		Usage *model.AIUsage `json:"usage"`
+		Usage *openaiUsage `json:"usage"`
 	}
 
 	if err := json.NewDecoder(respBody).Decode(&openaiResp); err != nil {
@@ -183,10 +211,22 @@ func (a *OpenAIAdapter) Embed(ctx context.Context, req *model.AIEmbedRequest, m 
 		embeddings[d.Index] = d.Embedding
 	}
 
+	var usage *model.AIUsage
+	if openaiResp.Usage != nil {
+		usage = &model.AIUsage{
+			PromptTokens:     openaiResp.Usage.PromptTokens,
+			CompletionTokens: openaiResp.Usage.CompletionTokens,
+			TotalTokens:      openaiResp.Usage.TotalTokens,
+		}
+		if openaiResp.Usage.PromptTokensDetails != nil {
+			usage.CacheReadInputTokens = openaiResp.Usage.PromptTokensDetails.CachedTokens
+		}
+	}
+
 	return &model.AIEmbedResponse{
 		Model:      openaiResp.Model,
 		Embeddings: embeddings,
-		Usage:      openaiResp.Usage,
+		Usage:      usage,
 	}, nil
 }
 

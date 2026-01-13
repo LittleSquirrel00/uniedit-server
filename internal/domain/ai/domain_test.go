@@ -419,7 +419,7 @@ func newTestDomain(
 		nil, // embeddingCache
 		nil, // vendorRegistry
 		nil, // crypto
-		nil, // usageRecorder
+		nil, // usageDB
 		DefaultConfig(),
 		logger,
 	)
@@ -541,8 +541,8 @@ func TestAIDomain_CreateProvider(t *testing.T) {
 		domain := newTestDomain(mockProviderDB, nil, nil, nil)
 
 		in := &aiv1.CreateProviderRequest{
-			Name:     "new-provider",
-			Type:     string(model.AIProviderTypeGeneric),
+			Name:      "new-provider",
+			Type:      string(model.AIProviderTypeGeneric),
 			BaseUrl:   "https://api.example.com",
 			ApiKey:    "sk-test",
 			Enabled:   true,

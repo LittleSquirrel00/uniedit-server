@@ -3,6 +3,7 @@ package middleware
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/uniedit/server/internal/utils/requestctx"
 )
 
 const (
@@ -24,6 +25,7 @@ func RequestID() gin.HandlerFunc {
 		// Set request ID in context and response header
 		c.Set(RequestIDKey, requestID)
 		c.Header(RequestIDHeader, requestID)
+		c.Request = c.Request.WithContext(requestctx.WithRequestID(c.Request.Context(), requestID))
 
 		c.Next()
 	}

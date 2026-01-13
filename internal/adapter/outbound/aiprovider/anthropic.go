@@ -82,8 +82,10 @@ func (a *AnthropicAdapter) Chat(ctx context.Context, req *model.AIChatRequest, m
 		} `json:"content"`
 		StopReason string `json:"stop_reason"`
 		Usage      struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
+			InputTokens              int `json:"input_tokens"`
+			OutputTokens             int `json:"output_tokens"`
+			CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
+			CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
 		} `json:"usage"`
 	}
 
@@ -108,9 +110,11 @@ func (a *AnthropicAdapter) Chat(ctx context.Context, req *model.AIChatRequest, m
 		},
 		FinishReason: a.mapStopReason(anthropicResp.StopReason),
 		Usage: &model.AIUsage{
-			PromptTokens:     anthropicResp.Usage.InputTokens,
-			CompletionTokens: anthropicResp.Usage.OutputTokens,
-			TotalTokens:      anthropicResp.Usage.InputTokens + anthropicResp.Usage.OutputTokens,
+			PromptTokens:             anthropicResp.Usage.InputTokens,
+			CompletionTokens:         anthropicResp.Usage.OutputTokens,
+			TotalTokens:              anthropicResp.Usage.InputTokens + anthropicResp.Usage.OutputTokens,
+			CacheCreationInputTokens: anthropicResp.Usage.CacheCreationInputTokens,
+			CacheReadInputTokens:     anthropicResp.Usage.CacheReadInputTokens,
 		},
 	}, nil
 }
